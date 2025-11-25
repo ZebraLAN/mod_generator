@@ -500,12 +500,26 @@ class ModProject:
         return os.path.relpath(dest_path, project_dir)
 
     def load(self, file_path: str):
-        """从文件加载项目"""
+        """从文件加载项目
+
+        Returns:
+            bool: 加载成功返回 True，失败返回 False
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            print(f"项目文件不存在: {file_path}")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"项目文件格式错误: {e}")
+            return False
+        except Exception as e:
+            print(f"加载项目文件失败: {e}")
+            return False
+
         self.file_path = file_path
         project_dir = os.path.dirname(file_path)
-
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
 
         self.name = data.get("name", "MyNewMod")
         self.code_name = data.get("code_name", "MyNewMod")
@@ -754,11 +768,16 @@ class ModGeneratorGUI:
         self.current_weapon_index = -1
         self.show_import_dialog = False
         self.import_file_path = ""
+        self.import_conflicts = []  # 存储导入冲突信息
         self.current_texture_field = ""
         self.texture_preview_cache = {}
         self.selected_model = "Human Male"  # 默认模特组
-        self.show_valid_area_box = False  # 是否显示有效显示区域
         self.preview_states = {}  # 存储预览状态 (paused, current_frame)
+
+        # 弹窗状态
+        self.show_error_popup = False
+        self.show_save_popup = False
+        self.show_success_popup = False
 
         # Byte类型的属性 (需要限制非负)
         self.byte_attributes = {
@@ -920,8 +939,8 @@ class ModGeneratorGUI:
                         glyph_ranges=self.io.fonts.get_glyph_ranges_default(),
                     )
                     primary_loaded = True
-                except:
-                    pass
+                except Exception as e:
+                    print(f"加载默认英文字体失败: {e}")
 
             # 如果还是不行，使用 imgui 默认字体
             if not primary_loaded:
@@ -958,7 +977,8 @@ class ModGeneratorGUI:
 
                 try:
                     ranges = self.io.fonts.get_glyph_ranges_chinese_full()
-                except:
+                except AttributeError:
+                    # 某些 pyimgui 版本可能没有 get_glyph_ranges_chinese_full
                     ranges = self.io.fonts.get_glyph_ranges_chinese()
 
                 print(f"加载中文字体 (Merge): {target_fallback_path}")
@@ -1009,15 +1029,15 @@ class ModGeneratorGUI:
         return files
 
     def draw_common_popups(self):
-        if hasattr(self, "show_error_popup") and self.show_error_popup:
+        if self.show_error_popup:
             imgui.open_popup("错误")
             self.show_error_popup = False
 
-        if hasattr(self, "show_save_popup") and self.show_save_popup:
+        if self.show_save_popup:
             imgui.open_popup("保存项目")
             self.show_save_popup = False
 
-        if hasattr(self, "show_success_popup") and self.show_success_popup:
+        if self.show_success_popup:
             imgui.open_popup("生成成功")
             self.show_success_popup = False
 
@@ -1773,11 +1793,6 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip("设置预览图的显示倍率 (默认 4.0)")
 
-        imgui.same_line()
-        imgui.checkbox("显示有效范围框", self.show_valid_area_box)
-        if imgui.is_item_clicked():
-            self.show_valid_area_box = not self.show_valid_area_box
-
         # 模特选择
         imgui.text("预览模特")
         current_model_label = CHARACTER_MODEL_LABELS.get(
@@ -1876,6 +1891,17 @@ class ModGeneratorGUI:
         self.draw_indented_separator()
         self.draw_texture_selector("战利品贴图*", weapon.textures.loot, "loot", weapon)
 
+    def _import_and_resolve_texture(self, source_path: str) -> str:
+        """导入贴图并返回解析后的绝对路径
+
+        如果项目已保存，将贴图导入到 assets 目录并返回绝对路径。
+        如果项目未保存，直接返回源路径。
+        """
+        if self.project.file_path:
+            rel_path = self.project.import_texture(source_path)
+            return os.path.join(os.path.dirname(self.project.file_path), rel_path)
+        return source_path
+
     def draw_texture_selector(
         self, label: str, current_path: str, field_identifier, weapon=None
     ):
@@ -1904,15 +1930,7 @@ class ModGeneratorGUI:
                         paths = [paths]
 
                     for path in paths:
-                        # 导入并添加到帧列表
-                        if self.project.file_path:
-                            rel_path = self.project.import_texture(path)
-                            final_path = os.path.join(
-                                os.path.dirname(self.project.file_path), rel_path
-                            )
-                        else:
-                            final_path = path
-
+                        final_path = self._import_and_resolve_texture(path)
                         frames.append(final_path)
 
                     # 如果是第一帧，同时也更新主路径以便兼容
@@ -2041,28 +2059,14 @@ class ModGeneratorGUI:
 
                     # 处理第一个文件作为主贴图
                     first_path = paths[0]
-
-                    if self.project.file_path:
-                        rel_path = self.project.import_texture(first_path)
-                        final_path_0 = os.path.join(
-                            os.path.dirname(self.project.file_path), rel_path
-                        )
-                    else:
-                        final_path_0 = first_path
-
+                    final_path_0 = self._import_and_resolve_texture(first_path)
                     self.apply_texture_selection(final_path_0, field_identifier)
 
                     # 如果是动画字段，且选择了多个文件，或者只是想把这一个作为第一帧
                     if is_anim_field:
                         frames.clear()  # 重新选择文件时清空旧帧
                         for path in paths:
-                            if self.project.file_path:
-                                rel_path = self.project.import_texture(path)
-                                final_path = os.path.join(
-                                    os.path.dirname(self.project.file_path), rel_path
-                                )
-                            else:
-                                final_path = path
+                            final_path = self._import_and_resolve_texture(path)
                             frames.append(final_path)
 
             imgui.same_line()
@@ -2089,13 +2093,7 @@ class ModGeneratorGUI:
                             paths = [paths]
 
                         for path in paths:
-                            if self.project.file_path:
-                                rel_path = self.project.import_texture(path)
-                                final_path = os.path.join(
-                                    os.path.dirname(self.project.file_path), rel_path
-                                )
-                            else:
-                                final_path = path
+                            final_path = self._import_and_resolve_texture(path)
                             frames.append(final_path)
 
         # 预览逻辑
@@ -2424,6 +2422,7 @@ class ModGeneratorGUI:
                     )
                     if success:
                         if conflicts:
+                            self.import_conflicts = conflicts  # 保存到实例变量
                             imgui.open_popup("导入冲突")
                         else:
                             self.show_import_dialog = False
@@ -2440,10 +2439,11 @@ class ModGeneratorGUI:
             # 显示冲突信息
             if imgui.begin_popup_modal("导入冲突")[0]:
                 imgui.text("以下武器名称冲突，已自动重命名:")
-                for conflict in conflicts:
+                for conflict in self.import_conflicts:
                     imgui.text(f"  • {conflict}")
                 if imgui.button("确定"):
                     imgui.close_current_popup()
+                    self.import_conflicts = []  # 清空
                     self.show_import_dialog = False
                 imgui.end_popup()
 
@@ -2484,10 +2484,14 @@ class ModGeneratorGUI:
         if directory:
             file_path = os.path.join(directory, "project.json")
             if os.path.exists(file_path):
-                self.project.load(file_path)
+                if not self.project.load(file_path):
+                    self.error_message = "无法加载项目文件，文件可能已损坏"
+                    self.show_error_popup = True
+                else:
+                    self.current_weapon_index = -1  # 重置选择
             else:
-                # 可以在这里添加未找到文件的提示，或者简单地不做任何事
-                print(f"在 {directory} 中未找到 project.json")
+                self.error_message = f"在 {directory} 中未找到 project.json"
+                self.show_error_popup = True
 
     def save_project_dialog(self):
         # 保留此方法以兼容旧调用，但实际上已简化
@@ -2638,9 +2642,8 @@ class ModGeneratorGUI:
             self.show_success_popup = True
         except Exception as e:
             print(f"生成模组时发生错误: {e}")
-            # 这里我们可能需要一个"生成失败"的弹窗，或者复用"错误"弹窗
-            # 为了简单，我们在控制台打印错误
-            pass
+            self.error_message = f"生成模组失败:\n{e}"
+            self.show_error_popup = True
 
     def copy_texture(self, src_path, dst_path, mask_offsets=None):
         """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行裁剪(透明化)"""
