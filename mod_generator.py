@@ -279,11 +279,8 @@ class WeaponTextures:
 
     # 帧动画支持
     character_frames: List[str] = field(default_factory=list)
-    character_fps: int = 15
     character_left_frames: List[str] = field(default_factory=list)
-    character_left_fps: int = 15
     loot_frames: List[str] = field(default_factory=list)
-    loot_fps: int = 15
 
 
 @dataclass
@@ -462,17 +459,14 @@ class ModProject:
                         self._get_relative_path(p, project_dir)
                         for p in weapon.textures.character_frames
                     ],
-                    "character_fps": weapon.textures.character_fps,
                     "character_left_frames": [
                         self._get_relative_path(p, project_dir)
                         for p in weapon.textures.character_left_frames
                     ],
-                    "character_left_fps": weapon.textures.character_left_fps,
                     "loot_frames": [
                         self._get_relative_path(p, project_dir)
                         for p in weapon.textures.loot_frames
                     ],
-                    "loot_fps": weapon.textures.loot_fps,
                 },
             }
             data["weapons"].append(weapon_data)
@@ -610,11 +604,8 @@ class ModProject:
                 offset_x_left=tex_data.get("offset_x_left", 0),
                 offset_y_left=tex_data.get("offset_y_left", 0),
                 character_frames=char_frames,
-                character_fps=tex_data.get("character_fps", 15),
                 character_left_frames=char_left_frames,
-                character_left_fps=tex_data.get("character_left_fps", 15),
                 loot_frames=loot_frames,
-                loot_fps=tex_data.get("loot_fps", 15),
             )
 
             self.weapons.append(weapon)
@@ -1934,12 +1925,10 @@ class ModGeneratorGUI:
 
         # 动画相关数据
         frames = []
-        fps = 15
         is_anim_field = False
         if weapon and field_identifier in ["character", "character_left", "loot"]:
             is_anim_field = True
             frames = getattr(weapon.textures, f"{field_identifier}_frames")
-            fps = getattr(weapon.textures, f"{field_identifier}_fps")
 
         # 如果是动画模式且有帧数据，显示动画管理界面
         if is_anim_field and frames:
