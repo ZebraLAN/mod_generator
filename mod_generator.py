@@ -1,39 +1,35 @@
-import os
+import copy
 import json
+import os
 import re
-import imgui
+import shutil
 import sys
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from tkinter import filedialog
+from typing import Any, Dict, List
+
 import glfw
+import imgui
+import tkinter as tk
 from imgui.integrations.glfw import GlfwRenderer
-
-BACKEND = "glfw"
-print("使用 GLFW 后端")
-
 from OpenGL.GL import (
+    GL_COLOR_BUFFER_BIT,
+    GL_NEAREST,
+    GL_RGBA,
+    GL_TEXTURE_2D,
+    GL_TEXTURE_MAG_FILTER,
+    GL_TEXTURE_MIN_FILTER,
+    GL_UNSIGNED_BYTE,
+    glBindTexture,
     glClear,
     glClearColor,
-    GL_COLOR_BUFFER_BIT,
+    glDeleteTextures,
     glGenTextures,
-    glBindTexture,
     glTexImage2D,
     glTexParameteri,
-    glDeleteTextures,
-    GL_TEXTURE_2D,
-    GL_RGBA,
-    GL_UNSIGNED_BYTE,
-    GL_LINEAR,
-    GL_NEAREST,  # Added GL_NEAREST
-    GL_TEXTURE_MIN_FILTER,
-    GL_TEXTURE_MAG_FILTER,
 )
-import shutil
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-import glob
-import tkinter as tk
-from tkinter import filedialog
 
 try:
     from PIL import Image
@@ -60,22 +56,6 @@ WEAPONS_SLOT = [
 ]
 WEAPONS_RARITY = ["Common", "Unique"]
 WEAPONS_MATERIAL = ["wood", "metal", "leather"]
-WEAPONS_TAGS = [
-    "unique",
-    "magic",
-    "special",
-    "special exc",
-    "WIP",
-    "aldor",
-    "aldor common",
-    "aldor uncommon",
-    "aldor rare",
-    "aldor magic",
-    "fjall",
-    "elven",
-    "skadia",
-    "nistra",
-]
 
 TIER_LABELS = {tier: str(idx + 1) for idx, tier in enumerate(WEAPONS_TIER)}
 HIDDEN_SLOTS = {"sling"}
@@ -262,7 +242,7 @@ SUPPORTED_LANGUAGES = [
     "Polski",
     "Türkçe",
     "日本語",
-    " 한국어",
+    "한국어",
 ]
 
 
@@ -680,10 +660,14 @@ class ModProject:
             print(f"共清理了 {cleaned_count} 个未使用文件")
 
     def import_project(self, other_project_path: str):
-        """导入另一个项目"""
+        """导入另一个项目
+
+        Returns:
+            tuple: (success: bool, message: str, conflicts: list)
+        """
         other_project = ModProject()
         if not other_project.load(other_project_path):
-            return False, "无法加载项目文件"
+            return False, "无法加载项目文件", []
 
         imported_count = 0
         conflicts = []
@@ -770,13 +754,8 @@ class ModGeneratorGUI:
         self.current_weapon_index = -1
         self.show_import_dialog = False
         self.import_file_path = ""
-        self.show_texture_dialog = False
         self.current_texture_field = ""
-        self.show_attribute_dialog = False
-        self.current_attribute = ""
-        self.attribute_value = 0
         self.texture_preview_cache = {}
-        self.temp_texture_path = ""
         self.selected_model = "Human Male"  # 默认模特组
         self.show_valid_area_box = False  # 是否显示有效显示区域
         self.preview_states = {}  # 存储预览状态 (paused, current_frame)
@@ -1042,8 +1021,9 @@ class ModGeneratorGUI:
             imgui.open_popup("生成成功")
             self.show_success_popup = False
 
+        # 生成成功弹窗
+        imgui.set_next_window_size(600, 300, imgui.ONCE)
         if imgui.begin_popup_modal("生成成功")[0]:
-            imgui.set_next_window_size(600, 300)
             # 计算实际输出路径
             base_dir = (
                 os.path.dirname(self.project.file_path)
@@ -1069,17 +1049,18 @@ class ModGeneratorGUI:
                 imgui.close_current_popup()
             imgui.end_popup()
 
+        # 错误弹窗
+        imgui.set_next_window_size(400, 300, imgui.ONCE)
         if imgui.begin_popup_modal("错误")[0]:
-            # 设置窗口大小，避免过窄过高
-            imgui.set_next_window_size(400, 300)
             error_text = getattr(self, "error_message", "发生未知错误")
             imgui.text_wrapped(error_text)
             if imgui.button("确定"):
                 imgui.close_current_popup()
             imgui.end_popup()
 
+        # 保存项目弹窗
+        imgui.set_next_window_size(300, 150, imgui.ONCE)
         if imgui.begin_popup_modal("保存项目")[0]:
-            imgui.set_next_window_size(300, 150)
             imgui.text("生成模组前需要先保存项目。")
             imgui.text("是否现在保存？")
 
@@ -1117,9 +1098,6 @@ class ModGeneratorGUI:
 
             if self.show_import_dialog:
                 self.draw_import_dialog()
-
-            if self.show_attribute_dialog:
-                self.draw_attribute_dialog()
 
             # 绘制通用弹窗
             self.draw_common_popups()
@@ -1441,8 +1419,6 @@ class ModGeneratorGUI:
         imgui.same_line()
 
         if imgui.button("复制选中武器") and self.current_weapon_index >= 0:
-            import copy
-
             source_weapon = self.project.weapons[self.current_weapon_index]
             new_weapon = copy.deepcopy(source_weapon)
 
@@ -1521,9 +1497,6 @@ class ModGeneratorGUI:
             slot_options = [slot for slot in WEAPONS_SLOT if slot not in HIDDEN_SLOTS]
             if weapon.slot not in slot_options:
                 slot_options.append(weapon.slot)
-            current_slot = (
-                slot_options.index(weapon.slot) if weapon.slot in slot_options else 0
-            )
             slot_label = SLOT_LABELS.get(weapon.slot, weapon.slot)
             if imgui.begin_combo("槽位", slot_label):
                 for slot in slot_options:
@@ -1540,20 +1513,6 @@ class ModGeneratorGUI:
                             weapon.textures.offset_y_left = 0
 
                 imgui.end_combo()
-
-            current_rarity = (
-                WEAPONS_RARITY.index(weapon.rarity)
-                if weapon.rarity in WEAPONS_RARITY
-                else 0
-            )
-            rarity_label = RARITY_LABELS.get(weapon.rarity, weapon.rarity)
-            # 稀有度现在由标签自动控制，不再显示在此处
-            # if imgui.begin_combo("稀有度", rarity_label):
-            #     for i, rarity in enumerate(WEAPONS_RARITY):
-            #         display = RARITY_LABELS.get(rarity, rarity)
-            #         if imgui.selectable(display, i == current_rarity)[0]:
-            #             weapon.rarity = rarity
-            #     imgui.end_combo()
 
             current_mat = (
                 WEAPONS_MATERIAL.index(weapon.mat)
@@ -2218,7 +2177,6 @@ class ModGeneratorGUI:
     def draw_preview_with_reference(
         self, preview, field_identifier, override_size=None
     ):
-        max_display_width = 120
         scale = self.texture_scale  # 使用用户设置的倍率
 
         # 预览图实际尺寸
@@ -2498,114 +2456,28 @@ class ModGeneratorGUI:
 
             imgui.end_popup()
 
-    def draw_texture_dialog(self):
-        imgui.open_popup("选择贴图文件")
-
-        # 设置初始大小，避免太窄
-        imgui.set_next_window_size(600, 160)
-
-        if imgui.begin_popup_modal("选择贴图文件")[0]:
-            imgui.text("选择PNG文件:")
-
-            # 使用临时变量存储路径
-            if not hasattr(self, "temp_texture_path"):
-                self.temp_texture_path = ""
-
-            # 增加输入框宽度
-            imgui.push_item_width(480)
-            changed, self.temp_texture_path = imgui.input_text(
-                "##path", self.temp_texture_path, 512
-            )
-            imgui.pop_item_width()
-
-            imgui.same_line()
-
-        if imgui.button("浏览"):
-            path = self.file_dialog([("PNG文件", "*.png")])
-            if path:
-                self.temp_texture_path = path
-                # 直接应用选择
-                self.apply_texture_selection(path)
-                self.show_texture_dialog = False
-                self.temp_texture_path = ""
-
-        imgui.same_line()
-
-        if imgui.button("取消"):
-            self.show_texture_dialog = False
-            self.temp_texture_path = ""
-
-        imgui.separator()
-        imgui.text("注意: 仅支持 PNG 格式图片")
-
-        imgui.end_popup()
-
-    def draw_attribute_dialog(self):
-        imgui.open_popup("编辑属性")
-        if imgui.begin_popup_modal("编辑属性")[0]:
-            imgui.text(f"属性: {self.current_attribute}")
-            desc = ATTRIBUTE_DESCRIPTIONS.get(self.current_attribute, ("", ""))
-            if desc[1]:
-                imgui.text_wrapped(f"描述: {desc[1]}")
-
-            changed, self.attribute_value = imgui.input_int("值", self.attribute_value)
-
-            if imgui.button("确定"):
-                weapon = self.project.weapons[self.current_weapon_index]
-                weapon.attributes[self.current_attribute] = self.attribute_value
-                self.show_attribute_dialog = False
-
-            imgui.same_line()
-
-            if imgui.button("取消"):
-                self.show_attribute_dialog = False
-
-            imgui.end_popup()
-
     def file_dialog(self, file_types=None, multiple=False):
         """使用 tkinter 调用系统文件对话框"""
+        root = None
         try:
             root = tk.Tk()
             root.withdraw()  # 隐藏主窗口
             root.attributes("-topmost", True)  # 确保窗口在最前面
 
-            if file_types:
-                ftypes = file_types
-            else:
-                ftypes = [("All files", "*.*")]
+            ftypes = file_types if file_types else [("All files", "*.*")]
 
             if multiple:
                 file_paths = filedialog.askopenfilenames(filetypes=ftypes)
-                root.destroy()
                 return list(file_paths) if file_paths else []
             else:
                 file_path = filedialog.askopenfilename(filetypes=ftypes)
-                root.destroy()
                 return file_path
         except Exception as e:
             print(f"文件对话框错误: {e}")
             return [] if multiple else ""
-
-    def save_file_dialog(self, default_ext=".json", file_types=None):
-        """使用 tkinter 调用系统保存文件对话框"""
-        try:
-            root = tk.Tk()
-            root.withdraw()
-            root.attributes("-topmost", True)
-
-            if file_types:
-                ftypes = file_types
-            else:
-                ftypes = [("All files", "*.*")]
-
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=default_ext, filetypes=ftypes
-            )
-            root.destroy()
-            return file_path
-        except Exception as e:
-            print(f"保存文件对话框错误: {e}")
-            return ""
+        finally:
+            if root:
+                root.destroy()
 
     def open_project_dialog(self):
         directory = self.select_directory_dialog()
@@ -2624,16 +2496,18 @@ class ModGeneratorGUI:
 
     def select_directory_dialog(self):
         """选择目录对话框"""
+        root = None
         try:
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
-            path = filedialog.askdirectory()
-            root.destroy()
-            return path
+            return filedialog.askdirectory()
         except Exception as e:
             print(f"目录选择错误: {e}")
             return ""
+        finally:
+            if root:
+                root.destroy()
 
     def generate_mod(self):
         """生成模组文件"""
@@ -2997,7 +2871,7 @@ public class {code_namespace} : Mod
             "Polski": "ModLanguage.Polish",
             "Türkçe": "ModLanguage.Turkish",
             "日本語": "ModLanguage.Japanese",
-            " 한국어": "ModLanguage.Korean",
+            "한국어": "ModLanguage.Korean",
         }
 
         for lang_key, lang_enum in lang_map.items():
@@ -3049,9 +2923,9 @@ public class {code_namespace} : Mod
 
             # 处理右手/默认手持
             if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
-                # 计算实际值: 34 + y, 22 + x
-                val_y = 34 + weapon.textures.offset_y
-                val_x = 22 + weapon.textures.offset_x
+                # 计算实际值: GML_ANCHOR_Y + y, GML_ANCHOR_X + x
+                val_y = GML_ANCHOR_Y + weapon.textures.offset_y
+                val_x = GML_ANCHOR_X + weapon.textures.offset_x
                 sprite_name = f"s_char_{weapon.id}"
 
                 # 使用换行符构建多行代码，注意每行结尾需要 \n
@@ -3070,8 +2944,8 @@ public class {code_namespace} : Mod
             if weapon.textures.character_left and (
                 weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0
             ):
-                val_y = 34 + weapon.textures.offset_y_left
-                val_x = 22 + weapon.textures.offset_x_left
+                val_y = GML_ANCHOR_Y + weapon.textures.offset_y_left
+                val_x = GML_ANCHOR_X + weapon.textures.offset_x_left
                 sprite_name = f"s_charleft_{weapon.id}"
 
                 gml_code_block += f"pushi.e {val_y}\n"
