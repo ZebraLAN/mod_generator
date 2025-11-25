@@ -1483,7 +1483,7 @@ class ModGeneratorGUI:
         imgui.push_item_width(150)
         changed, weapon.textures.offset_x = imgui.input_int("水平偏移##right", weapon.textures.offset_x)
         if imgui.is_item_hovered():
-             imgui.set_tooltip("正数代表人物向右偏移，负数向左")
+            imgui.set_tooltip("正数代表人物向右偏移，负数向左")
         
         imgui.same_line()
         imgui.dummy(10, 0) # 添加间距
@@ -1491,7 +1491,7 @@ class ModGeneratorGUI:
         
         changed, weapon.textures.offset_y = imgui.input_int("垂直偏移##right", weapon.textures.offset_y)
         if imgui.is_item_hovered():
-             imgui.set_tooltip("正数代表人物向下偏移，负数向上")
+            imgui.set_tooltip("正数代表人物向下偏移，负数向上")
         imgui.pop_item_width()
         
         self.draw_indented_separator()
@@ -1499,28 +1499,28 @@ class ModGeneratorGUI:
         # 左手持握贴图（仅特定单手武器显示）
         left_hand_slots = ["dagger", "mace", "sword", "axe"]
         if weapon.slot in left_hand_slots:
-             self.draw_texture_selector("左手手持贴图*", weapon.textures.character_left, "character_left", weapon)
+            self.draw_texture_selector("左手手持贴图*", weapon.textures.character_left, "character_left", weapon)
              
-             # 左手贴图偏移设置
-             imgui.text("左手贴图偏移")
-             if imgui.is_item_hovered():
+            # 左手贴图偏移设置
+            imgui.text("左手贴图偏移")
+            if imgui.is_item_hovered():
                 imgui.set_tooltip("调整左手手持贴图相对于人物手部的偏移位置")
                 
-             imgui.push_item_width(150)
-             changed, weapon.textures.offset_x_left = imgui.input_int("水平偏移##left", weapon.textures.offset_x_left)
-             if imgui.is_item_hovered():
-                  imgui.set_tooltip("正数代表人物向右偏移，负数向左")
+            imgui.push_item_width(150)
+            changed, weapon.textures.offset_x_left = imgui.input_int("水平偏移##left", weapon.textures.offset_x_left)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("正数代表人物向右偏移，负数向左")
              
-             imgui.same_line()
-             imgui.dummy(10, 0) # 添加间距
-             imgui.same_line()
+            imgui.same_line()
+            imgui.dummy(10, 0) # 添加间距
+            imgui.same_line()
              
-             changed, weapon.textures.offset_y_left = imgui.input_int("垂直偏移##left", weapon.textures.offset_y_left)
-             if imgui.is_item_hovered():
-                  imgui.set_tooltip("正数代表人物向下偏移，负数向上")
-             imgui.pop_item_width()
+            changed, weapon.textures.offset_y_left = imgui.input_int("垂直偏移##left", weapon.textures.offset_y_left)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("正数代表人物向下偏移，负数向上")
+            imgui.pop_item_width()
              
-             self.draw_indented_separator()
+            self.draw_indented_separator()
         
         imgui.text("常规贴图（顺序越靠后耐久越低）")
         if imgui.is_item_hovered():
@@ -1845,12 +1845,12 @@ class ModGeneratorGUI:
         start_pos = imgui.get_cursor_screen_pos()
         
         if is_handheld:
-             # 加载参考图 - 使用选定的模特
-             # 确保 weapon 对象存在
-             if self.current_weapon_index >= 0 and self.current_weapon_index < len(self.project.weapons):
-                 weapon = self.project.weapons[self.current_weapon_index]
-             else:
-                 return # 无法获取武器信息，不绘制
+            # 加载参考图 - 使用选定的模特
+            # 确保 weapon 对象存在
+            if self.current_weapon_index >= 0 and self.current_weapon_index < len(self.project.weapons):
+                weapon = self.project.weapons[self.current_weapon_index]
+            else:
+                return # 无法获取武器信息，不绘制
                  
             # 根据武器类型选择姿态
             # 单手动作: dagger, mace, sword, axe, spear, bow -> 使用 index 0
@@ -1858,87 +1858,87 @@ class ModGeneratorGUI:
             use_single_hand_pose = weapon.slot in ["dagger", "mace", "sword", "axe", "spear", "bow"]
             pose_index = 0 if use_single_hand_pose else 1
              
-             model_files = CHARACTER_MODELS.get(self.selected_model, ["s_elf_male_0.png", "s_elf_male_1.png"])
-             # 确保索引不越界
-             if pose_index >= len(model_files):
-                 pose_index = 0
+            model_files = CHARACTER_MODELS.get(self.selected_model, ["s_elf_male_0.png", "s_elf_male_1.png"])
+            # 确保索引不越界
+            if pose_index >= len(model_files):
+                pose_index = 0
                  
-             ref_img_name = model_files[pose_index]
+            ref_img_name = model_files[pose_index]
              
-             ref_path = os.path.join("resources", ref_img_name)
-             if not os.path.exists(ref_path):
-                 ref_path = ref_img_name
+            ref_path = os.path.join("resources", ref_img_name)
+            if not os.path.exists(ref_path):
+                ref_path = ref_img_name
              
-             ref_preview = self.get_texture_preview(ref_path)
+            ref_preview = self.get_texture_preview(ref_path)
              
-             if ref_preview:
-                 # 获取偏移量
-                 off_x = weapon.textures.offset_x
-                 off_y = weapon.textures.offset_y
-                 if field_identifier == "character_left":
-                     off_x = weapon.textures.offset_x_left
-                     off_y = weapon.textures.offset_y_left
+            if ref_preview:
+                # 获取偏移量
+                off_x = weapon.textures.offset_x
+                off_y = weapon.textures.offset_y
+                if field_identifier == "character_left":
+                    off_x = weapon.textures.offset_x_left
+                    off_y = weapon.textures.offset_y_left
 
-                 # 计算局部坐标系下的包围盒
-                 # 参考图原点 (off_x, off_y) -> 人物向右偏移 (+x), 向下偏移 (+y)
-                 # 按照用户新需求：
-                 # 水平正数 -> 人物向右偏移
-                 # 垂直正数 -> 人物向下偏移 (这与之前相反，之前是向上)
+                # 计算局部坐标系下的包围盒
+                # 参考图原点 (off_x, off_y) -> 人物向右偏移 (+x), 向下偏移 (+y)
+                # 按照用户新需求：
+                # 水平正数 -> 人物向右偏移
+                # 垂直正数 -> 人物向下偏移 (这与之前相反，之前是向上)
                  
-                 # 为了实现“人物向右偏移”，参考图的绘制位置 x 应该增加 offset_x
-                 # 为了实现“人物向下偏移”，参考图的绘制位置 y 应该增加 offset_y (屏幕坐标系y向下增加)
+                # 为了实现“人物向右偏移”，参考图的绘制位置 x 应该增加 offset_x
+                # 为了实现“人物向下偏移”，参考图的绘制位置 y 应该增加 offset_y (屏幕坐标系y向下增加)
                  
-                 ref_draw_offset_x = off_x
-                 ref_draw_offset_y = off_y
+                ref_draw_offset_x = off_x
+                ref_draw_offset_y = off_y
                  
-                 # 武器绘制位置保持在原点(0,0)相对位置不变，我们移动参考图
-                 # 参考图 rect
-                 ref_rect = (ref_draw_offset_x, ref_draw_offset_y, ref_draw_offset_x + ref_preview["width"], ref_draw_offset_y + ref_preview["height"])
-                 # 武器图 rect (使用 box_w, box_h)
-                 wep_rect = (0, 0, box_w, box_h)
+                # 武器绘制位置保持在原点(0,0)相对位置不变，我们移动参考图
+                # 参考图 rect
+                ref_rect = (ref_draw_offset_x, ref_draw_offset_y, ref_draw_offset_x + ref_preview["width"], ref_draw_offset_y + ref_preview["height"])
+                # 武器图 rect (使用 box_w, box_h)
+                wep_rect = (0, 0, box_w, box_h)
                  
-                 # 计算并集包围盒
-                 min_x = min(ref_rect[0], wep_rect[0])
-                 min_y = min(ref_rect[1], wep_rect[1])
-                 max_x = max(ref_rect[2], wep_rect[2])
-                 max_y = max(ref_rect[3], wep_rect[3])
+                # 计算并集包围盒
+                min_x = min(ref_rect[0], wep_rect[0])
+                min_y = min(ref_rect[1], wep_rect[1])
+                max_x = max(ref_rect[2], wep_rect[2])
+                max_y = max(ref_rect[3], wep_rect[3])
                  
-                 total_width = max_x - min_x
-                 total_height = max_y - min_y
+                total_width = max_x - min_x
+                total_height = max_y - min_y
                  
-                 # 绘制棋盘背景 (覆盖整个包围盒)
-                 self.draw_checkerboard(
-                     draw_list, 
-                     start_pos, 
-                     (start_pos[0] + total_width * scale, start_pos[1] + total_height * scale),
-                     cell_size=int(8 * scale) # 根据倍率动态调整格子大小
-                 )
+                # 绘制棋盘背景 (覆盖整个包围盒)
+                self.draw_checkerboard(
+                    draw_list, 
+                    start_pos, 
+                    (start_pos[0] + total_width * scale, start_pos[1] + total_height * scale),
+                    cell_size=int(8 * scale) # 根据倍率动态调整格子大小
+                )
                  
-                 # 绘制参考图 (减去 min_x/min_y 以对齐到左上角)
-                 ref_final_x = start_pos[0] + (ref_draw_offset_x - min_x) * scale
-                 ref_final_y = start_pos[1] + (ref_draw_offset_y - min_y) * scale
-                 draw_list.add_image(
-                     ref_preview["tex_id"],
-                     (float(ref_final_x), float(ref_final_y)),
-                     (float(ref_final_x + ref_preview["width"] * scale), float(ref_final_y + ref_preview["height"] * scale))
-                 )
+                # 绘制参考图 (减去 min_x/min_y 以对齐到左上角)
+                ref_final_x = start_pos[0] + (ref_draw_offset_x - min_x) * scale
+                ref_final_y = start_pos[1] + (ref_draw_offset_y - min_y) * scale
+                draw_list.add_image(
+                    ref_preview["tex_id"],
+                    (float(ref_final_x), float(ref_final_y)),
+                    (float(ref_final_x + ref_preview["width"] * scale), float(ref_final_y + ref_preview["height"] * scale))
+                )
                  
-                 # 绘制武器图
-                 # 武器图左上角在 (0,0)，所以也是减去 min_x/min_y
-                 wep_final_x = start_pos[0] + (0 - min_x) * scale
-                 wep_final_y = start_pos[1] + (0 - min_y) * scale
+                # 绘制武器图
+                # 武器图左上角在 (0,0)，所以也是减去 min_x/min_y
+                wep_final_x = start_pos[0] + (0 - min_x) * scale
+                wep_final_y = start_pos[1] + (0 - min_y) * scale
                  
-                 # 注意：虽然包围盒是 box_w x box_h，但实际绘制的纹理是 tex_w x tex_h
-                 # 默认左上角对齐
-                 draw_list.add_image(
-                     preview["tex_id"], 
-                     (float(wep_final_x), float(wep_final_y)), 
-                     (float(wep_final_x + tex_w * scale), float(wep_final_y + tex_h * scale))
-                 )
+                # 注意：虽然包围盒是 box_w x box_h，但实际绘制的纹理是 tex_w x tex_h
+                # 默认左上角对齐
+                draw_list.add_image(
+                    preview["tex_id"], 
+                    (float(wep_final_x), float(wep_final_y)), 
+                    (float(wep_final_x + tex_w * scale), float(wep_final_y + tex_h * scale))
+                )
                  
-                 # 占位
-                 imgui.dummy(total_width * scale, total_height * scale)
-                 return
+                # 占位
+                imgui.dummy(total_width * scale, total_height * scale)
+                return
 
         # 默认绘制逻辑 (非手持或无参考图)
         width = tex_w * scale
@@ -1950,10 +1950,10 @@ class ModGeneratorGUI:
         
         # 绘制棋盘背景
         self.draw_checkerboard(
-             draw_list, 
-             start_pos, 
-             (start_pos[0] + bg_width, start_pos[1] + bg_height),
-             cell_size=int(8 * scale) # 根据倍率动态调整格子大小
+            draw_list, 
+            start_pos, 
+            (start_pos[0] + bg_width, start_pos[1] + bg_height),
+            cell_size=int(8 * scale) # 根据倍率动态调整格子大小
         )
         
         # 使用 draw_list 绘制图片，确保居中或左上对齐
