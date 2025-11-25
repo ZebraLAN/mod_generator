@@ -508,8 +508,75 @@ class ModProject:
             
             self.weapons.append(weapon)
             
+        # 加载后执行清理和检查
+        self.clean_invalid_data()
+        self.clean_unused_assets()
+            
         return True
     
+    def clean_invalid_data(self):
+        """清理无效的武器数据（如非左手武器的左手贴图信息）"""
+        # 定义支持左手贴图的槽位
+        left_hand_slots = ["dagger", "mace", "sword", "axe"]
+        
+        for weapon in self.weapons:
+            # 清理左手贴图数据
+            if weapon.slot not in left_hand_slots:
+                weapon.textures.character_left = ""
+                weapon.textures.character_left_frames = []
+                weapon.textures.offset_x_left = 0
+                weapon.textures.offset_y_left = 0
+                
+    def clean_unused_assets(self):
+        """清理未使用的资源文件"""
+        if not self.file_path:
+            return
+            
+        project_dir = os.path.dirname(self.file_path)
+        assets_dir = os.path.join(project_dir, "assets")
+        
+        if not os.path.exists(assets_dir):
+            return
+            
+        # 收集所有使用的文件路径
+        used_files = set()
+        for weapon in self.weapons:
+            paths = []
+            paths.append(weapon.textures.character)
+            paths.append(weapon.textures.character_left)
+            paths.append(weapon.textures.loot)
+            paths.extend(weapon.textures.inventory)
+            paths.extend(weapon.textures.character_frames)
+            paths.extend(weapon.textures.character_left_frames)
+            paths.extend(weapon.textures.loot_frames)
+            
+            for p in paths:
+                if p:
+                    # 统一转换为绝对路径以便比较
+                    if not os.path.isabs(p):
+                        full_p = os.path.join(project_dir, p)
+                    else:
+                        full_p = p
+                    used_files.add(os.path.normpath(full_p).lower())
+        
+        # 遍历 assets 目录
+        cleaned_count = 0
+        for root, dirs, files in os.walk(assets_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                norm_path = os.path.normpath(file_path).lower()
+                
+                if norm_path not in used_files:
+                    try:
+                        os.remove(file_path)
+                        cleaned_count += 1
+                        print(f"已清理未使用资源: {file}")
+                    except Exception as e:
+                        print(f"无法清理资源 {file}: {e}")
+                        
+        if cleaned_count > 0:
+            print(f"共清理了 {cleaned_count} 个未使用文件")
+
     def import_project(self, other_project_path: str):
         """导入另一个项目"""
         other_project = ModProject()
@@ -1247,6 +1314,15 @@ class ModGeneratorGUI:
                     display = SLOT_LABELS.get(slot, slot)
                     if imgui.selectable(display, slot == weapon.slot)[0]:
                         weapon.slot = slot
+                        
+                        # 切换槽位时清理无效的左手贴图数据
+                        left_hand_slots = ["dagger", "mace", "sword", "axe"]
+                        if weapon.slot not in left_hand_slots:
+                            weapon.textures.character_left = ""
+                            weapon.textures.character_left_frames = []
+                            weapon.textures.offset_x_left = 0
+                            weapon.textures.offset_y_left = 0
+                            
                 imgui.end_combo()
                 
             current_rarity = WEAPONS_RARITY.index(weapon.rarity) if weapon.rarity in WEAPONS_RARITY else 0
