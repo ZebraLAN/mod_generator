@@ -97,6 +97,28 @@ SLOT_BALANCE = {
     "chain": 2
 }
 
+# 渲染坐标系常量
+GML_ANCHOR_X = 22      # 游戏内默认原点 X (相对于人物/武器贴图左上角)
+GML_ANCHOR_Y = 34      # 游戏内默认原点 Y (相对于人物/武器贴图左上角)
+CHAR_IMG_W = 48        # 人物贴图宽
+CHAR_IMG_H = 40        # 人物贴图高
+CHAR_CENTER_X = CHAR_IMG_W // 2     # 人物中心 X (24)
+CHAR_CENTER_Y = CHAR_IMG_H // 2     # 人物中心 Y (20)
+VALID_AREA_SIZE = 64   # 有效显示区域边长 (64x64)
+
+# 有效区域相对于人物贴图左上角的坐标
+# ValidRect = [Center - 32, Center + 32]
+VALID_MIN_X = CHAR_CENTER_X - VALID_AREA_SIZE // 2  # -8
+VALID_MAX_X = CHAR_CENTER_X + VALID_AREA_SIZE // 2  # 56
+VALID_MIN_Y = CHAR_CENTER_Y - VALID_AREA_SIZE // 2  # -12
+VALID_MAX_Y = CHAR_CENTER_Y + VALID_AREA_SIZE // 2  # 52
+
+# 视口绘制时人物相对于64x64框左上角的偏移
+# 64x64框的中心是 (32, 32)，人物中心是 (24, 20)
+# 偏移 = 32 - 24 = 8, 32 - 20 = 12
+VIEWPORT_CHAR_OFFSET_X = 8
+VIEWPORT_CHAR_OFFSET_Y = 12
+
 # 属性描述
 ATTRIBUTE_DESCRIPTIONS = {
     'max_hp': ('生命上限', '你~r~死亡~/~之前可以承受这么多伤害。'),
@@ -1585,12 +1607,12 @@ class ModGeneratorGUI:
         # 手持贴图偏移设置 (右手)
         imgui.text("手持贴图偏移 (右手/默认)")
         if imgui.is_item_hovered():
-            imgui.set_tooltip("调整手持贴图相对于人物手部的偏移位置")
+            imgui.set_tooltip("调整武器相对于人物手部的相对位置")
             
         imgui.push_item_width(150)
         changed, weapon.textures.offset_x = imgui.input_int("水平偏移##right", weapon.textures.offset_x)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("正数代表人物向右偏移，负数向左")
+            imgui.set_tooltip("默认 0。正数使人物看起来向右（武器向左）。")
         
         imgui.same_line()
         imgui.dummy(10, 0) # 添加间距
@@ -1598,7 +1620,7 @@ class ModGeneratorGUI:
         
         changed, weapon.textures.offset_y = imgui.input_int("垂直偏移##right", weapon.textures.offset_y)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("正数代表人物向下偏移，负数向上")
+            imgui.set_tooltip("默认 0。正数使人物看起来向下（武器向上）。")
         imgui.pop_item_width()
         
         self.draw_indented_separator()
@@ -1611,12 +1633,12 @@ class ModGeneratorGUI:
             # 左手贴图偏移设置
             imgui.text("左手贴图偏移")
             if imgui.is_item_hovered():
-                imgui.set_tooltip("调整左手手持贴图相对于人物手部的偏移位置")
+                imgui.set_tooltip("调整武器相对于人物手部的相对位置")
                 
             imgui.push_item_width(150)
             changed, weapon.textures.offset_x_left = imgui.input_int("水平偏移##left", weapon.textures.offset_x_left)
             if imgui.is_item_hovered():
-                imgui.set_tooltip("正数代表人物向右偏移，负数向左")
+                imgui.set_tooltip("默认 0。正数使人物看起来向右（武器向左）。")
              
             imgui.same_line()
             imgui.dummy(10, 0) # 添加间距
@@ -1624,7 +1646,7 @@ class ModGeneratorGUI:
              
             changed, weapon.textures.offset_y_left = imgui.input_int("垂直偏移##left", weapon.textures.offset_y_left)
             if imgui.is_item_hovered():
-                imgui.set_tooltip("正数代表人物向下偏移，负数向上")
+                imgui.set_tooltip("默认 0。正数使人物看起来向下（武器向上）。")
             imgui.pop_item_width()
              
             self.draw_indented_separator()
@@ -1953,25 +1975,20 @@ class ModGeneratorGUI:
         
         if is_handheld:
             # 加载参考图 - 使用选定的模特
-            # 确保 weapon 对象存在
             if self.current_weapon_index >= 0 and self.current_weapon_index < len(self.project.weapons):
                 weapon = self.project.weapons[self.current_weapon_index]
             else:
-                return # 无法获取武器信息，不绘制
+                return # 无法获取武器信息
                  
             # 根据武器类型选择姿态
-            # 单手动作: dagger, mace, sword, axe, spear, bow -> 使用 index 0
-            # 双手动作: 其他 -> 使用 index 1
             use_single_hand_pose = weapon.slot in ["dagger", "mace", "sword", "axe", "spear", "bow"]
             pose_index = 0 if use_single_hand_pose else 1
-             
+            
             model_files = CHARACTER_MODELS.get(self.selected_model, ["s_elf_male_0.png", "s_elf_male_1.png"])
-            # 确保索引不越界
             if pose_index >= len(model_files):
                 pose_index = 0
                  
             ref_img_name = model_files[pose_index]
-             
             ref_path = os.path.join("resources", ref_img_name)
             if not os.path.exists(ref_path):
                 ref_path = ref_img_name
@@ -1979,117 +1996,86 @@ class ModGeneratorGUI:
             ref_preview = self.get_texture_preview(ref_path)
              
             if ref_preview:
-                # 获取偏移量
+                # 获取偏移量 (即 UI 上的 "水平偏移/垂直偏移")
+                # 用户视角：+X 表示人物向右移(武器向左移)，+Y 表示人物向下移(武器向上移)
+                # 实际上偏移是修改了武器的 Anchor 相对于 (22, 34) 的位置。
                 off_x = weapon.textures.offset_x
                 off_y = weapon.textures.offset_y
                 if field_identifier == "character_left":
                     off_x = weapon.textures.offset_x_left
                     off_y = weapon.textures.offset_y_left
 
-                # 计算局部坐标系下的包围盒
-                # 参考图原点 (off_x, off_y) -> 人物向右偏移 (+x), 向下偏移 (+y)
-                # 按照用户新需求：
-                # 水平正数 -> 人物向右偏移
-                # 垂直正数 -> 人物向下偏移 (这与之前相反，之前是向上)
-                 
-                # 为了实现“人物向右偏移”，参考图的绘制位置 x 应该增加 offset_x
-                # 为了实现“人物向下偏移”，参考图的绘制位置 y 应该增加 offset_y (屏幕坐标系y向下增加)
-                 
-                ref_draw_offset_x = off_x
-                ref_draw_offset_y = off_y
-                 
-                # 武器绘制位置保持在原点(0,0)相对位置不变，我们移动参考图
-                # 参考图 rect
-                ref_rect = (ref_draw_offset_x, ref_draw_offset_y, ref_draw_offset_x + ref_preview["width"], ref_draw_offset_y + ref_preview["height"])
-                # 武器图 rect (使用 box_w, box_h)
-                wep_rect = (0, 0, box_w, box_h)
-                 
-                # 计算并集包围盒
-                min_x = min(ref_rect[0], wep_rect[0])
-                min_y = min(ref_rect[1], wep_rect[1])
-                max_x = max(ref_rect[2], wep_rect[2])
-                max_y = max(ref_rect[3], wep_rect[3])
+                # --- 视口绘制逻辑 ---
+                # 视口固定为 VALID_AREA_SIZE (64x64)
+                viewport_w = VALID_AREA_SIZE * scale
+                viewport_h = VALID_AREA_SIZE * scale
                 
-                # 如果需要显示有效范围框，可能扩展包围盒以包含框
-                valid_rect_x1 = off_x - 8
-                valid_rect_y1 = off_y - 12
-                valid_rect_x2 = off_x + 56
-                valid_rect_y2 = off_y + 52
-                
-                if self.show_valid_area_box:
-                    min_x = min(min_x, valid_rect_x1)
-                    min_y = min(min_y, valid_rect_y1)
-                    max_x = max(max_x, valid_rect_x2)
-                    max_y = max(max_y, valid_rect_y2)
-                
-                total_width = max_x - min_x
-                total_height = max_y - min_y
-                
-                # 检查是否超出有效范围
-                # 有效范围相对于武器(0,0)是 [valid_rect_x1, valid_rect_x2] ...
-                # 武器范围是 [0, tex_w] ...
-                # 只要有任何部分在有效范围之外就算超出
-                is_out_of_bounds = (0 < valid_rect_x1) or (tex_w > valid_rect_x2) or \
-                                   (0 < valid_rect_y1) or (tex_h > valid_rect_y2)
-                                   
-                if is_out_of_bounds:
-                    imgui.text_colored("警告：部分贴图超出有效显示范围将被裁剪！", 1.0, 0.4, 0.4, 1.0)
-                 
-                # 绘制棋盘背景 (覆盖整个包围盒)
+                # 1. 绘制棋盘背景 (填满整个 64x64 视口)
                 self.draw_checkerboard(
                     draw_list, 
                     start_pos, 
-                    (start_pos[0] + total_width * scale, start_pos[1] + total_height * scale),
-                    cell_size=int(8 * scale) # 根据倍率动态调整格子大小
-                )
-                 
-                # 绘制参考图 (减去 min_x/min_y 以对齐到左上角)
-                ref_final_x = start_pos[0] + (ref_draw_offset_x - min_x) * scale
-                ref_final_y = start_pos[1] + (ref_draw_offset_y - min_y) * scale
-                draw_list.add_image(
-                    ref_preview["tex_id"],
-                    (float(ref_final_x), float(ref_final_y)),
-                    (float(ref_final_x + ref_preview["width"] * scale), float(ref_final_y + ref_preview["height"] * scale))
-                )
-                 
-                # 绘制武器图
-                # 武器图左上角在 (0,0)，所以也是减去 min_x/min_y
-                wep_final_x = start_pos[0] + (0 - min_x) * scale
-                wep_final_y = start_pos[1] + (0 - min_y) * scale
-                 
-                # 注意：虽然包围盒是 box_w x box_h，但实际绘制的纹理是 tex_w x tex_h
-                # 默认左上角对齐
-                draw_list.add_image(
-                    preview["tex_id"], 
-                    (float(wep_final_x), float(wep_final_y)), 
-                    (float(wep_final_x + tex_w * scale), float(wep_final_y + tex_h * scale))
+                    (start_pos[0] + viewport_w, start_pos[1] + viewport_h),
+                    cell_size=int(8 * scale)
                 )
                 
-                # 绘制参考框
-                if self.show_valid_area_box:
-                    # 有效范围框 (红)
-                    v_x1 = start_pos[0] + (valid_rect_x1 - min_x) * scale
-                    v_y1 = start_pos[1] + (valid_rect_y1 - min_y) * scale
-                    v_x2 = start_pos[0] + (valid_rect_x2 - min_x) * scale
-                    v_y2 = start_pos[1] + (valid_rect_y2 - min_y) * scale
+                # 2. 裁剪绘制区域到视口范围内
+                # 这样超出 64x64 的部分就不会显示，模拟游戏内效果
+                draw_list.push_clip_rect(
+                    start_pos[0], start_pos[1],
+                    start_pos[0] + viewport_w, start_pos[1] + viewport_h
+                )
+                
+                # 3. 绘制人物
+                # 人物固定显示在视口中的特定位置 (相对视口左上角偏移 8, 12)
+                char_draw_x = start_pos[0] + VIEWPORT_CHAR_OFFSET_X * scale
+                char_draw_y = start_pos[1] + VIEWPORT_CHAR_OFFSET_Y * scale
+                
+                draw_list.add_image(
+                    ref_preview["tex_id"],
+                    (float(char_draw_x), float(char_draw_y)),
+                    (float(char_draw_x + ref_preview["width"] * scale), float(char_draw_y + ref_preview["height"] * scale))
+                )
+                
+                # 4. 绘制武器
+                # 武器位置相对于人物：(-off_x, -off_y)
+                # 为什么是负号？
+                # 如果 offset_x = 0 (默认)，武器与人物左上角对齐 -> (0, 0)相对人物
+                # 如果 offset_x = 10 (用户输入正数)，Tooltip说“人物向右”，意味着武器相对人物向左 -> (-10, 0)
+                # 所以武器相对人物坐标是 (-off_x, -off_y)
+                
+                wep_rel_x = -off_x
+                wep_rel_y = -off_y
+                
+                wep_draw_x = char_draw_x + wep_rel_x * scale
+                wep_draw_y = char_draw_y + wep_rel_y * scale
+                
+                draw_list.add_image(
+                    preview["tex_id"], 
+                    (float(wep_draw_x), float(wep_draw_y)), 
+                    (float(wep_draw_x + tex_w * scale), float(wep_draw_y + tex_h * scale))
+                )
+                
+                # 5. 绘制武器边框 (虚线/明显框)
+                # 用于提示武器贴图的实际范围，即使被裁剪也能看到框
+                # 蓝色虚线框 (这里用实线代替，Imgui 原生无虚线API，除非自己画点)
+                # 稍微加粗并使用醒目颜色
+                draw_list.add_rect(
+                    wep_draw_x, wep_draw_y,
+                    wep_draw_x + tex_w * scale, wep_draw_y + tex_h * scale,
+                    imgui.get_color_u32_rgba(0.0, 1.0, 1.0, 0.8), # 青色
+                    thickness=2.0
+                )
+                
+                # 结束裁剪
+                draw_list.pop_clip_rect()
+                
+                # 占位，撑开布局
+                imgui.dummy(viewport_w, viewport_h)
+                
+                # 额外提示 (在视口下方)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("视图已锁定为 64x64 游戏有效区域。\n超出此区域的贴图部分将不会显示。\n青色框指示武器贴图的完整范围。")
                     
-                    # 绘制在最外层像素上 -> 需要考虑线条宽度和像素对齐
-                    # add_rect 默认绘制1px线。如果在缩放后像素很大，画在边界上即可。
-                    draw_list.add_rect(v_x1, v_y1, v_x2, v_y2, imgui.get_color_u32_rgba(1.0, 0.0, 0.0, 1.0), thickness=2.0)
-                    
-                    # 贴图框 (蓝) -> 已经在 wep_final_x/y
-                    w_x1 = wep_final_x
-                    w_y1 = wep_final_y
-                    w_x2 = wep_final_x + tex_w * scale
-                    w_y2 = wep_final_y + tex_h * scale
-                    
-                    draw_list.add_rect(w_x1, w_y1, w_x2, w_y2, imgui.get_color_u32_rgba(0.0, 0.5, 1.0, 1.0), thickness=2.0)
-                    
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("红框: 有效显示范围\n蓝框: 当前贴图范围")
-                 
-                # 占位
-                imgui.dummy(total_width * scale, total_height * scale)
                 return
 
         # 默认绘制逻辑 (非手持或无参考图)
@@ -2461,32 +2447,40 @@ class ModGeneratorGUI:
                         img = img.convert("RGBA")
                         w, h = img.size
                         
-                        # 有效范围相对于 Weapon(0,0)
-                        # Weapon(0,0) 相对于 Origin 是 (-off_x, -off_y)?
-                        # 之前的逻辑：Valid Rect attached to Character (0,0).
-                        # Weapon relative to Character is at (-off_x, -off_y).
-                        # Valid Range relative to Character: [-8, 56], [-12, 52].
-                        # So pixel p (in weapon coords) is at p - off_x relative to Character.
-                        # Valid if -8 <= p - off_x <= 56  =>  off_x - 8 <= p <= off_x + 56
+                        # 有效范围相对于 武器贴图左上角(0,0)
+                        # 坐标转换逻辑与 draw_preview_with_reference 一致
+                        # 武器Anchor在武器图位置: (off_x, off_y)
+                        # 武器Anchor在世界位置: (GML_ANCHOR_X, GML_ANCHOR_Y) (即 22, 34)
+                        # 有效范围在世界位置: [VALID_MIN_X, VALID_MAX_X] ...
                         
-                        valid_min_x = off_x - 8
-                        valid_max_x = off_x + 56
-                        valid_min_y = off_y - 12
-                        valid_max_y = off_y + 52
+                        # 转换公式: WeaponLocal = World - (GML_ANCHOR - WeaponAnchor)
+                        # WeaponLocal = World - (22 - off_x)
+                        # WeaponLocal = World - 22 + off_x
+                        
+                        valid_local_min_x = VALID_MIN_X + off_x
+                        valid_local_max_x = VALID_MAX_X + off_x
+                        valid_local_min_y = VALID_MIN_Y + off_y
+                        valid_local_max_y = VALID_MAX_Y + off_y
                         
                         # 创建新的透明图像
                         new_img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
                         
                         # 计算裁剪框 (在原图中的坐标)
-                        crop_x1 = max(0, valid_min_x)
-                        crop_y1 = max(0, valid_min_y)
-                        crop_x2 = min(w, valid_max_x + 1) # +1 for exclusive range in crop? 56 is inclusive index?
-                        # Assuming valid range [-8, 56] is inclusive indices.
-                        # Width = 56 - (-8) + 1 = 65.
-                        # Range size is 65.
-                        # PIL crop is (left, top, right, bottom), right/bottom exclusive.
-                        # So if valid is up to index 56, we need 57 for slice.
-                        crop_y2 = min(h, valid_max_y + 1)
+                        # PIL crop 是左闭右开区间
+                        crop_x1 = int(max(0, valid_local_min_x))
+                        crop_y1 = int(max(0, valid_local_min_y))
+                        crop_x2 = int(min(w, valid_local_max_x)) # 假设 max_x 是 inclusive，这里其实不需要 +1 因为 VALID_MAX_X 已经是边界
+                        # 但要注意 VALID_MAX_X 是 56 (相对于24的+32)。
+                        # 64宽 -> -8 到 56 (不含56? -8到55是64个? -8..56是64长度 if 56- -8 = 64)
+                        # 通常 Range Size = Max - Min. 56 - -8 = 64. Correct.
+                        # PIL crop uses pixel indices. If range is 0 to 64, it includes pixels 0..63.
+                        # So we use valid_local_max_x directly as the exclusive upper bound?
+                        # Wait, defined as Center + Size//2. 
+                        # If Center=24, Size=64. Min = 24-32=-8. Max=24+32=56.
+                        # Length = 56 - (-8) = 64.
+                        # So [-8, 56) is 64 pixels.
+                        # So standard float/int conversion should work fine for crop boundaries.
+                        crop_y2 = int(min(h, valid_local_max_y))
                         
                         if crop_x1 < crop_x2 and crop_y1 < crop_y2:
                             # 裁剪有效区域
