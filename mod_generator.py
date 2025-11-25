@@ -1162,6 +1162,30 @@ class ModGeneratorGUI:
             del self.project.weapons[self.current_weapon_index]
             self.current_weapon_index = min(self.current_weapon_index, len(self.project.weapons) - 1)
             
+        imgui.same_line()
+        
+        if imgui.button("复制选中武器") and self.current_weapon_index >= 0:
+            import copy
+            source_weapon = self.project.weapons[self.current_weapon_index]
+            new_weapon = copy.deepcopy(source_weapon)
+            
+            # 确保名称唯一
+            existing_names = {w.name for w in self.project.weapons}
+            base_name = f"{source_weapon.name}_copy"
+            new_name = base_name
+            idx = 1
+            while new_name in existing_names:
+                new_name = f"{base_name}_{idx}"
+                idx += 1
+            new_weapon.name = new_name
+            
+            # 中文名称也加个标记，方便区分
+            if new_weapon.localization.chinese_name:
+                new_weapon.localization.chinese_name += " (副本)"
+            
+            self.project.weapons.append(new_weapon)
+            self.current_weapon_index = len(self.project.weapons) - 1
+            
         for i, weapon in enumerate(self.project.weapons):
             flags = imgui.TREE_NODE_LEAF
             if i == self.current_weapon_index:
