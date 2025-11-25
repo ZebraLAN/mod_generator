@@ -673,6 +673,7 @@ class ModGeneratorGUI:
         self.texture_preview_cache = {}
         self.temp_texture_path = ""
         self.selected_model = "Human Male" # 默认模特组
+        self.show_valid_area_box = False # 是否显示有效显示区域
         self.preview_states = {} # 存储预览状态 (paused, current_frame)
         
         # Byte类型的属性 (需要限制非负)
@@ -1549,10 +1550,11 @@ class ModGeneratorGUI:
         self.draw_indented_separator()
         
         # 贴图倍率设置 (可自由输入)
-        imgui.text("预览倍率")
+        imgui.text("预览设置")
         imgui.same_line()
-        # 使用 input_float 允许自由输入，同时保留 step=0.5 的 +/- 按钮
-        changed, self.texture_scale = imgui.input_float("##texture_scale", self.texture_scale, step=0.5, step_fast=1.0, format="%.1f")
+        imgui.push_item_width(100)
+        changed, self.texture_scale = imgui.input_float("倍率##texture_scale", self.texture_scale, step=0.5, step_fast=1.0, format="%.1f")
+        imgui.pop_item_width()
         if changed:
             # 限制最小倍率为 0.1 以防止错误
             if self.texture_scale < 0.1:
@@ -1561,6 +1563,11 @@ class ModGeneratorGUI:
             
         if imgui.is_item_hovered():
             imgui.set_tooltip("设置预览图的显示倍率 (默认 4.0)")
+
+        imgui.same_line()
+        imgui.checkbox("显示有效范围框", self.show_valid_area_box)
+        if imgui.is_item_clicked():
+            self.show_valid_area_box = not self.show_valid_area_box
 
         # 模特选择
         imgui.text("预览模特")
@@ -2002,9 +2009,31 @@ class ModGeneratorGUI:
                 min_y = min(ref_rect[1], wep_rect[1])
                 max_x = max(ref_rect[2], wep_rect[2])
                 max_y = max(ref_rect[3], wep_rect[3])
-                 
+                
+                # 如果需要显示有效范围框，可能扩展包围盒以包含框
+                valid_rect_x1 = off_x - 8
+                valid_rect_y1 = off_y - 12
+                valid_rect_x2 = off_x + 56
+                valid_rect_y2 = off_y + 52
+                
+                if self.show_valid_area_box:
+                    min_x = min(min_x, valid_rect_x1)
+                    min_y = min(min_y, valid_rect_y1)
+                    max_x = max(max_x, valid_rect_x2)
+                    max_y = max(max_y, valid_rect_y2)
+                
                 total_width = max_x - min_x
                 total_height = max_y - min_y
+                
+                # 检查是否超出有效范围
+                # 有效范围相对于武器(0,0)是 [valid_rect_x1, valid_rect_x2] ...
+                # 武器范围是 [0, tex_w] ...
+                # 只要有任何部分在有效范围之外就算超出
+                is_out_of_bounds = (0 < valid_rect_x1) or (tex_w > valid_rect_x2) or \
+                                   (0 < valid_rect_y1) or (tex_h > valid_rect_y2)
+                                   
+                if is_out_of_bounds:
+                    imgui.text_colored("警告：部分贴图超出有效显示范围将被裁剪！", 1.0, 0.4, 0.4, 1.0)
                  
                 # 绘制棋盘背景 (覆盖整个包围盒)
                 self.draw_checkerboard(
@@ -2035,6 +2064,29 @@ class ModGeneratorGUI:
                     (float(wep_final_x), float(wep_final_y)), 
                     (float(wep_final_x + tex_w * scale), float(wep_final_y + tex_h * scale))
                 )
+                
+                # 绘制参考框
+                if self.show_valid_area_box:
+                    # 有效范围框 (红)
+                    v_x1 = start_pos[0] + (valid_rect_x1 - min_x) * scale
+                    v_y1 = start_pos[1] + (valid_rect_y1 - min_y) * scale
+                    v_x2 = start_pos[0] + (valid_rect_x2 - min_x) * scale
+                    v_y2 = start_pos[1] + (valid_rect_y2 - min_y) * scale
+                    
+                    # 绘制在最外层像素上 -> 需要考虑线条宽度和像素对齐
+                    # add_rect 默认绘制1px线。如果在缩放后像素很大，画在边界上即可。
+                    draw_list.add_rect(v_x1, v_y1, v_x2, v_y2, imgui.get_color_u32_rgba(1.0, 0.0, 0.0, 1.0), thickness=2.0)
+                    
+                    # 贴图框 (蓝) -> 已经在 wep_final_x/y
+                    w_x1 = wep_final_x
+                    w_y1 = wep_final_y
+                    w_x2 = wep_final_x + tex_w * scale
+                    w_y2 = wep_final_y + tex_h * scale
+                    
+                    draw_list.add_rect(w_x1, w_y1, w_x2, w_y2, imgui.get_color_u32_rgba(0.0, 0.5, 1.0, 1.0), thickness=2.0)
+                    
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("红框: 有效显示范围\n蓝框: 当前贴图范围")
                  
                 # 占位
                 imgui.dummy(total_width * scale, total_height * scale)
@@ -2362,16 +2414,20 @@ class ModGeneratorGUI:
                 # 手持贴图 (支持动画)
                 if weapon.textures.character_frames:
                     for idx, frame_path in enumerate(weapon.textures.character_frames):
-                        self.copy_texture(frame_path, sprites_dir / f"s_char_{weapon_id}_{idx}.png")
+                        self.copy_texture(frame_path, sprites_dir / f"s_char_{weapon_id}_{idx}.png",
+                                          mask_offsets=(weapon.textures.offset_x, weapon.textures.offset_y))
                 else:
-                    self.copy_texture(weapon.textures.character, sprites_dir / f"s_char_{weapon_id}.png")
+                    self.copy_texture(weapon.textures.character, sprites_dir / f"s_char_{weapon_id}.png",
+                                      mask_offsets=(weapon.textures.offset_x, weapon.textures.offset_y))
                 
                 # 复制左手贴图（如果有）(支持动画)
                 if weapon.textures.character_left_frames:
                     for idx, frame_path in enumerate(weapon.textures.character_left_frames):
-                         self.copy_texture(frame_path, sprites_dir / f"s_charleft_{weapon_id}_{idx}.png")
+                         self.copy_texture(frame_path, sprites_dir / f"s_charleft_{weapon_id}_{idx}.png",
+                                           mask_offsets=(weapon.textures.offset_x_left, weapon.textures.offset_y_left))
                 elif weapon.textures.character_left:
-                    self.copy_texture(weapon.textures.character_left, sprites_dir / f"s_charleft_{weapon_id}.png")
+                    self.copy_texture(weapon.textures.character_left, sprites_dir / f"s_charleft_{weapon_id}.png",
+                                      mask_offsets=(weapon.textures.offset_x_left, weapon.textures.offset_y_left))
                     
                 for idx, inv_texture in enumerate(weapon.textures.inventory):
                     self.copy_texture(inv_texture, sprites_dir / f"s_inv_{weapon_id}_{idx}.png")
@@ -2391,10 +2447,59 @@ class ModGeneratorGUI:
             # 为了简单，我们在控制台打印错误
             pass
     
-    def copy_texture(self, src_path, dst_path, crop_size=None):
-        """复制贴图文件"""
+    def copy_texture(self, src_path, dst_path, mask_offsets=None):
+        """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行裁剪(透明化)"""
         if src_path and os.path.exists(src_path):
-            # 移除裁剪逻辑，直接复制
+            # 确保目标目录存在
+            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+            
+            if mask_offsets and Image:
+                try:
+                    off_x, off_y = mask_offsets
+                    # 尝试使用 PIL 处理
+                    with Image.open(src_path) as img:
+                        img = img.convert("RGBA")
+                        w, h = img.size
+                        
+                        # 有效范围相对于 Weapon(0,0)
+                        # Weapon(0,0) 相对于 Origin 是 (-off_x, -off_y)?
+                        # 之前的逻辑：Valid Rect attached to Character (0,0).
+                        # Weapon relative to Character is at (-off_x, -off_y).
+                        # Valid Range relative to Character: [-8, 56], [-12, 52].
+                        # So pixel p (in weapon coords) is at p - off_x relative to Character.
+                        # Valid if -8 <= p - off_x <= 56  =>  off_x - 8 <= p <= off_x + 56
+                        
+                        valid_min_x = off_x - 8
+                        valid_max_x = off_x + 56
+                        valid_min_y = off_y - 12
+                        valid_max_y = off_y + 52
+                        
+                        # 创建新的透明图像
+                        new_img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+                        
+                        # 计算裁剪框 (在原图中的坐标)
+                        crop_x1 = max(0, valid_min_x)
+                        crop_y1 = max(0, valid_min_y)
+                        crop_x2 = min(w, valid_max_x + 1) # +1 for exclusive range in crop? 56 is inclusive index?
+                        # Assuming valid range [-8, 56] is inclusive indices.
+                        # Width = 56 - (-8) + 1 = 65.
+                        # Range size is 65.
+                        # PIL crop is (left, top, right, bottom), right/bottom exclusive.
+                        # So if valid is up to index 56, we need 57 for slice.
+                        crop_y2 = min(h, valid_max_y + 1)
+                        
+                        if crop_x1 < crop_x2 and crop_y1 < crop_y2:
+                            # 裁剪有效区域
+                            region = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+                            # 粘贴回新图像的对应位置
+                            new_img.paste(region, (crop_x1, crop_y1))
+                            
+                        new_img.save(dst_path)
+                        return
+                except Exception as e:
+                    print(f"处理贴图遮罩失败，将直接复制: {e}")
+            
+            # 如果没有 offsets 或处理失败，直接复制
             try:
                 shutil.copy2(src_path, dst_path)
             except Exception as e:
