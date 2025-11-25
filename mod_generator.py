@@ -1852,11 +1852,11 @@ class ModGeneratorGUI:
              else:
                  return # 无法获取武器信息，不绘制
                  
-             # 根据武器类型选择姿态
-             # 单手动作: dagger, mace, sword, axe, spear -> 使用 index 0
-             # 双手动作: 其他 -> 使用 index 1
-             use_single_hand_pose = weapon.slot in ["dagger", "mace", "sword", "axe", "spear"]
-             pose_index = 0 if use_single_hand_pose else 1
+            # 根据武器类型选择姿态
+            # 单手动作: dagger, mace, sword, axe, spear, bow -> 使用 index 0
+            # 双手动作: 其他 -> 使用 index 1
+            use_single_hand_pose = weapon.slot in ["dagger", "mace", "sword", "axe", "spear", "bow"]
+            pose_index = 0 if use_single_hand_pose else 1
              
              model_files = CHARACTER_MODELS.get(self.selected_model, ["s_elf_male_0.png", "s_elf_male_1.png"])
              # 确保索引不越界
