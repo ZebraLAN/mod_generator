@@ -332,6 +332,21 @@ SUPPORTED_LANGUAGES = [
     "한국어",
 ]
 
+# 语言名称到 C# 枚举的映射
+LANGUAGE_TO_ENUM_MAP = {
+    "English": "ModLanguage.English",
+    "Русский": "ModLanguage.Russian",
+    "Deutsch": "ModLanguage.German",
+    "Español (LATAM)": "ModLanguage.Spanish",
+    "Français": "ModLanguage.French",
+    "Italiano": "ModLanguage.Italian",
+    "Português": "ModLanguage.Portuguese",
+    "Polski": "ModLanguage.Polish",
+    "Türkçe": "ModLanguage.Turkish",
+    "日本語": "ModLanguage.Japanese",
+    "한국어": "ModLanguage.Korean",
+}
+
 
 @dataclass
 class WeaponTextures:
@@ -557,6 +572,14 @@ class ModProject:
         # 否则返回原路径（可能是绝对路径，意味着尚未导入到 assets）
         return path
 
+    def _resolve_path(self, path: str, project_dir: str) -> str:
+        """将相对路径转换为绝对路径（用于加载项目时）"""
+        if not path:
+            return ""
+        if os.path.isabs(path):
+            return path
+        return os.path.normpath(os.path.join(project_dir, path))
+
     def import_texture(self, source_path: str) -> str:
         """将外部贴图复制到项目 assets 目录并返回相对路径"""
         if not source_path or not os.path.exists(source_path):
@@ -643,13 +666,6 @@ class ModProject:
             tex_data = weapon_data.get("textures", {})
 
             # 处理贴图路径：将相对路径转为绝对路径以便程序使用
-            def resolve_path(p):
-                if not p:
-                    return ""
-                if os.path.isabs(p):
-                    return p
-                return os.path.normpath(os.path.join(project_dir, p))
-
             inventory_list = tex_data.get("inventory")
             if inventory_list is None:
                 inventory_list = []
@@ -660,19 +676,19 @@ class ModProject:
                     inventory_list = [""]
 
             # 解析路径
-            char_path = resolve_path(tex_data.get("character", ""))
-            char_left_path = resolve_path(tex_data.get("character_left", ""))
-            loot_path = resolve_path(tex_data.get("loot", ""))
-            inv_paths = [resolve_path(p) for p in inventory_list]
+            char_path = self._resolve_path(tex_data.get("character", ""), project_dir)
+            char_left_path = self._resolve_path(tex_data.get("character_left", ""), project_dir)
+            loot_path = self._resolve_path(tex_data.get("loot", ""), project_dir)
+            inv_paths = [self._resolve_path(p, project_dir) for p in inventory_list]
 
             # 解析帧动画路径
             char_frames = [
-                resolve_path(p) for p in tex_data.get("character_frames", [])
+                self._resolve_path(p, project_dir) for p in tex_data.get("character_frames", [])
             ]
             char_left_frames = [
-                resolve_path(p) for p in tex_data.get("character_left_frames", [])
+                self._resolve_path(p, project_dir) for p in tex_data.get("character_left_frames", [])
             ]
-            loot_frames = [resolve_path(p) for p in tex_data.get("loot_frames", [])]
+            loot_frames = [self._resolve_path(p, project_dir) for p in tex_data.get("loot_frames", [])]
 
             weapon.textures = WeaponTextures(
                 character=char_path,
@@ -1939,8 +1955,6 @@ class ModGeneratorGUI:
             imgui.same_line()
             if imgui.button(f"清空/转为静态##{label}"):
                 frames.clear()
-                # 既然是转为静态，清空帧列表，主路径保持为最后的第一帧或空
-                pass
 
             # 预览控制 (暂停/指定帧)
             state = self.preview_states.get(
@@ -2804,14 +2818,9 @@ public class {code_namespace} : Mod
         # 转义双引号
         return joined.replace('"', '\\"')
 
-    def generate_weapon_method(self, weapon: Weapon) -> str:
-        """生成单个武器的C#方法"""
-        method_name = f"Add{weapon.id}"
-
-        code = f"    private void {method_name}()\n    {{\n"
-
-        # 生成 InjectTableWeapons 调用
-        code += f"        Msl.InjectTableWeapons(\n"
+    def _generate_weapon_injection_code(self, weapon: Weapon) -> str:
+        """生成武器注入 C# 代码"""
+        code = "        Msl.InjectTableWeapons(\n"
         code += f'            name: "{weapon.name}",\n'
         code += f"            Tier: Msl.WeaponsTier.{weapon.tier},\n"
         code += f'            id: "{weapon.id}",\n'
@@ -2838,21 +2847,20 @@ public class {code_namespace} : Mod
                 attr_name = attr
                 if attr == "Electromantic_Power":
                     attr_name = "Electroantic_Power"
-
                 code += f",\n            {attr_name}: {value}"
 
         code += "\n        );\n\n"
+        return code
 
-        # 生成本地化
-        code += "        Msl.InjectTableWeaponTextsLocalization(\n"
+    def _generate_localization_code(self, weapon: Weapon) -> str:
+        """生成本地化 C# 代码"""
+        code = "        Msl.InjectTableWeaponTextsLocalization(\n"
         code += "            new LocalizationWeaponText(\n"
         code += f'                id: "{weapon.name}",\n'
         code += "                name: new Dictionary<ModLanguage, string>() {\n"
 
-        # 始终生成中英文条目，即使为空
         # 中文直接取值
         chn_name = weapon.localization.chinese_name or ""
-
         # 英文尝试从 other_languages 获取，否则为空
         eng_data = weapon.localization.other_languages.get(
             "English", {"name": "", "description": ""}
@@ -2862,21 +2870,10 @@ public class {code_namespace} : Mod
         code += f'                    {{ModLanguage.English, "{eng_name}"}},\n'
         code += f'                    {{ModLanguage.Chinese, "{chn_name}"}},\n'
 
-        # 生成其他语言
-        lang_map = {
-            "Русский": "ModLanguage.Russian",
-            "Deutsch": "ModLanguage.German",
-            "Español (LATAM)": "ModLanguage.Spanish",
-            "Français": "ModLanguage.French",
-            "Italiano": "ModLanguage.Italian",
-            "Português": "ModLanguage.Portuguese",
-            "Polski": "ModLanguage.Polish",
-            "Türkçe": "ModLanguage.Turkish",
-            "日本語": "ModLanguage.Japanese",
-            "한국어": "ModLanguage.Korean",
-        }
-
-        for lang_key, lang_enum in lang_map.items():
+        # 生成其他语言名称
+        for lang_key, lang_enum in LANGUAGE_TO_ENUM_MAP.items():
+            if lang_key == "English":
+                continue
             if lang_key in weapon.localization.other_languages:
                 l_name = weapon.localization.other_languages[lang_key]["name"] or ""
                 code += f'                    {{{lang_enum}, "{l_name}"}},\n'
@@ -2884,88 +2881,80 @@ public class {code_namespace} : Mod
         code += "                },\n"
         code += "                description: new Dictionary<ModLanguage, string>() {\n"
 
-        # 始终生成描述条目
-        # 英文
+        # 英文描述
         eng_desc = eng_data["description"] or ""
         formatted_eng_desc = self.format_description(eng_desc)
-        code += (
-            f'                    {{ModLanguage.English, "{formatted_eng_desc}"}},\n'
-        )
+        code += f'                    {{ModLanguage.English, "{formatted_eng_desc}"}},\n'
 
-        # 中文
+        # 中文描述
         chn_desc = weapon.localization.chinese_description or ""
         formatted_chn_desc = self.format_description(chn_desc)
-        code += (
-            f'                    {{ModLanguage.Chinese, "{formatted_chn_desc}"}},\n'
-        )
+        code += f'                    {{ModLanguage.Chinese, "{formatted_chn_desc}"}},\n'
 
         # 其他语言描述
-        for lang_key, lang_enum in lang_map.items():
+        for lang_key, lang_enum in LANGUAGE_TO_ENUM_MAP.items():
+            if lang_key == "English":
+                continue
             if lang_key in weapon.localization.other_languages:
-                l_desc = (
-                    weapon.localization.other_languages[lang_key]["description"] or ""
-                )
+                l_desc = weapon.localization.other_languages[lang_key]["description"] or ""
                 formatted_desc = self.format_description(l_desc)
                 code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
 
         code += "                }\n"
         code += "            )\n"
         code += "        );\n"
+        return code
 
-        # 生成手持贴图偏移 GML 注入代码 (如果需要)
-        # 当x y中有任何一个偏移时都必须生成整段代码
-        if (
+    def _generate_anchor_gml_block(self, val_y: int, val_x: int, sprite_name: str) -> str:
+        """生成单个锚点的 GML 代码块"""
+        code = f"pushi.e {val_y}\n"
+        code += "conv.i.v\n"
+        code += f"pushi.e {val_x}\n"
+        code += "conv.i.v\n"
+        code += "call.i @@NewGMLArray@@(argc=2)\n"
+        code += f"pushi.e {sprite_name}\n"
+        code += "conv.i.v\n"
+        code += "pushglb.v global.customizationAnchors\n"
+        code += "call.i ds_map_add(argc=3)\n"
+        code += "popz.v\n"
+        return code
+
+    def _generate_gml_offset_code(self, weapon: Weapon) -> str:
+        """生成 GML 偏移注入代码"""
+        # 检查是否需要生成
+        if not (
             weapon.textures.offset_x != 0
             or weapon.textures.offset_y != 0
             or weapon.textures.offset_x_left != 0
             or weapon.textures.offset_y_left != 0
         ):
+            return ""
 
-            gml_code_block = ""
+        gml_code_block = ""
 
-            # 处理右手/默认手持
-            if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
-                # 计算实际值: GML_ANCHOR_Y + y, GML_ANCHOR_X + x
-                val_y = GML_ANCHOR_Y + weapon.textures.offset_y
-                val_x = GML_ANCHOR_X + weapon.textures.offset_x
-                sprite_name = f"s_char_{weapon.id}"
+        # 处理右手/默认手持
+        if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
+            val_y = GML_ANCHOR_Y + weapon.textures.offset_y
+            val_x = GML_ANCHOR_X + weapon.textures.offset_x
+            sprite_name = f"s_char_{weapon.id}"
+            gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
 
-                # 使用换行符构建多行代码，注意每行结尾需要 \n
-                gml_code_block += f"pushi.e {val_y}\n"
-                gml_code_block += "conv.i.v\n"
-                gml_code_block += f"pushi.e {val_x}\n"
-                gml_code_block += "conv.i.v\n"
-                gml_code_block += "call.i @@NewGMLArray@@(argc=2)\n"
-                gml_code_block += f"pushi.e {sprite_name}\n"
-                gml_code_block += "conv.i.v\n"
-                gml_code_block += "pushglb.v global.customizationAnchors\n"
-                gml_code_block += "call.i ds_map_add(argc=3)\n"
-                gml_code_block += "popz.v\n"
+        # 处理左手手持
+        if weapon.textures.character_left and (
+            weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0
+        ):
+            val_y = GML_ANCHOR_Y + weapon.textures.offset_y_left
+            val_x = GML_ANCHOR_X + weapon.textures.offset_x_left
+            sprite_name = f"s_charleft_{weapon.id}"
+            gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
 
-            # 处理左手手持
-            if weapon.textures.character_left and (
-                weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0
-            ):
-                val_y = GML_ANCHOR_Y + weapon.textures.offset_y_left
-                val_x = GML_ANCHOR_X + weapon.textures.offset_x_left
-                sprite_name = f"s_charleft_{weapon.id}"
+        if not gml_code_block:
+            return ""
 
-                gml_code_block += f"pushi.e {val_y}\n"
-                gml_code_block += "conv.i.v\n"
-                gml_code_block += f"pushi.e {val_x}\n"
-                gml_code_block += "conv.i.v\n"
-                gml_code_block += "call.i @@NewGMLArray@@(argc=2)\n"
-                gml_code_block += f"pushi.e {sprite_name}\n"
-                gml_code_block += "conv.i.v\n"
-                gml_code_block += "pushglb.v global.customizationAnchors\n"
-                gml_code_block += "call.i ds_map_add(argc=3)\n"
-                gml_code_block += "popz.v\n"
+        # 移除最后的换行符，避免多余空行
+        gml_code_block = gml_code_block.rstrip()
 
-            if gml_code_block:
-                # 移除最后的换行符，避免多余空行
-                gml_code_block = gml_code_block.rstrip()
-
-                match_gml = """pushi.e 34
+        match_gml = """pushi.e 34
 conv.i.v
 pushi.e 29
 conv.i.v
@@ -2976,12 +2965,20 @@ pushglb.v global.customizationAnchors
 call.i ds_map_add(argc=3)
 popz.v"""
 
-                code += f'        Msl.LoadAssemblyAsString("gml_GlobalScript_scr_ds_init")\n'
-                code += f'            .MatchFrom(@"{match_gml}")\n'
-                # 使用 @"" 格式，直接嵌入多行字符串
-                code += f'            .InsertBelow(@"{gml_code_block}")\n'
-                code += f"            .Save();\n"
+        code = f'        Msl.LoadAssemblyAsString("gml_GlobalScript_scr_ds_init")\n'
+        code += f'            .MatchFrom(@"{match_gml}")\n'
+        code += f'            .InsertBelow(@"{gml_code_block}")\n'
+        code += "            .Save();\n"
+        return code
 
+    def generate_weapon_method(self, weapon: Weapon) -> str:
+        """生成单个武器的C#方法"""
+        method_name = f"Add{weapon.id}"
+
+        code = f"    private void {method_name}()\n    {{\n"
+        code += self._generate_weapon_injection_code(weapon)
+        code += self._generate_localization_code(weapon)
+        code += self._generate_gml_offset_code(weapon)
         code += "    }\n\n"
 
         return code
