@@ -577,9 +577,7 @@ class ModProject:
                 "attributes": weapon.attributes,
                 "fireproof": weapon.fireproof,
                 "no_drop": weapon.no_drop,
-                "localization": {
-                    "languages": weapon.localization.languages,
-                },
+                "localization": weapon.localization.languages,
                 "textures": {
                     "character": rel_char_path,
                     "character_left": rel_char_left_path,
@@ -711,21 +709,19 @@ class ModProject:
 
             loc_data = weapon_data.get("localization", {})
 
-            # 兼容旧格式并迁移到新格式
+            # 兼容多种旧格式
             if "languages" in loc_data:
-                # 新格式：直接使用
+                # 旧格式 v2: {"languages": {...}}
                 weapon.localization = WeaponLocalization(
                     languages=loc_data.get("languages", {})
                 )
-            else:
-                # 旧格式：迁移到新格式
+            elif "chinese_name" in loc_data or "other_languages" in loc_data:
+                # 旧格式 v1: {"chinese_name": ..., "other_languages": {...}}
                 languages = {}
-                # 迁移中文数据
                 chn_name = loc_data.get("chinese_name", "")
                 chn_desc = loc_data.get("chinese_description", "")
                 if chn_name or chn_desc:
                     languages["Chinese"] = {"name": chn_name, "description": chn_desc}
-                # 迁移其他语言数据
                 other_langs = loc_data.get("other_languages", {})
                 for lang, data in other_langs.items():
                     languages[lang] = {
@@ -733,6 +729,9 @@ class ModProject:
                         "description": data.get("description", ""),
                     }
                 weapon.localization = WeaponLocalization(languages=languages)
+            else:
+                # 新格式: 直接是 languages 字典
+                weapon.localization = WeaponLocalization(languages=loc_data)
 
             tex_data = weapon_data.get("textures", {})
 
