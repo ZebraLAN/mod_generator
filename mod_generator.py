@@ -309,16 +309,12 @@ CHARACTER_MODEL_LABELS = {
 }
 
 
-@dataclass
-class WeaponLocalization:
-    # 默认语言：中文 (必选但可为空)
-    # 其他语言动态存储：{'English': {'name': '', 'description': ''}, ...}
-    chinese_name: str = ""
-    chinese_description: str = ""
-    other_languages: Dict[str, Dict[str, str]] = field(default_factory=dict)
+# 主语言配置（暂时固定为中文，未来可配置）
+PRIMARY_LANGUAGE = "Chinese"
 
-
+# 支持的所有语言
 SUPPORTED_LANGUAGES = [
+    "Chinese",
     "English",
     "Русский",
     "Deutsch",
@@ -332,8 +328,25 @@ SUPPORTED_LANGUAGES = [
     "한국어",
 ]
 
+# 语言显示标签
+LANGUAGE_LABELS = {
+    "Chinese": "中文",
+    "English": "English",
+    "Русский": "Русский",
+    "Deutsch": "Deutsch",
+    "Español (LATAM)": "Español (LATAM)",
+    "Français": "Français",
+    "Italiano": "Italiano",
+    "Português": "Português",
+    "Polski": "Polski",
+    "Türkçe": "Türkçe",
+    "日本語": "日本語",
+    "한국어": "한국어",
+}
+
 # 语言名称到 C# 枚举的映射
 LANGUAGE_TO_ENUM_MAP = {
+    "Chinese": "ModLanguage.Chinese",
     "English": "ModLanguage.English",
     "Русский": "ModLanguage.Russian",
     "Deutsch": "ModLanguage.German",
@@ -346,6 +359,48 @@ LANGUAGE_TO_ENUM_MAP = {
     "日本語": "ModLanguage.Japanese",
     "한국어": "ModLanguage.Korean",
 }
+
+
+@dataclass
+class WeaponLocalization:
+    """武器本地化数据
+
+    所有语言统一存储在 languages 字典中。
+    格式: {"Chinese": {"name": "...", "description": "..."}, "English": {...}, ...}
+    """
+
+    languages: Dict[str, Dict[str, str]] = field(default_factory=dict)
+
+    def get_name(self, lang: str) -> str:
+        """获取指定语言的名称"""
+        return self.languages.get(lang, {}).get("name", "")
+
+    def set_name(self, lang: str, value: str) -> None:
+        """设置指定语言的名称"""
+        if lang not in self.languages:
+            self.languages[lang] = {"name": "", "description": ""}
+        self.languages[lang]["name"] = value
+
+    def get_description(self, lang: str) -> str:
+        """获取指定语言的描述"""
+        return self.languages.get(lang, {}).get("description", "")
+
+    def set_description(self, lang: str, value: str) -> None:
+        """设置指定语言的描述"""
+        if lang not in self.languages:
+            self.languages[lang] = {"name": "", "description": ""}
+        self.languages[lang]["description"] = value
+
+    def has_language(self, lang: str) -> bool:
+        """检查是否有指定语言的数据"""
+        return lang in self.languages
+
+    def get_display_name(self) -> str:
+        """获取用于显示的名称（优先主语言，其次英语）"""
+        name = self.get_name(PRIMARY_LANGUAGE)
+        if not name:
+            name = self.get_name("English")
+        return name or "未命名"
 
 
 @dataclass
@@ -523,9 +578,7 @@ class ModProject:
                 "fireproof": weapon.fireproof,
                 "no_drop": weapon.no_drop,
                 "localization": {
-                    "chinese_name": weapon.localization.chinese_name,
-                    "chinese_description": weapon.localization.chinese_description,
-                    "other_languages": weapon.localization.other_languages,
+                    "languages": weapon.localization.languages,
                 },
                 "textures": {
                     "character": rel_char_path,
@@ -657,11 +710,29 @@ class ModProject:
             weapon.no_drop = weapon_data.get("no_drop", False)
 
             loc_data = weapon_data.get("localization", {})
-            weapon.localization = WeaponLocalization(
-                chinese_name=loc_data.get("chinese_name", ""),
-                chinese_description=loc_data.get("chinese_description", ""),
-                other_languages=loc_data.get("other_languages", {}),
-            )
+
+            # 兼容旧格式并迁移到新格式
+            if "languages" in loc_data:
+                # 新格式：直接使用
+                weapon.localization = WeaponLocalization(
+                    languages=loc_data.get("languages", {})
+                )
+            else:
+                # 旧格式：迁移到新格式
+                languages = {}
+                # 迁移中文数据
+                chn_name = loc_data.get("chinese_name", "")
+                chn_desc = loc_data.get("chinese_description", "")
+                if chn_name or chn_desc:
+                    languages["Chinese"] = {"name": chn_name, "description": chn_desc}
+                # 迁移其他语言数据
+                other_langs = loc_data.get("other_languages", {})
+                for lang, data in other_langs.items():
+                    languages[lang] = {
+                        "name": data.get("name", ""),
+                        "description": data.get("description", ""),
+                    }
+                weapon.localization = WeaponLocalization(languages=languages)
 
             tex_data = weapon_data.get("textures", {})
 
@@ -1439,9 +1510,9 @@ class ModGeneratorGUI:
         if imgui.button("添加武器"):
             new_weapon = Weapon()
             new_weapon.name = self.generate_default_weapon_name()
-            # 默认中文名和描述
-            new_weapon.localization.chinese_name = "新武器"
-            new_weapon.localization.chinese_description = "这是新武器的描述"
+            # 默认主语言名称和描述
+            new_weapon.localization.set_name(PRIMARY_LANGUAGE, "新武器")
+            new_weapon.localization.set_description(PRIMARY_LANGUAGE, "这是新武器的描述")
 
             self.project.weapons.append(new_weapon)
             self.current_weapon_index = len(self.project.weapons) - 1
@@ -1470,9 +1541,10 @@ class ModGeneratorGUI:
                 idx += 1
             new_weapon.name = new_name
 
-            # 中文名称也加个标记，方便区分
-            if new_weapon.localization.chinese_name:
-                new_weapon.localization.chinese_name += " (副本)"
+            # 主语言名称加个标记，方便区分
+            primary_name = new_weapon.localization.get_name(PRIMARY_LANGUAGE)
+            if primary_name:
+                new_weapon.localization.set_name(PRIMARY_LANGUAGE, primary_name + " (副本)")
 
             self.project.weapons.append(new_weapon)
             self.current_weapon_index = len(self.project.weapons) - 1
@@ -1482,9 +1554,9 @@ class ModGeneratorGUI:
             if i == self.current_weapon_index:
                 flags |= imgui.TREE_NODE_SELECTED
 
-            # 显示中文名和ID
-            chn_name = weapon.localization.chinese_name or "未命名"
-            display_name = f"{chn_name} ({weapon.name})"
+            # 显示主语言名称和ID
+            display_name_text = weapon.localization.get_display_name()
+            display_name = f"{display_name_text} ({weapon.name})"
 
             opened = imgui.tree_node(display_name, flags=flags)
             if imgui.is_item_clicked():
@@ -1725,12 +1797,11 @@ class ModGeneratorGUI:
 
         if imgui.begin_popup("add_language_popup"):
             for lang in SUPPORTED_LANGUAGES:
-                if (
-                    lang not in weapon.localization.other_languages
-                    and lang != "Chinese"
-                ):
-                    if imgui.selectable(lang)[0]:
-                        weapon.localization.other_languages[lang] = {
+                # 跳过已添加的语言
+                if not weapon.localization.has_language(lang):
+                    label = LANGUAGE_LABELS.get(lang, lang)
+                    if imgui.selectable(label)[0]:
+                        weapon.localization.languages[lang] = {
                             "name": "",
                             "description": "",
                         }
@@ -1738,29 +1809,48 @@ class ModGeneratorGUI:
 
         self.draw_indented_separator()
 
-        # 渲染中文（默认存在）
-        imgui.text("中文 (Chinese)")
+        # 首先渲染主语言（不可删除）
+        primary_label = LANGUAGE_LABELS.get(PRIMARY_LANGUAGE, PRIMARY_LANGUAGE)
+        imgui.text(f"{primary_label} (主语言)")
+
+        # 确保主语言数据存在
+        if not weapon.localization.has_language(PRIMARY_LANGUAGE):
+            weapon.localization.languages[PRIMARY_LANGUAGE] = {"name": "", "description": ""}
+
+        primary_data = weapon.localization.languages[PRIMARY_LANGUAGE]
+
         imgui.push_item_width(-1)
-        changed, weapon.localization.chinese_name = imgui.input_text(
-            "##chn_name", weapon.localization.chinese_name, 256
+        changed, val = imgui.input_text(
+            f"##{PRIMARY_LANGUAGE}_name", primary_data["name"], 256
         )
-        if not changed and not weapon.localization.chinese_name:
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("中文名称（必填建议）")
+        if changed:
+            primary_data["name"] = val
+        if not primary_data["name"] and imgui.is_item_hovered():
+            imgui.set_tooltip("主语言名称（建议填写）")
         imgui.pop_item_width()
 
         imgui.push_item_width(-1)
-        changed, weapon.localization.chinese_description = imgui.input_text_multiline(
-            "##chn_desc", weapon.localization.chinese_description, 1024, height=60
+        changed, val = imgui.input_text_multiline(
+            f"##{PRIMARY_LANGUAGE}_desc", primary_data["description"], 1024, height=60
         )
+        if changed:
+            primary_data["description"] = val
         imgui.pop_item_width()
         imgui.dummy(0, 10)
 
-        # 渲染其他已添加语言
+        # 渲染其他已添加语言（按 SUPPORTED_LANGUAGES 顺序）
         langs_to_remove = []
-        for lang, data in weapon.localization.other_languages.items():
+        for lang in SUPPORTED_LANGUAGES:
+            if lang == PRIMARY_LANGUAGE:
+                continue  # 主语言已在上面渲染
+            if not weapon.localization.has_language(lang):
+                continue  # 未添加的语言跳过
+
+            data = weapon.localization.languages[lang]
+
             self.draw_indented_separator()
-            imgui.text(f"{lang}")
+            label = LANGUAGE_LABELS.get(lang, lang)
+            imgui.text(f"{label}")
             imgui.same_line()
             if imgui.button(f"删除##{lang}"):
                 langs_to_remove.append(lang)
@@ -1783,7 +1873,7 @@ class ModGeneratorGUI:
             imgui.dummy(0, 5)
 
         for lang in langs_to_remove:
-            del weapon.localization.other_languages[lang]
+            del weapon.localization.languages[lang]
 
     def draw_textures_editor(self, weapon):
         imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
@@ -2853,52 +2943,51 @@ public class {code_namespace} : Mod
         return code
 
     def _generate_localization_code(self, weapon: Weapon) -> str:
-        """生成本地化 C# 代码"""
+        """生成本地化 C# 代码
+
+        强制生成的语言条目:
+        - 主语言 (PRIMARY_LANGUAGE) - 必须存在（即使为空）
+        - 英文 - 必须存在（即使为空），除非主语言就是英文
+        """
         code = "        Msl.InjectTableWeaponTextsLocalization(\n"
         code += "            new LocalizationWeaponText(\n"
         code += f'                id: "{weapon.name}",\n'
         code += "                name: new Dictionary<ModLanguage, string>() {\n"
 
-        # 中文直接取值
-        chn_name = weapon.localization.chinese_name or ""
-        # 英文尝试从 other_languages 获取，否则为空
-        eng_data = weapon.localization.other_languages.get(
-            "English", {"name": "", "description": ""}
-        )
-        eng_name = eng_data["name"] or ""
+        # 确定必须生成的语言
+        required_langs = {PRIMARY_LANGUAGE}
+        if PRIMARY_LANGUAGE != "English":
+            required_langs.add("English")
 
-        code += f'                    {{ModLanguage.English, "{eng_name}"}},\n'
-        code += f'                    {{ModLanguage.Chinese, "{chn_name}"}},\n'
+        # 收集所有需要生成的语言（必须语言 + 已填写的语言）
+        langs_to_generate = set(required_langs)
+        for lang in weapon.localization.languages:
+            if lang in LANGUAGE_TO_ENUM_MAP:
+                langs_to_generate.add(lang)
 
-        # 生成其他语言名称
-        for lang_key, lang_enum in LANGUAGE_TO_ENUM_MAP.items():
-            if lang_key == "English":
+        # 按 SUPPORTED_LANGUAGES 顺序生成名称
+        for lang in SUPPORTED_LANGUAGES:
+            if lang not in langs_to_generate:
                 continue
-            if lang_key in weapon.localization.other_languages:
-                l_name = weapon.localization.other_languages[lang_key]["name"] or ""
-                code += f'                    {{{lang_enum}, "{l_name}"}},\n'
+            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
+            if not lang_enum:
+                continue
+            name = weapon.localization.get_name(lang)
+            code += f'                    {{{lang_enum}, "{name}"}},\n'
 
         code += "                },\n"
         code += "                description: new Dictionary<ModLanguage, string>() {\n"
 
-        # 英文描述
-        eng_desc = eng_data["description"] or ""
-        formatted_eng_desc = self.format_description(eng_desc)
-        code += f'                    {{ModLanguage.English, "{formatted_eng_desc}"}},\n'
-
-        # 中文描述
-        chn_desc = weapon.localization.chinese_description or ""
-        formatted_chn_desc = self.format_description(chn_desc)
-        code += f'                    {{ModLanguage.Chinese, "{formatted_chn_desc}"}},\n'
-
-        # 其他语言描述
-        for lang_key, lang_enum in LANGUAGE_TO_ENUM_MAP.items():
-            if lang_key == "English":
+        # 按 SUPPORTED_LANGUAGES 顺序生成描述
+        for lang in SUPPORTED_LANGUAGES:
+            if lang not in langs_to_generate:
                 continue
-            if lang_key in weapon.localization.other_languages:
-                l_desc = weapon.localization.other_languages[lang_key]["description"] or ""
-                formatted_desc = self.format_description(l_desc)
-                code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
+            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
+            if not lang_enum:
+                continue
+            desc = weapon.localization.get_description(lang)
+            formatted_desc = self.format_description(desc)
+            code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
 
         code += "                }\n"
         code += "            )\n"
