@@ -103,6 +103,12 @@ SLOT_BALANCE = {
     "chain": 2,
 }
 
+# 支持左手持握的槽位 (单手武器)
+LEFT_HAND_SLOTS = ["dagger", "mace", "sword", "axe"]
+
+# 预览动画帧率
+PREVIEW_ANIMATION_FPS = 8
+
 # 渲染坐标系常量
 GML_ANCHOR_X = 22  # 游戏内默认原点 X (相对于人物/武器贴图左上角)
 GML_ANCHOR_Y = 34  # 游戏内默认原点 Y (相对于人物/武器贴图左上角)
@@ -203,6 +209,87 @@ ATTRIBUTE_DESCRIPTIONS = {
     "Arcanistic_Power": ("秘术法力", ""),
     "Astromantic_Power": ("星术法力", ""),
     "Psimantic_Power": ("灵术法力", ""),
+}
+
+# Byte类型的属性 (需要限制为 0-255)
+BYTE_ATTRIBUTES = {
+    "Bleeding_Chance",
+    "Daze_Chance",
+    "Stun_Chance",
+    "Knockback_Chance",
+    "Immob_Chance",
+    "Stagger_Chance",
+}
+
+# 属性分组 (用于编辑器UI)
+ATTRIBUTE_GROUPS = {
+    "伤害类型": [
+        "Slashing_Damage",
+        "Piercing_Damage",
+        "Blunt_Damage",
+        "Rending_Damage",
+        "Fire_Damage",
+        "Shock_Damage",
+        "Poison_Damage",
+        "Caustic_Damage",
+        "Frost_Damage",
+        "Arcane_Damage",
+        "Unholy_Damage",
+        "Sacred_Damage",
+        "Psionic_Damage",
+    ],
+    "战斗属性": [
+        "Hit_Chance",
+        "CRT",
+        "CRTD",
+        "CTA",
+        "PRR",
+        "Block_Power",
+        "Block_Recovery",
+        "FMB",
+    ],
+    "穿透破坏": ["Armor_Piercing", "Armor_Damage", "Bodypart_Damage"],
+    "状态效果": [
+        "Bleeding_Chance",
+        "Knockback_Chance",
+        "Daze_Chance",
+        "Stun_Chance",
+        "Immob_Chance",
+        "Stagger_Chance",
+    ],
+    "吸血回复": ["Lifesteal", "Manasteal"],
+    "生存属性": [
+        "max_hp",
+        "Health_Restoration",
+        "Healing_Received",
+        "Crit_Avoid",
+        "Damage_Received",
+    ],
+    "精力相关": ["MP", "MP_Restoration"],
+    "能量消耗": [
+        "Abilities_Energy_Cost",
+        "Skills_Energy_Cost",
+        "Spells_Energy_Cost",
+        "Cooldown_Reduction",
+    ],
+    "魔法属性": [
+        "Magic_Power",
+        "Miscast_Chance",
+        "Miracle_Chance",
+        "Miracle_Power",
+    ],
+    "元素法力": [
+        "Pyromantic_Power",
+        "Geomantic_Power",
+        "Venomantic_Power",
+        "Cryomantic_Power",
+        "Electromantic_Power",
+        "Arcanistic_Power",
+        "Astromantic_Power",
+        "Psimantic_Power",
+    ],
+    "距离相关": ["Bonus_Range"],
+    "其他": ["Fatigue_Gain"],
 }
 
 CHARACTER_MODELS = {
@@ -323,8 +410,7 @@ class Weapon:
             errors.append("必须提供手持状态贴图")
 
         # 检查单手武器的左手贴图
-        left_hand_slots = ["dagger", "mace", "sword", "axe"]
-        if self.slot in left_hand_slots:
+        if self.slot in LEFT_HAND_SLOTS:
             if not self.textures.character_left:
                 slot_name = SLOT_LABELS.get(self.slot, self.slot)
                 errors.append(f"槽位为 '{slot_name}' 的武器必须提供左手手持贴图")
@@ -612,12 +698,9 @@ class ModProject:
 
     def clean_invalid_data(self):
         """清理无效的武器数据（如非左手武器的左手贴图信息）"""
-        # 定义支持左手贴图的槽位
-        left_hand_slots = ["dagger", "mace", "sword", "axe"]
-
         for weapon in self.weapons:
             # 清理左手贴图数据
-            if weapon.slot not in left_hand_slots:
+            if weapon.slot not in LEFT_HAND_SLOTS:
                 weapon.textures.character_left = ""
                 weapon.textures.character_left_frames = []
                 weapon.textures.offset_x_left = 0
@@ -778,87 +861,6 @@ class ModGeneratorGUI:
         self.show_error_popup = False
         self.show_save_popup = False
         self.show_success_popup = False
-
-        # Byte类型的属性 (需要限制非负)
-        self.byte_attributes = {
-            "Bleeding_Chance",
-            "Daze_Chance",
-            "Stun_Chance",
-            "Knockback_Chance",
-            "Immob_Chance",
-            "Stagger_Chance",
-        }
-
-        # 分组的属性
-        self.attribute_groups = {
-            "伤害类型": [
-                "Slashing_Damage",
-                "Piercing_Damage",
-                "Blunt_Damage",
-                "Rending_Damage",
-                "Fire_Damage",
-                "Shock_Damage",
-                "Poison_Damage",
-                "Caustic_Damage",
-                "Frost_Damage",
-                "Arcane_Damage",
-                "Unholy_Damage",
-                "Sacred_Damage",
-                "Psionic_Damage",
-            ],
-            "战斗属性": [
-                "Hit_Chance",
-                "CRT",
-                "CRTD",
-                "CTA",
-                "PRR",
-                "Block_Power",
-                "Block_Recovery",
-                "FMB",
-            ],
-            "穿透破坏": ["Armor_Piercing", "Armor_Damage", "Bodypart_Damage"],
-            "状态效果": [
-                "Bleeding_Chance",
-                "Knockback_Chance",
-                "Daze_Chance",
-                "Stun_Chance",
-                "Immob_Chance",
-                "Stagger_Chance",
-            ],
-            "吸血回复": ["Lifesteal", "Manasteal"],
-            "生存属性": [
-                "max_hp",
-                "Health_Restoration",
-                "Healing_Received",
-                "Crit_Avoid",
-                "Damage_Received",
-            ],
-            "精力相关": ["MP", "MP_Restoration"],
-            "能量消耗": [
-                "Abilities_Energy_Cost",
-                "Skills_Energy_Cost",
-                "Spells_Energy_Cost",
-                "Cooldown_Reduction",
-            ],
-            "魔法属性": [
-                "Magic_Power",
-                "Miscast_Chance",
-                "Miracle_Chance",
-                "Miracle_Power",
-            ],
-            "元素法力": [
-                "Pyromantic_Power",
-                "Geomantic_Power",
-                "Venomantic_Power",
-                "Cryomantic_Power",
-                "Electromantic_Power",
-                "Arcanistic_Power",
-                "Astromantic_Power",
-                "Psimantic_Power",
-            ],
-            "距离相关": ["Bonus_Range"],
-            "其他": ["Fatigue_Gain"],
-        }
 
     def load_config(self):
         """加载用户配置"""
@@ -1525,8 +1527,7 @@ class ModGeneratorGUI:
                         weapon.slot = slot
 
                         # 切换槽位时清理无效的左手贴图数据
-                        left_hand_slots = ["dagger", "mace", "sword", "axe"]
-                        if weapon.slot not in left_hand_slots:
+                        if weapon.slot not in LEFT_HAND_SLOTS:
                             weapon.textures.character_left = ""
                             weapon.textures.character_left_frames = []
                             weapon.textures.offset_x_left = 0
@@ -1652,7 +1653,7 @@ class ModGeneratorGUI:
                     )  # Red for error
 
     def draw_attributes_editor(self, weapon):
-        for group_name, attributes in self.attribute_groups.items():
+        for group_name, attributes in ATTRIBUTE_GROUPS.items():
             if imgui.tree_node(group_name):
                 for attr in attributes:
                     # 获取描述
@@ -1674,7 +1675,7 @@ class ModGeneratorGUI:
                     imgui.pop_item_width()
 
                     # 限制 byte 类型属性的范围 (0-255)
-                    if attr in self.byte_attributes:
+                    if attr in BYTE_ATTRIBUTES:
                         if new_val < 0:
                             new_val = 0
                             changed = True
@@ -1693,7 +1694,7 @@ class ModGeneratorGUI:
                     # 悬停显示详细描述
                     if imgui.is_item_hovered():
                         tooltip_text = desc_detail
-                        if attr in self.byte_attributes:
+                        if attr in BYTE_ATTRIBUTES:
                             if tooltip_text:
                                 tooltip_text += "\n"
                             tooltip_text += "类型: byte (0-255)"
@@ -1836,8 +1837,7 @@ class ModGeneratorGUI:
         self.draw_indented_separator()
 
         # 左手持握贴图（仅特定单手武器显示）
-        left_hand_slots = ["dagger", "mace", "sword", "axe"]
-        if weapon.slot in left_hand_slots:
+        if weapon.slot in LEFT_HAND_SLOTS:
             self.draw_texture_selector(
                 "左手手持贴图*",
                 weapon.textures.character_left,
@@ -1919,8 +1919,7 @@ class ModGeneratorGUI:
         if is_anim_field and frames:
             imgui.text(f"动画模式 ({len(frames)} 帧)")
 
-            # FPS 设定已移除，预览固定为 8
-            fps = 8
+            fps = PREVIEW_ANIMATION_FPS
 
             if imgui.button(f"添加帧##{label}"):
                 self.current_texture_field = field_identifier
@@ -2100,7 +2099,7 @@ class ModGeneratorGUI:
         # 如果是动画模式，预览当前帧
         preview_path = current_path
         if is_anim_field and frames:
-            fps = 8  # 强制固定预览 FPS 为 8
+            fps = PREVIEW_ANIMATION_FPS
             state = self.preview_states.get(
                 field_identifier, {"paused": False, "current_frame": 0}
             )
