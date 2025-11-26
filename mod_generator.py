@@ -127,9 +127,11 @@ VALID_MAX_Y = CHAR_CENTER_Y + VALID_AREA_SIZE // 2  # 52
 
 # 视口绘制时人物相对于64x64框左上角的偏移
 # 64x64框的中心是 (32, 32)，人物中心是 (24, 20)
-# 偏移 = 32 - 24 = 8, 32 - 20 = 12
-VIEWPORT_CHAR_OFFSET_X = 8
-VIEWPORT_CHAR_OFFSET_Y = 12
+# 偏移 = 视口中心 - 人物中心
+VIEWPORT_CHAR_OFFSET_X = VALID_AREA_SIZE // 2 - CHAR_CENTER_X  # = 32 - 24 = 8
+VIEWPORT_CHAR_OFFSET_Y = VALID_AREA_SIZE // 2 - CHAR_CENTER_Y  # = 32 - 20 = 12
+
+# 注意：VIEWPORT_CHAR_OFFSET 等价于 -VALID_MIN，这在 _calculate_adjusted_offsets 中使用
 
 # 属性描述
 ATTRIBUTE_DESCRIPTIONS = {
@@ -2747,8 +2749,66 @@ class ModGeneratorGUI:
             self.error_message = f"生成模组失败:\n{e}"
             self.show_error_popup = True
 
+    def _calculate_crop_region(self, img_width: int, img_height: int, off_x: int, off_y: int):
+        """计算武器贴图的裁剪区域
+        
+        Args:
+            img_width: 原图宽度
+            img_height: 原图高度
+            off_x: 用户设置的水平偏移
+            off_y: 用户设置的垂直偏移
+            
+        Returns:
+            tuple: (crop_x1, crop_y1, crop_x2, crop_y2, is_valid)
+                   crop_x1, crop_y1: 裁剪区域左上角（在原图坐标系中）
+                   crop_x2, crop_y2: 裁剪区域右下角（在原图坐标系中）
+                   is_valid: 裁剪区域是否有效（非空）
+        """
+        # 有效范围相对于武器贴图左上角(0,0)
+        # 转换公式: WeaponLocal = World - (GML_ANCHOR - WeaponAnchor)
+        # WeaponLocal = World + off_x (对于 x 轴)
+        valid_local_min_x = VALID_MIN_X + off_x
+        valid_local_max_x = VALID_MAX_X + off_x
+        valid_local_min_y = VALID_MIN_Y + off_y
+        valid_local_max_y = VALID_MAX_Y + off_y
+        
+        # 计算裁剪框（与原图相交的部分）
+        crop_x1 = int(max(0, valid_local_min_x))
+        crop_y1 = int(max(0, valid_local_min_y))
+        crop_x2 = int(min(img_width, valid_local_max_x))
+        crop_y2 = int(min(img_height, valid_local_max_y))
+        
+        is_valid = crop_x1 < crop_x2 and crop_y1 < crop_y2
+        return crop_x1, crop_y1, crop_x2, crop_y2, is_valid
+
+    def _calculate_adjusted_offsets(self, off_x: int, off_y: int):
+        """计算真正裁剪后的调整偏移量
+        
+        当贴图被真正裁剪时，如果裁剪掉了左侧或上侧的像素，
+        偏移量会被"限制"到最大有效值。
+        
+        原理：
+        - crop_x1 = max(0, VALID_MIN_X + off_x)
+        - adjusted_off_x = off_x - crop_x1
+        
+        当 off_x <= VIEWPORT_CHAR_OFFSET_X 时: crop_x1 = 0, adjusted = off_x
+        当 off_x > VIEWPORT_CHAR_OFFSET_X 时: adjusted = VIEWPORT_CHAR_OFFSET_X
+        
+        简化为: adjusted_off = min(off, VIEWPORT_CHAR_OFFSET)
+        
+        X方向最大有效偏移: VIEWPORT_CHAR_OFFSET_X = 8
+        Y方向最大有效偏移: VIEWPORT_CHAR_OFFSET_Y = 12
+        
+        超过这些值后，继续增大偏移不会改变实际锚点位置，
+        因为被裁剪掉的像素数与偏移增量相同。
+        """
+        adjusted_off_x = min(off_x, VIEWPORT_CHAR_OFFSET_X)
+        adjusted_off_y = min(off_y, VIEWPORT_CHAR_OFFSET_Y)
+        
+        return adjusted_off_x, adjusted_off_y
+
     def copy_texture(self, src_path, dst_path, mask_offsets=None):
-        """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行裁剪(透明化)"""
+        """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行真正的裁剪"""
         if src_path and os.path.exists(src_path):
             # 确保目标目录存在
             os.makedirs(os.path.dirname(dst_path), exist_ok=True)
@@ -2756,58 +2816,27 @@ class ModGeneratorGUI:
             if mask_offsets and Image:
                 try:
                     off_x, off_y = mask_offsets
-                    # 尝试使用 PIL 处理
                     with Image.open(src_path) as img:
                         img = img.convert("RGBA")
                         w, h = img.size
 
-                        # 有效范围相对于 武器贴图左上角(0,0)
-                        # 坐标转换逻辑与 draw_preview_with_reference 一致
-                        # 武器Anchor在武器图位置: (off_x, off_y)
-                        # 武器Anchor在世界位置: (GML_ANCHOR_X, GML_ANCHOR_Y) (即 22, 34)
-                        # 有效范围在世界位置: [VALID_MIN_X, VALID_MAX_X] ...
+                        crop_x1, crop_y1, crop_x2, crop_y2, is_valid = self._calculate_crop_region(
+                            w, h, off_x, off_y
+                        )
 
-                        # 转换公式: WeaponLocal = World - (GML_ANCHOR - WeaponAnchor)
-                        # WeaponLocal = World - (22 - off_x)
-                        # WeaponLocal = World - 22 + off_x
-
-                        valid_local_min_x = VALID_MIN_X + off_x
-                        valid_local_max_x = VALID_MAX_X + off_x
-                        valid_local_min_y = VALID_MIN_Y + off_y
-                        valid_local_max_y = VALID_MAX_Y + off_y
-
-                        # 创建新的透明图像
-                        new_img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-
-                        # 计算裁剪框 (在原图中的坐标)
-                        # PIL crop 是左闭右开区间
-                        crop_x1 = int(max(0, valid_local_min_x))
-                        crop_y1 = int(max(0, valid_local_min_y))
-                        crop_x2 = int(
-                            min(w, valid_local_max_x)
-                        )  # 假设 max_x 是 inclusive，这里其实不需要 +1 因为 VALID_MAX_X 已经是边界
-                        # 但要注意 VALID_MAX_X 是 56 (相对于24的+32)。
-                        # 64宽 -> -8 到 56 (不含56? -8到55是64个? -8..56是64长度 if 56- -8 = 64)
-                        # 通常 Range Size = Max - Min. 56 - -8 = 64. Correct.
-                        # PIL crop uses pixel indices. If range is 0 to 64, it includes pixels 0..63.
-                        # So we use valid_local_max_x directly as the exclusive upper bound?
-                        # Wait, defined as Center + Size//2.
-                        # If Center=24, Size=64. Min = 24-32=-8. Max=24+32=56.
-                        # Length = 56 - (-8) = 64.
-                        # So [-8, 56) is 64 pixels.
-                        # So standard float/int conversion should work fine for crop boundaries.
-                        crop_y2 = int(min(h, valid_local_max_y))
-
-                        if crop_x1 < crop_x2 and crop_y1 < crop_y2:
-                            # 裁剪有效区域
-                            region = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
-                            # 粘贴回新图像的对应位置
-                            new_img.paste(region, (crop_x1, crop_y1))
-
-                        new_img.save(dst_path)
-                        return
+                        if is_valid:
+                            # 真正裁剪图像（不保留原尺寸，直接裁切）
+                            cropped = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+                            cropped.save(dst_path)
+                            return
+                        else:
+                            # 有效区域为空，创建一个 1x1 透明图像作为占位
+                            print(f"警告: 贴图 {src_path} 完全超出有效显示区域")
+                            placeholder = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+                            placeholder.save(dst_path)
+                            return
                 except Exception as e:
-                    print(f"处理贴图遮罩失败，将直接复制: {e}")
+                    print(f"处理贴图裁剪失败，将直接复制: {e}")
 
             # 如果没有 offsets 或处理失败，直接复制
             try:
@@ -3008,33 +3037,43 @@ public class {code_namespace} : Mod
         return code
 
     def _generate_gml_offset_code(self, weapon: Weapon) -> str:
-        """生成 GML 偏移注入代码"""
-        # 检查是否需要生成
-        if not (
-            weapon.textures.offset_x != 0
-            or weapon.textures.offset_y != 0
-            or weapon.textures.offset_x_left != 0
-            or weapon.textures.offset_y_left != 0
-        ):
-            return ""
-
+        """生成 GML 偏移注入代码
+        
+        注意：由于贴图会被真正裁剪（而非仅透明化），如果裁剪掉了左侧或上侧的像素，
+        需要相应调整偏移量以保持正确的锚点位置。
+        """
         gml_code_block = ""
 
         # 处理右手/默认手持
         if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
-            val_y = GML_ANCHOR_Y + weapon.textures.offset_y
-            val_x = GML_ANCHOR_X + weapon.textures.offset_x
-            sprite_name = f"s_char_{weapon.id}"
-            gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
+            # 计算真正裁剪后的调整偏移量（已简化，无需加载图片）
+            adj_off_x, adj_off_y = self._calculate_adjusted_offsets(
+                weapon.textures.offset_x,
+                weapon.textures.offset_y
+            )
+            
+            # 只有调整后偏移不为零时才需要生成代码
+            if adj_off_x != 0 or adj_off_y != 0:
+                val_y = GML_ANCHOR_Y + adj_off_y
+                val_x = GML_ANCHOR_X + adj_off_x
+                sprite_name = f"s_char_{weapon.id}"
+                gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
 
         # 处理左手手持
-        if weapon.textures.character_left and (
-            weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0
-        ):
-            val_y = GML_ANCHOR_Y + weapon.textures.offset_y_left
-            val_x = GML_ANCHOR_X + weapon.textures.offset_x_left
-            sprite_name = f"s_charleft_{weapon.id}"
-            gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
+        if weapon.textures.character_left or weapon.textures.character_left_frames:
+            if weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0:
+                # 计算真正裁剪后的调整偏移量（已简化，无需加载图片）
+                adj_off_x_left, adj_off_y_left = self._calculate_adjusted_offsets(
+                    weapon.textures.offset_x_left,
+                    weapon.textures.offset_y_left
+                )
+                
+                # 只有调整后偏移不为零时才需要生成代码
+                if adj_off_x_left != 0 or adj_off_y_left != 0:
+                    val_y = GML_ANCHOR_Y + adj_off_y_left
+                    val_x = GML_ANCHOR_X + adj_off_x_left
+                    sprite_name = f"s_charleft_{weapon.id}"
+                    gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
 
         if not gml_code_block:
             return ""
