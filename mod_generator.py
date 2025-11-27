@@ -106,8 +106,11 @@ SLOT_BALANCE = {
 # 支持左手持握的槽位 (单手武器)
 LEFT_HAND_SLOTS = ["dagger", "mace", "sword", "axe"]
 
-# 预览动画帧率
-PREVIEW_ANIMATION_FPS = 8
+# 游戏实际帧率 (Stoneshard 运行在约 40fps)
+GAME_FPS = 40
+
+# 预览动画帧率 (游戏帧率的 1/4，手持贴图在游戏中默认以此速度播放)
+PREVIEW_ANIMATION_FPS = GAME_FPS // 4  # = 10 fps
 
 # 渲染坐标系常量
 GML_ANCHOR_X = 22  # 游戏内默认原点 X (相对于人物/武器贴图左上角)
@@ -421,6 +424,10 @@ class WeaponTextures:
     character_left_frames: List[str] = field(default_factory=list)
     loot_frames: List[str] = field(default_factory=list)
 
+    # 战利品贴图动画设置
+    loot_fps: float = 10.0  # 战利品贴图播放帧率/相对帧率
+    loot_use_relative_speed: bool = False  # 是否使用相对帧率模式
+
 
 @dataclass
 class Weapon:
@@ -601,6 +608,10 @@ class ModProject:
                         self._get_relative_path(p, project_dir)
                         for p in weapon.textures.loot_frames
                     ],
+                    "loot_fps": round(
+                        weapon.textures.loot_fps, 3
+                    ),  # 保存时四舍五入确保精度一致
+                    "loot_use_relative_speed": weapon.textures.loot_use_relative_speed,
                 },
             }
             data["weapons"].append(weapon_data)
@@ -749,18 +760,25 @@ class ModProject:
 
             # 解析路径
             char_path = self._resolve_path(tex_data.get("character", ""), project_dir)
-            char_left_path = self._resolve_path(tex_data.get("character_left", ""), project_dir)
+            char_left_path = self._resolve_path(
+                tex_data.get("character_left", ""), project_dir
+            )
             loot_path = self._resolve_path(tex_data.get("loot", ""), project_dir)
             inv_paths = [self._resolve_path(p, project_dir) for p in inventory_list]
 
             # 解析帧动画路径
             char_frames = [
-                self._resolve_path(p, project_dir) for p in tex_data.get("character_frames", [])
+                self._resolve_path(p, project_dir)
+                for p in tex_data.get("character_frames", [])
             ]
             char_left_frames = [
-                self._resolve_path(p, project_dir) for p in tex_data.get("character_left_frames", [])
+                self._resolve_path(p, project_dir)
+                for p in tex_data.get("character_left_frames", [])
             ]
-            loot_frames = [self._resolve_path(p, project_dir) for p in tex_data.get("loot_frames", [])]
+            loot_frames = [
+                self._resolve_path(p, project_dir)
+                for p in tex_data.get("loot_frames", [])
+            ]
 
             weapon.textures = WeaponTextures(
                 character=char_path,
@@ -774,6 +792,10 @@ class ModProject:
                 character_frames=char_frames,
                 character_left_frames=char_left_frames,
                 loot_frames=loot_frames,
+                loot_fps=round(
+                    tex_data.get("loot_fps", 10), 3
+                ),  # 四舍五入确保所见即所得
+                loot_use_relative_speed=tex_data.get("loot_use_relative_speed", False),
             )
 
             self.weapons.append(weapon)
@@ -1513,7 +1535,9 @@ class ModGeneratorGUI:
             new_weapon.name = self.generate_default_weapon_name()
             # 默认主语言名称和描述
             new_weapon.localization.set_name(PRIMARY_LANGUAGE, "新武器")
-            new_weapon.localization.set_description(PRIMARY_LANGUAGE, "这是新武器的描述")
+            new_weapon.localization.set_description(
+                PRIMARY_LANGUAGE, "这是新武器的描述"
+            )
 
             self.project.weapons.append(new_weapon)
             self.current_weapon_index = len(self.project.weapons) - 1
@@ -1545,7 +1569,9 @@ class ModGeneratorGUI:
             # 主语言名称加个标记，方便区分
             primary_name = new_weapon.localization.get_name(PRIMARY_LANGUAGE)
             if primary_name:
-                new_weapon.localization.set_name(PRIMARY_LANGUAGE, primary_name + " (副本)")
+                new_weapon.localization.set_name(
+                    PRIMARY_LANGUAGE, primary_name + " (副本)"
+                )
 
             self.project.weapons.append(new_weapon)
             self.current_weapon_index = len(self.project.weapons) - 1
@@ -1816,7 +1842,10 @@ class ModGeneratorGUI:
 
         # 确保主语言数据存在
         if not weapon.localization.has_language(PRIMARY_LANGUAGE):
-            weapon.localization.languages[PRIMARY_LANGUAGE] = {"name": "", "description": ""}
+            weapon.localization.languages[PRIMARY_LANGUAGE] = {
+                "name": "",
+                "description": "",
+            }
 
         primary_data = weapon.localization.languages[PRIMARY_LANGUAGE]
 
@@ -1998,6 +2027,101 @@ class ModGeneratorGUI:
         self.draw_indented_separator()
         self.draw_texture_selector("战利品贴图*", weapon.textures.loot, "loot", weapon)
 
+        # 战利品贴图动画速度设置（仅当有动画帧时显示）
+        if weapon.textures.loot_frames:
+            imgui.text("战利品动画速度设置")
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "设置战利品贴图的动画播放速度。\n" "此设置会影响生成的模组代码。"
+                )
+
+            # 速度模式选择
+            mode_labels = ["固定帧率 (FPS)", "相对帧率"]
+            current_mode = 1 if weapon.textures.loot_use_relative_speed else 0
+            if imgui.begin_combo(
+                "速度模式##loot_speed_mode", mode_labels[current_mode]
+            ):
+                if imgui.selectable(
+                    "固定帧率 (FPS)", not weapon.textures.loot_use_relative_speed
+                )[0]:
+                    if (
+                        weapon.textures.loot_use_relative_speed
+                    ):  # 从相对帧率切换到固定帧率
+                        weapon.textures.loot_use_relative_speed = False
+                        weapon.textures.loot_fps = 10.0  # 重置为默认固定帧率
+                if imgui.selectable(
+                    "相对帧率", weapon.textures.loot_use_relative_speed
+                )[0]:
+                    if (
+                        not weapon.textures.loot_use_relative_speed
+                    ):  # 从固定帧率切换到相对帧率
+                        weapon.textures.loot_use_relative_speed = True
+                        weapon.textures.loot_fps = (
+                            0.25  # 重置为默认相对帧率 (与手持贴图相同)
+                        )
+                imgui.end_combo()
+
+            if not weapon.textures.loot_use_relative_speed:
+                # 固定帧率模式
+                imgui.push_item_width(150)
+                changed, weapon.textures.loot_fps = imgui.input_float(
+                    "播放帧率 (FPS)##loot_fps",
+                    weapon.textures.loot_fps,
+                    step=1.0,
+                    step_fast=5.0,
+                    format="%.1f",
+                )
+                if changed and weapon.textures.loot_fps < 0.1:
+                    weapon.textures.loot_fps = 0.1
+                imgui.pop_item_width()
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip(
+                        "每秒播放的帧数。\n"
+                        "这是一个固定值，不会随游戏速度变化。\n"
+                        "默认值: 10"
+                    )
+            else:
+                # 相对帧率模式
+                imgui.push_item_width(180)  # 增加宽度以容纳更多小数位显示
+                changed, weapon.textures.loot_fps = imgui.input_float(
+                    "相对帧率##loot_relative_fps",
+                    weapon.textures.loot_fps,
+                    step=0.01,
+                    step_fast=0.1,
+                    format="%.3f",
+                )
+                # 允许非常小的值，但不能为0或负数
+                if changed:
+                    if weapon.textures.loot_fps < 0.001:
+                        weapon.textures.loot_fps = 0.001
+                    # 四舍五入到3位小数，确保所见即所得
+                    weapon.textures.loot_fps = round(weapon.textures.loot_fps, 3)
+                imgui.pop_item_width()
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip(
+                        "每个游戏帧内动画前进的帧数。\n\n"
+                        "例如:\n"
+                        f"  • 值为 0.1 时: 实际播放速度 = {GAME_FPS} × 0.1 = 4 fps\n"
+                        f"  • 值为 0.25 时: 实际播放速度 = {GAME_FPS} × 0.25 = 10 fps\n"
+                        f"  • 值为 0.5 时: 实际播放速度 = {GAME_FPS} × 0.5 = 20 fps\n"
+                        f"  • 值为 1.0 时: 实际播放速度 = {GAME_FPS} × 1.0 = 40 fps\n\n"
+                        "此模式的好处是动画速度会随游戏速度同步变化，\n"
+                        "当游戏变慢时动画也会相应变慢。\n\n"
+                        f"提示: 手持贴图默认相对帧率为 0.25 (即 {GAME_FPS // 4} fps)。\n"
+                        "若想与手持贴图保持相同速度，请设为 0.25。\n"
+                        "最小值: 0.001"
+                    )
+
+                # 显示实际播放速度（使用与输入相同的精度）
+                actual_fps = GAME_FPS * weapon.textures.loot_fps
+                imgui.text_colored(
+                    f"实际播放速度: {actual_fps:.3f} fps (游戏 {GAME_FPS} fps 时)",
+                    0.7,
+                    0.7,
+                    0.7,
+                    1.0,
+                )
+
     def _import_and_resolve_texture(self, source_path: str) -> str:
         """导入贴图并返回解析后的绝对路径
 
@@ -2024,7 +2148,13 @@ class ModGeneratorGUI:
 
         # 如果是动画模式且有帧数据，显示动画管理界面
         if is_anim_field and frames:
-            imgui.text(f"动画模式 ({len(frames)} 帧)")
+            imgui.text(f"动画模式 (共 {len(frames)} 张图片)")
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    f"当前动画包含 {len(frames)} 张图片。\n"
+                    f"预览播放速度: {PREVIEW_ANIMATION_FPS} fps\n"
+                    f"(游戏中手持贴图默认以此速度播放)"
+                )
 
             fps = PREVIEW_ANIMATION_FPS
 
@@ -2204,7 +2334,18 @@ class ModGeneratorGUI:
         # 如果是动画模式，预览当前帧
         preview_path = current_path
         if is_anim_field and frames:
-            fps = PREVIEW_ANIMATION_FPS
+            # 根据贴图类型选择预览帧率
+            fps = PREVIEW_ANIMATION_FPS  # 默认使用手持贴图帧率
+
+            # 如果是战利品贴图，使用用户配置的帧率
+            if field_identifier == "loot" and weapon:
+                if weapon.textures.loot_use_relative_speed:
+                    # 相对帧率模式：实际fps = 游戏fps × 相对帧率
+                    fps = GAME_FPS * weapon.textures.loot_fps
+                else:
+                    # 固定帧率模式
+                    fps = weapon.textures.loot_fps
+
             state = self.preview_states.get(
                 field_identifier, {"paused": False, "current_frame": 0}
             )
@@ -2749,15 +2890,17 @@ class ModGeneratorGUI:
             self.error_message = f"生成模组失败:\n{e}"
             self.show_error_popup = True
 
-    def _calculate_crop_region(self, img_width: int, img_height: int, off_x: int, off_y: int):
+    def _calculate_crop_region(
+        self, img_width: int, img_height: int, off_x: int, off_y: int
+    ):
         """计算武器贴图的裁剪区域
-        
+
         Args:
             img_width: 原图宽度
             img_height: 原图高度
             off_x: 用户设置的水平偏移
             off_y: 用户设置的垂直偏移
-            
+
         Returns:
             tuple: (crop_x1, crop_y1, crop_x2, crop_y2, is_valid)
                    crop_x1, crop_y1: 裁剪区域左上角（在原图坐标系中）
@@ -2771,40 +2914,40 @@ class ModGeneratorGUI:
         valid_local_max_x = VALID_MAX_X + off_x
         valid_local_min_y = VALID_MIN_Y + off_y
         valid_local_max_y = VALID_MAX_Y + off_y
-        
+
         # 计算裁剪框（与原图相交的部分）
         crop_x1 = int(max(0, valid_local_min_x))
         crop_y1 = int(max(0, valid_local_min_y))
         crop_x2 = int(min(img_width, valid_local_max_x))
         crop_y2 = int(min(img_height, valid_local_max_y))
-        
+
         is_valid = crop_x1 < crop_x2 and crop_y1 < crop_y2
         return crop_x1, crop_y1, crop_x2, crop_y2, is_valid
 
     def _calculate_adjusted_offsets(self, off_x: int, off_y: int):
         """计算真正裁剪后的调整偏移量
-        
+
         当贴图被真正裁剪时，如果裁剪掉了左侧或上侧的像素，
         偏移量会被"限制"到最大有效值。
-        
+
         原理：
         - crop_x1 = max(0, VALID_MIN_X + off_x)
         - adjusted_off_x = off_x - crop_x1
-        
+
         当 off_x <= VIEWPORT_CHAR_OFFSET_X 时: crop_x1 = 0, adjusted = off_x
         当 off_x > VIEWPORT_CHAR_OFFSET_X 时: adjusted = VIEWPORT_CHAR_OFFSET_X
-        
+
         简化为: adjusted_off = min(off, VIEWPORT_CHAR_OFFSET)
-        
+
         X方向最大有效偏移: VIEWPORT_CHAR_OFFSET_X = 8
         Y方向最大有效偏移: VIEWPORT_CHAR_OFFSET_Y = 12
-        
+
         超过这些值后，继续增大偏移不会改变实际锚点位置，
         因为被裁剪掉的像素数与偏移增量相同。
         """
         adjusted_off_x = min(off_x, VIEWPORT_CHAR_OFFSET_X)
         adjusted_off_y = min(off_y, VIEWPORT_CHAR_OFFSET_Y)
-        
+
         return adjusted_off_x, adjusted_off_y
 
     def copy_texture(self, src_path, dst_path, mask_offsets=None):
@@ -2820,8 +2963,8 @@ class ModGeneratorGUI:
                         img = img.convert("RGBA")
                         w, h = img.size
 
-                        crop_x1, crop_y1, crop_x2, crop_y2, is_valid = self._calculate_crop_region(
-                            w, h, off_x, off_y
+                        crop_x1, crop_y1, crop_x2, crop_y2, is_valid = (
+                            self._calculate_crop_region(w, h, off_x, off_y)
                         )
 
                         if is_valid:
@@ -3022,7 +3165,9 @@ public class {code_namespace} : Mod
         code += "        );\n"
         return code
 
-    def _generate_anchor_gml_block(self, val_y: int, val_x: int, sprite_name: str) -> str:
+    def _generate_anchor_gml_block(
+        self, val_y: int, val_x: int, sprite_name: str
+    ) -> str:
         """生成单个锚点的 GML 代码块"""
         code = f"pushi.e {val_y}\n"
         code += "conv.i.v\n"
@@ -3038,7 +3183,7 @@ public class {code_namespace} : Mod
 
     def _generate_gml_offset_code(self, weapon: Weapon) -> str:
         """生成 GML 偏移注入代码
-        
+
         注意：由于贴图会被真正裁剪（而非仅透明化），如果裁剪掉了左侧或上侧的像素，
         需要相应调整偏移量以保持正确的锚点位置。
         """
@@ -3048,32 +3193,34 @@ public class {code_namespace} : Mod
         if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
             # 计算真正裁剪后的调整偏移量（已简化，无需加载图片）
             adj_off_x, adj_off_y = self._calculate_adjusted_offsets(
-                weapon.textures.offset_x,
-                weapon.textures.offset_y
+                weapon.textures.offset_x, weapon.textures.offset_y
             )
-            
+
             # 只有调整后偏移不为零时才需要生成代码
             if adj_off_x != 0 or adj_off_y != 0:
                 val_y = GML_ANCHOR_Y + adj_off_y
                 val_x = GML_ANCHOR_X + adj_off_x
                 sprite_name = f"s_char_{weapon.id}"
-                gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
+                gml_code_block += self._generate_anchor_gml_block(
+                    val_y, val_x, sprite_name
+                )
 
         # 处理左手手持
         if weapon.textures.character_left or weapon.textures.character_left_frames:
             if weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0:
                 # 计算真正裁剪后的调整偏移量（已简化，无需加载图片）
                 adj_off_x_left, adj_off_y_left = self._calculate_adjusted_offsets(
-                    weapon.textures.offset_x_left,
-                    weapon.textures.offset_y_left
+                    weapon.textures.offset_x_left, weapon.textures.offset_y_left
                 )
-                
+
                 # 只有调整后偏移不为零时才需要生成代码
                 if adj_off_x_left != 0 or adj_off_y_left != 0:
                     val_y = GML_ANCHOR_Y + adj_off_y_left
                     val_x = GML_ANCHOR_X + adj_off_x_left
                     sprite_name = f"s_charleft_{weapon.id}"
-                    gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
+                    gml_code_block += self._generate_anchor_gml_block(
+                        val_y, val_x, sprite_name
+                    )
 
         if not gml_code_block:
             return ""
@@ -3098,6 +3245,39 @@ popz.v"""
         code += "            .Save();\n"
         return code
 
+    def _generate_loot_sprite_animation_code(self, weapon: Weapon) -> str:
+        """生成战利品贴图动画设置的 C# 代码
+
+        当战利品贴图为动画形式时，生成设置播放速度的代码。
+        """
+        # 只有当有多帧动画时才需要生成代码
+        if not weapon.textures.loot_frames or len(weapon.textures.loot_frames) <= 1:
+            return ""
+
+        sprite_name = f"s_loot_{weapon.id}"
+        fps_value = weapon.textures.loot_fps
+
+        # 根据速度模式选择不同的类型
+        if weapon.textures.loot_use_relative_speed:
+            speed_type = "AnimSpeedType.FramesPerGameFrame"
+        else:
+            speed_type = "AnimSpeedType.FramesPerSecond"
+
+        # 格式化帧率值，确保输出与显示一致（3位小数）
+        fps_formatted = f"{fps_value:.3f}"
+
+        code = f"""
+        // 设置战利品贴图动画播放速度
+        UndertaleSprite lootSprite_{weapon.id} = Msl.GetSprite("{sprite_name}");
+        lootSprite_{weapon.id}.CollisionMasks.RemoveAt(0);
+        lootSprite_{weapon.id}.IsSpecialType = true;
+        lootSprite_{weapon.id}.SVersion = 3;
+        lootSprite_{weapon.id}.GMS2PlaybackSpeed = {fps_formatted}f;
+        lootSprite_{weapon.id}.GMS2PlaybackSpeedType = {speed_type};
+
+"""
+        return code
+
     def generate_weapon_method(self, weapon: Weapon) -> str:
         """生成单个武器的C#方法"""
         method_name = f"Add{weapon.id}"
@@ -3106,6 +3286,7 @@ popz.v"""
         code += self._generate_weapon_injection_code(weapon)
         code += self._generate_localization_code(weapon)
         code += self._generate_gml_offset_code(weapon)
+        code += self._generate_loot_sprite_animation_code(weapon)
         code += "    }\n\n"
 
         return code
