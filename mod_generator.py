@@ -36,29 +36,19 @@ try:
 except ImportError:
     Image = None
 
-# 定义枚举类型
-WEAPONS_TIER = ["Tier1", "Tier2", "Tier3", "Tier4", "Tier5"]
-WEAPONS_SLOT = [
-    "sword",
-    "axe",
-    "mace",
-    "dagger",
-    "twohandedsword",
-    "spear",
-    "twohandedaxe",
-    "twohandedmace",
-    "bow",
-    "crossbow",
-    "sling",
-    "twohandedstaff",
-    "chain",
-    "lute",
-]
-WEAPONS_RARITY = ["Common", "Unique"]
-WEAPONS_MATERIAL = ["wood", "metal", "leather"]
+# ============== 通用枚举类型 ==============
 
-TIER_LABELS = {tier: str(idx + 1) for idx, tier in enumerate(WEAPONS_TIER)}
-HIDDEN_SLOTS = {"sling"}
+# 等级（武器/护甲共用）
+TIER = ["Tier1", "Tier2", "Tier3", "Tier4", "Tier5"]
+TIER_LABELS = {tier: str(idx + 1) for idx, tier in enumerate(TIER)}
+
+# 稀有度（武器/护甲共用）
+RARITY = ["Common", "Unique"]
+RARITY_LABELS = {"Common": "普通", "Unique": "独特"}
+
+# ============== 武器相关枚举 ==============
+
+# 武器槽位标签（利用字典有序特性，keys 即为槽位列表）
 SLOT_LABELS = {
     "dagger": "匕首",
     "mace": "单手锤棒",
@@ -74,8 +64,13 @@ SLOT_LABELS = {
     "chain": "锁链",
     "lute": "鲁特琴",
 }
-MATERIAL_LABELS = {"leather": "皮", "wood": "木", "metal": "金属"}
-RARITY_LABELS = {"Common": "普通", "Unique": "独特"}
+
+# ============== 通用标签定义（武器/护甲共用） ==============
+
+# 武器材料标签（利用字典有序特性，keys 即为材料列表）
+MATERIAL_LABELS = {"wood": "木", "metal": "金属", "leather": "皮"}
+
+# 武器标签（利用字典有序特性，keys 即为标签列表）
 TAG_LABELS = {
     "aldor": "奥尔多",
     "elven": "精灵",
@@ -87,7 +82,6 @@ TAG_LABELS = {
     "unique": "独特",
     "special exc": "特殊（新英雄）",
 }
-ALLOWED_TAGS = list(TAG_LABELS.keys())
 SLOT_BALANCE = {
     "twohandedaxe": 0,
     "twohandedmace": 0,
@@ -108,23 +102,7 @@ LEFT_HAND_SLOTS = ["dagger", "mace", "sword", "axe"]
 
 # ============== 护甲/装备相关枚举 ==============
 
-# 护甲等级
-ARMOR_TIER = ["Tier1", "Tier2", "Tier3", "Tier4", "Tier5"]
-ARMOR_TIER_LABELS = {tier: str(idx + 1) for idx, tier in enumerate(ARMOR_TIER)}
-
-# 护甲钩子 (用于注入的表钩子)
-ARMOR_HOOK = [
-    "SHIELDS",
-    "HELMETS",
-    "CHESTPIECES",
-    "GLOVES",
-    "BOOTS",
-    "BELTS",
-    "RINGS",
-    "NECKLACES",
-    "CLOAKS",
-]
-
+# 护甲钩子标签（利用字典有序特性，keys 即为钩子列表）
 ARMOR_HOOK_LABELS = {
     "SHIELDS": "盾牌",
     "HELMETS": "头盔",
@@ -137,19 +115,7 @@ ARMOR_HOOK_LABELS = {
     "CLOAKS": "披风",
 }
 
-# 护甲槽位
-ARMOR_SLOT = [
-    "shield",
-    "Head",
-    "Chest",
-    "Arms",
-    "Legs",
-    "Waist",
-    "Ring",
-    "Amulet",
-    "Back",
-]
-
+# 护甲槽位标签（利用字典有序特性，keys 即为槽位列表）
 ARMOR_SLOT_LABELS = {
     "shield": "盾牌",
     "Head": "头部",
@@ -177,26 +143,17 @@ ARMOR_HOOK_TO_SLOT = {
 
 ARMOR_SLOT_TO_HOOK = {v: k for k, v in ARMOR_HOOK_TO_SLOT.items()}
 
-# 护甲类别
-ARMOR_CLASS = ["Light", "Medium", "Heavy"]
-
+# 护甲类别标签（利用字典有序特性，keys 即为类别列表）
 ARMOR_CLASS_LABELS = {
     "Light": "轻甲",
     "Medium": "中甲",
     "Heavy": "重甲",
 }
 
-# 护甲稀有度
-ARMOR_RARITY = ["Common", "Unique"]
+# 护甲稀有度标签（复用通用定义）
+ARMOR_RARITY_LABELS = RARITY_LABELS
 
-ARMOR_RARITY_LABELS = {
-    "Common": "普通",
-    "Unique": "独特",
-}
-
-# 护甲材料
-ARMOR_MATERIAL = ["wood", "leather", "metal", "cloth", "silver", "gold", "gem"]
-
+# 护甲材料标签（利用字典有序特性，keys 即为材料列表）
 ARMOR_MATERIAL_LABELS = {
     "wood": "木",
     "leather": "皮",
@@ -207,20 +164,7 @@ ARMOR_MATERIAL_LABELS = {
     "gem": "宝石",
 }
 
-# 护甲标签
-ARMOR_TAGS = [
-    "aldor",
-    "fjall",
-    "elven",
-    "special",
-    "unique",
-    "skadia",
-    "nistra",
-    "WIP",
-    "magic",
-    "special exc",
-]
-
+# 护甲标签（利用字典有序特性，keys 即为标签列表）
 ARMOR_TAG_LABELS = {
     "aldor": "奥尔多",
     "fjall": "弗约",
@@ -229,7 +173,6 @@ ARMOR_TAG_LABELS = {
     "unique": "独特",
     "skadia": "斯卡迪亚",
     "nistra": "尼斯特拉",
-    "WIP": "开发中",
     "magic": "魔法",
     "special exc": "特殊（新英雄）",
 }
@@ -556,23 +499,7 @@ ARMOR_ATTRIBUTE_GROUPS = {
     ],
 }
 
-# 拆解材料 (护甲专属)
-ARMOR_FRAGMENT_TYPES = [
-    "fragment_cloth01",
-    "fragment_cloth02",
-    "fragment_cloth03",
-    "fragment_cloth04",
-    "fragment_leather01",
-    "fragment_leather02",
-    "fragment_leather03",
-    "fragment_leather04",
-    "fragment_metal01",
-    "fragment_metal02",
-    "fragment_metal03",
-    "fragment_metal04",
-    "fragment_gold",
-]
-
+# 拆解材料标签（利用字典有序特性，keys 即为材料类型列表）
 ARMOR_FRAGMENT_LABELS = {
     "fragment_cloth01": "布料碎片 1",
     "fragment_cloth02": "布料碎片 2",
@@ -609,23 +536,7 @@ CHARACTER_MODEL_LABELS = {
 # 主语言配置（暂时固定为中文，未来可配置）
 PRIMARY_LANGUAGE = "Chinese"
 
-# 支持的所有语言
-SUPPORTED_LANGUAGES = [
-    "Chinese",
-    "English",
-    "Русский",
-    "Deutsch",
-    "Español (LATAM)",
-    "Français",
-    "Italiano",
-    "Português",
-    "Polski",
-    "Türkçe",
-    "日本語",
-    "한국어",
-]
-
-# 语言显示标签
+# 语言显示标签（利用字典有序特性，keys 即为支持的语言列表）
 LANGUAGE_LABELS = {
     "Chinese": "中文",
     "English": "English",
@@ -659,8 +570,8 @@ LANGUAGE_TO_ENUM_MAP = {
 
 
 @dataclass
-class WeaponLocalization:
-    """武器本地化数据
+class ItemLocalization:
+    """物品本地化数据（武器/装备通用）
 
     所有语言统一存储在 languages 字典中。
     格式: {"Chinese": {"name": "...", "description": "..."}, "English": {...}, ...}
@@ -700,6 +611,10 @@ class WeaponLocalization:
         return name or "未命名"
 
 
+# 兼容性别名
+WeaponLocalization = ItemLocalization
+
+
 @dataclass
 class WeaponTextures:
     character: str = ""  # 手持状态贴图
@@ -721,61 +636,69 @@ class WeaponTextures:
     loot_use_relative_speed: bool = False  # 是否使用相对帧率模式
 
 
-@dataclass
-class ArmorTextures:
-    """护甲/装备贴图数据"""
-
-    character: str = ""  # 穿戴状态贴图 (部分槽位需要)
-    character_left: str = ""  # 左手穿戴贴图 (仅盾牌需要)
-    inventory: List[str] = field(default_factory=lambda: [""])  # 常规贴图列表
-    loot: str = ""  # 战利品贴图
-    offset_x: int = 0  # 水平偏移 (右手/默认)
-    offset_y: int = 0  # 垂直偏移 (右手/默认)
-    offset_x_left: int = 0  # 水平偏移 (左手, 仅盾牌)
-    offset_y_left: int = 0  # 垂直偏移 (左手, 仅盾牌)
-
-    # 帧动画支持
-    character_frames: List[str] = field(default_factory=list)
-    character_left_frames: List[str] = field(
-        default_factory=list
-    )  # 左手动画帧 (仅盾牌)
-    loot_frames: List[str] = field(default_factory=list)
-
-    # 战利品贴图动画设置
-    loot_fps: float = 10.0
-    loot_use_relative_speed: bool = False
+# 兼容性别名
+ArmorTextures = WeaponTextures
+ArmorLocalization = ItemLocalization
 
 
-@dataclass
-class ArmorLocalization:
-    """护甲本地化数据 (与武器相同结构)"""
+def _validate_item_base(
+    item,
+    item_type: str,
+    item_list: list,
+    slot_labels: dict,
+    needs_char_texture: bool,
+    char_texture_label: str,
+    needs_left_texture: bool = False,
+    left_texture_label: str = "",
+) -> List[str]:
+    """通用物品验证逻辑
 
-    languages: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    Args:
+        item: 武器或装备对象
+        item_type: 物品类型名称（如"武器"或"装备"）
+        item_list: 用于检查ID重复的物品列表
+        slot_labels: 槽位标签字典
+        needs_char_texture: 是否需要角色贴图
+        char_texture_label: 角色贴图缺失时的错误提示
+        needs_left_texture: 是否需要左手贴图
+        left_texture_label: 左手贴图缺失时的错误提示
+    """
+    errors = []
 
-    def get_name(self, lang: str) -> str:
-        return self.languages.get(lang, {}).get("name", "")
+    item.name = item.name.strip()
 
-    def set_name(self, lang: str, value: str) -> None:
-        if lang not in self.languages:
-            self.languages[lang] = {"name": "", "description": ""}
-        self.languages[lang]["name"] = value
+    if not item.name:
+        errors.append(f"{item_type}系统ID不能为空")
+    elif not re.match(r"^[A-Za-z][A-Za-z0-9 ]*$", item.name):
+        errors.append(
+            f"{item_type}系统ID格式错误: 必须以字母开头，只能包含字母、数字和空格"
+        )
 
-    def get_description(self, lang: str) -> str:
-        return self.languages.get(lang, {}).get("description", "")
+    # 检查ID唯一性
+    if item_list:
+        current_id = item.id
+        count = sum(1 for i in item_list if i.id == current_id)
+        if count > 1:
+            errors.append(
+                f"{item_type}系统ID '{item.name}' (ID: {current_id}) 重复，请确保唯一"
+            )
 
-    def set_description(self, lang: str, value: str) -> None:
-        if lang not in self.languages:
-            self.languages[lang] = {"name": "", "description": ""}
-        self.languages[lang]["description"] = value
+    # 角色贴图检查
+    if needs_char_texture and not item.textures.character:
+        errors.append(char_texture_label)
 
-    def has_language(self, lang: str) -> bool:
-        return lang in self.languages
+    # 左手贴图检查
+    if needs_left_texture and not item.textures.character_left:
+        errors.append(left_texture_label)
 
-    def get_display_name(self) -> str:
-        name = self.get_name(PRIMARY_LANGUAGE)
-        if not name:
-            name = self.get_name("English")
-        return name or "未命名"
+    # 通用贴图检查
+    if not item.textures.loot:
+        errors.append("必须提供战利品贴图")
+
+    if not item.textures.inventory or not any(tex for tex in item.textures.inventory):
+        errors.append("至少需要提供一张常规贴图")
+
+    return errors
 
 
 @dataclass
@@ -829,48 +752,17 @@ class Armor:
 
     def validate(self, project=None) -> List[str]:
         """验证装备数据的完整性"""
-        errors = []
-
-        self.name = self.name.strip()
-
-        if not self.name:
-            errors.append("装备系统ID不能为空")
-        elif not re.match(r"^[A-Za-z][A-Za-z0-9 ]*$", self.name):
-            errors.append(
-                "装备系统ID格式错误: 必须以字母开头，只能包含字母、数字和空格"
-            )
-
-        if project:
-            current_id = self.id
-            count = 0
-            for a in project.armors:
-                if a.id == current_id:
-                    count += 1
-            if count > 1:
-                errors.append(
-                    f"装备系统ID '{self.name}' (ID: {current_id}) 重复，请确保唯一"
-                )
-
-        # 需要角色贴图的槽位检查
-        if self.needs_char_texture():
-            if not self.textures.character:
-                slot_name = ARMOR_SLOT_LABELS.get(self.slot, self.slot)
-                errors.append(f"槽位为 '{slot_name}' 的装备必须提供穿戴状态贴图")
-
-        # 盾牌需要左手贴图
-        if self.needs_left_texture():
-            if not self.textures.character_left:
-                errors.append("盾牌必须提供左手穿戴贴图")
-
-        if not self.textures.loot:
-            errors.append("必须提供战利品贴图")
-
-        if not self.textures.inventory or not any(
-            tex for tex in self.textures.inventory
-        ):
-            errors.append("至少需要提供一张常规贴图")
-
-        return errors
+        slot_name = ARMOR_SLOT_LABELS.get(self.slot, self.slot)
+        return _validate_item_base(
+            item=self,
+            item_type="装备",
+            item_list=project.armors if project else [],
+            slot_labels=ARMOR_SLOT_LABELS,
+            needs_char_texture=self.needs_char_texture(),
+            char_texture_label=f"槽位为 '{slot_name}' 的装备必须提供穿戴状态贴图",
+            needs_left_texture=self.needs_left_texture(),
+            left_texture_label="盾牌必须提供左手穿戴贴图",
+        )
 
 
 @dataclass
@@ -905,48 +797,18 @@ class Weapon:
 
     def validate(self, project=None) -> List[str]:
         """验证武器数据的完整性"""
-        errors = []
-
-        # 自动移除首尾空格（虽然主要在保存/生成时处理，这里也处理一下以防万一）
-        self.name = self.name.strip()
-
-        if not self.name:
-            errors.append("武器系统ID不能为空")
-        elif not re.match(r"^[A-Za-z][A-Za-z0-9 ]*$", self.name):
-            errors.append(
-                "武器系统ID格式错误: 必须以字母开头，只能包含字母、数字和空格"
-            )
-
-        if project:
-            # 检查ID唯一性 (id 属性是 lower() 后的)
-            current_id = self.id
-            count = 0
-            for w in project.weapons:
-                if w.id == current_id:
-                    count += 1
-            if count > 1:
-                errors.append(
-                    f"武器系统ID '{self.name}' (ID: {current_id}) 重复，请确保唯一"
-                )
-
-        if not self.textures.character:
-            errors.append("必须提供手持状态贴图")
-
-        # 检查单手武器的左手贴图
-        if self.slot in LEFT_HAND_SLOTS:
-            if not self.textures.character_left:
-                slot_name = SLOT_LABELS.get(self.slot, self.slot)
-                errors.append(f"槽位为 '{slot_name}' 的武器必须提供左手手持贴图")
-
-        if not self.textures.loot:
-            errors.append("必须提供战利品贴图")
-
-        if not self.textures.inventory or not any(
-            tex for tex in self.textures.inventory
-        ):
-            errors.append("至少需要提供一张常规贴图")
-
-        return errors
+        needs_left = self.slot in LEFT_HAND_SLOTS
+        slot_name = SLOT_LABELS.get(self.slot, self.slot)
+        return _validate_item_base(
+            item=self,
+            item_type="武器",
+            item_list=project.weapons if project else [],
+            slot_labels=SLOT_LABELS,
+            needs_char_texture=True,  # 武器始终需要手持贴图
+            char_texture_label="必须提供手持状态贴图",
+            needs_left_texture=needs_left,
+            left_texture_label=f"槽位为 '{slot_name}' 的武器必须提供左手手持贴图",
+        )
 
 
 @dataclass
@@ -1002,131 +864,47 @@ class ModProject:
         }
 
         for weapon in self.weapons:
-            # 自动移除首尾空格
             weapon.name = weapon.name.strip()
+            data["weapons"].append(self._serialize_item(weapon, project_dir))
 
-            # 处理贴图路径：转换为相对路径
-            rel_char_path = self._get_relative_path(
-                weapon.textures.character, project_dir
-            )
-            rel_char_left_path = self._get_relative_path(
-                weapon.textures.character_left, project_dir
-            )
-            rel_loot_path = self._get_relative_path(weapon.textures.loot, project_dir)
-            rel_inv_paths = [
-                self._get_relative_path(p, project_dir)
-                for p in weapon.textures.inventory
-            ]
-
-            weapon_data = {
-                "name": weapon.name,
-                "tier": weapon.tier,
-                "slot": weapon.slot,
-                "rarity": weapon.rarity,
-                "mat": weapon.mat,
-                "tags": weapon.tags,
-                "price": weapon.price,
-                "markup": 1,
-                "max_duration": weapon.max_duration,
-                "rng": weapon.rng,
-                "attributes": weapon.attributes,
-                "fireproof": weapon.fireproof,
-                "no_drop": weapon.no_drop,
-                "localization": weapon.localization.languages,
-                "textures": {
-                    "character": rel_char_path,
-                    "character_left": rel_char_left_path,
-                    "inventory": rel_inv_paths,
-                    "loot": rel_loot_path,
-                    "offset_x": weapon.textures.offset_x,
-                    "offset_y": weapon.textures.offset_y,
-                    "offset_x_left": weapon.textures.offset_x_left,
-                    "offset_y_left": weapon.textures.offset_y_left,
-                    "character_frames": [
-                        self._get_relative_path(p, project_dir)
-                        for p in weapon.textures.character_frames
-                    ],
-                    "character_left_frames": [
-                        self._get_relative_path(p, project_dir)
-                        for p in weapon.textures.character_left_frames
-                    ],
-                    "loot_frames": [
-                        self._get_relative_path(p, project_dir)
-                        for p in weapon.textures.loot_frames
-                    ],
-                    "loot_fps": round(
-                        weapon.textures.loot_fps, 3
-                    ),  # 保存时四舍五入确保精度一致
-                    "loot_use_relative_speed": weapon.textures.loot_use_relative_speed,
-                },
-            }
-            data["weapons"].append(weapon_data)
-
-        # 保存护甲数据
         for armor in self.armors:
             armor.name = armor.name.strip()
-
-            # 处理贴图路径
-            rel_char_path = self._get_relative_path(
-                armor.textures.character, project_dir
-            )
-            rel_char_left_path = self._get_relative_path(
-                armor.textures.character_left, project_dir
-            )
-            rel_loot_path = self._get_relative_path(armor.textures.loot, project_dir)
-            rel_inv_paths = [
-                self._get_relative_path(p, project_dir)
-                for p in armor.textures.inventory
-            ]
-
-            armor_data = {
-                "name": armor.name,
-                "tier": armor.tier,
-                "hook": armor.hook,
-                "armor_class": armor.armor_class,
-                "rarity": armor.rarity,
-                "mat": armor.mat,
-                "tags": armor.tags,
-                "price": armor.price,
-                "markup": armor.markup,
-                "max_duration": armor.max_duration,
-                "attributes": armor.attributes,
-                "fragments": armor.fragments,
-                "fireproof": armor.fireproof,
-                "is_open": armor.is_open,
-                "no_drop": armor.no_drop,
-                "localization": armor.localization.languages,
-                "textures": {
-                    "character": rel_char_path,
-                    "character_left": rel_char_left_path,
-                    "inventory": rel_inv_paths,
-                    "loot": rel_loot_path,
-                    "offset_x": armor.textures.offset_x,
-                    "offset_y": armor.textures.offset_y,
-                    "offset_x_left": armor.textures.offset_x_left,
-                    "offset_y_left": armor.textures.offset_y_left,
-                    "character_frames": [
-                        self._get_relative_path(p, project_dir)
-                        for p in armor.textures.character_frames
-                    ],
-                    "character_left_frames": [
-                        self._get_relative_path(p, project_dir)
-                        for p in armor.textures.character_left_frames
-                    ],
-                    "loot_frames": [
-                        self._get_relative_path(p, project_dir)
-                        for p in armor.textures.loot_frames
-                    ],
-                    "loot_fps": round(armor.textures.loot_fps, 3),
-                    "loot_use_relative_speed": armor.textures.loot_use_relative_speed,
-                },
-            }
-            data["armors"].append(armor_data)
+            data["armors"].append(self._serialize_item(armor, project_dir))
 
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
         return True
+
+    def _serialize_item(self, item, project_dir: str) -> dict:
+        """序列化物品数据为字典（武器/护甲通用）"""
+        # 公共字段
+        item_data = {
+            "name": item.name,
+            "tier": item.tier,
+            "rarity": item.rarity,
+            "mat": item.mat,
+            "tags": item.tags,
+            "price": item.price,
+            "markup": getattr(item, "markup", 1),
+            "max_duration": item.max_duration,
+            "attributes": item.attributes,
+            "fireproof": item.fireproof,
+            "no_drop": item.no_drop,
+            "localization": item.localization.languages,
+            "textures": self._serialize_textures(item.textures, project_dir),
+        }
+        # 武器特有字段
+        if isinstance(item, Weapon):
+            item_data["slot"] = item.slot
+            item_data["rng"] = item.rng
+        # 护甲特有字段
+        elif isinstance(item, Armor):
+            item_data["hook"] = item.hook
+            item_data["armor_class"] = item.armor_class
+            item_data["fragments"] = item.fragments
+            item_data["is_open"] = item.is_open
+        return item_data
 
     def _get_relative_path(self, path: str, project_dir: str) -> str:
         """将绝对路径转换为相对于项目目录的路径，如果是外部文件则不处理（应当在导入时处理）"""
@@ -1150,6 +928,147 @@ class ModProject:
         if os.path.isabs(path):
             return path
         return os.path.normpath(os.path.join(project_dir, path))
+
+    def _serialize_textures(self, textures: WeaponTextures, project_dir: str) -> dict:
+        """序列化贴图数据为字典（武器/护甲通用）"""
+        return {
+            "character": self._get_relative_path(textures.character, project_dir),
+            "character_left": self._get_relative_path(
+                textures.character_left, project_dir
+            ),
+            "inventory": [
+                self._get_relative_path(p, project_dir) for p in textures.inventory
+            ],
+            "loot": self._get_relative_path(textures.loot, project_dir),
+            "offset_x": textures.offset_x,
+            "offset_y": textures.offset_y,
+            "offset_x_left": textures.offset_x_left,
+            "offset_y_left": textures.offset_y_left,
+            "character_frames": [
+                self._get_relative_path(p, project_dir)
+                for p in textures.character_frames
+            ],
+            "character_left_frames": [
+                self._get_relative_path(p, project_dir)
+                for p in textures.character_left_frames
+            ],
+            "loot_frames": [
+                self._get_relative_path(p, project_dir) for p in textures.loot_frames
+            ],
+            "loot_fps": round(textures.loot_fps, 3),
+            "loot_use_relative_speed": textures.loot_use_relative_speed,
+        }
+
+    def _deserialize_textures(
+        self, tex_data: dict, project_dir: str, legacy_mode: bool = False
+    ) -> WeaponTextures:
+        """反序列化贴图数据（武器/护甲通用）
+
+        Args:
+            tex_data: 贴图数据字典
+            project_dir: 项目目录
+            legacy_mode: 是否处理旧格式（武器的 inventory0/1/2）
+        """
+        # 处理常规贴图列表
+        inventory_list = tex_data.get("inventory")
+        if inventory_list is None and legacy_mode:
+            # 旧格式兼容
+            inventory_list = []
+            for key in ("inventory0", "inventory1", "inventory2"):
+                if key in tex_data:
+                    inventory_list.append(tex_data.get(key, ""))
+        if not inventory_list:
+            inventory_list = [""]
+
+        return WeaponTextures(
+            character=self._resolve_path(tex_data.get("character", ""), project_dir),
+            character_left=self._resolve_path(
+                tex_data.get("character_left", ""), project_dir
+            ),
+            inventory=[self._resolve_path(p, project_dir) for p in inventory_list],
+            loot=self._resolve_path(tex_data.get("loot", ""), project_dir),
+            offset_x=tex_data.get("offset_x", 0),
+            offset_y=tex_data.get("offset_y", 0),
+            offset_x_left=tex_data.get("offset_x_left", 0),
+            offset_y_left=tex_data.get("offset_y_left", 0),
+            character_frames=[
+                self._resolve_path(p, project_dir)
+                for p in tex_data.get("character_frames", [])
+            ],
+            character_left_frames=[
+                self._resolve_path(p, project_dir)
+                for p in tex_data.get("character_left_frames", [])
+            ],
+            loot_frames=[
+                self._resolve_path(p, project_dir)
+                for p in tex_data.get("loot_frames", [])
+            ],
+            loot_fps=round(tex_data.get("loot_fps", 10), 3),
+            loot_use_relative_speed=tex_data.get("loot_use_relative_speed", False),
+        )
+
+    def _deserialize_item(self, item_data: dict, project_dir: str, is_weapon: bool):
+        """反序列化物品数据（武器/护甲通用）"""
+        # 公共字段
+        common_kwargs = {
+            "name": item_data.get("name", ""),
+            "tier": item_data.get("tier", "Tier2"),
+            "rarity": item_data.get("rarity", "Common"),
+            "mat": item_data.get("mat", "metal" if is_weapon else "leather"),
+            "tags": item_data.get("tags", "aldor"),
+            "price": item_data.get("price", 100),
+            "max_duration": item_data.get("max_duration", 100),
+            "attributes": item_data.get("attributes", {}),
+        }
+
+        if is_weapon:
+            item = Weapon(
+                **common_kwargs,
+                slot=item_data.get("slot", "sword"),
+                rng=item_data.get("rng", 1),
+            )
+            # 处理本地化兼容（武器有旧格式）
+            loc_data = item_data.get("localization", {})
+            if "languages" in loc_data:
+                item.localization = WeaponLocalization(
+                    languages=loc_data.get("languages", {})
+                )
+            elif "chinese_name" in loc_data or "other_languages" in loc_data:
+                languages = {}
+                chn_name = loc_data.get("chinese_name", "")
+                chn_desc = loc_data.get("chinese_description", "")
+                if chn_name or chn_desc:
+                    languages["Chinese"] = {"name": chn_name, "description": chn_desc}
+                for lang, data in loc_data.get("other_languages", {}).items():
+                    languages[lang] = {
+                        "name": data.get("name", ""),
+                        "description": data.get("description", ""),
+                    }
+                item.localization = WeaponLocalization(languages=languages)
+            else:
+                item.localization = WeaponLocalization(languages=loc_data)
+            item.textures = self._deserialize_textures(
+                item_data.get("textures", {}), project_dir, legacy_mode=True
+            )
+        else:
+            item = Armor(
+                **common_kwargs,
+                hook=item_data.get("hook", "HELMETS"),
+                armor_class=item_data.get("armor_class", "Light"),
+                markup=item_data.get("markup", 1.0),
+                fragments=item_data.get("fragments", {}),
+            )
+            item.is_open = item_data.get("is_open", False)
+            item.localization = ArmorLocalization(
+                languages=item_data.get("localization", {})
+            )
+            item.textures = self._deserialize_textures(
+                item_data.get("textures", {}), project_dir
+            )
+
+        item.fireproof = item_data.get("fireproof", False)
+        item.no_drop = item_data.get("no_drop", False)
+        return item
 
     def import_texture(self, source_path: str) -> str:
         """将外部贴图复制到项目 assets 目录并返回相对路径"""
@@ -1210,169 +1129,14 @@ class ModProject:
         self.version = data.get("version", "1.0.0")
         self.target_version = data.get("target_version", "0.9.3.13")
 
-        self.weapons = []
-        for weapon_data in data.get("weapons", []):
-            weapon = Weapon(
-                name=weapon_data["name"],
-                tier=weapon_data.get("tier", "Tier2"),
-                slot=weapon_data.get("slot", "sword"),
-                rarity=weapon_data.get("rarity", "Common"),
-                mat=weapon_data.get("mat", "metal"),
-                tags=weapon_data.get("tags", "aldor"),
-                price=weapon_data.get("price", 100),
-                max_duration=weapon_data.get("max_duration", 100),
-                rng=weapon_data.get("rng", 1),
-                attributes=weapon_data.get("attributes", {}),
-            )
-            weapon.fireproof = weapon_data.get("fireproof", False)
-            weapon.no_drop = weapon_data.get("no_drop", False)
-
-            loc_data = weapon_data.get("localization", {})
-
-            # 兼容多种旧格式
-            if "languages" in loc_data:
-                # 旧格式 v2: {"languages": {...}}
-                weapon.localization = WeaponLocalization(
-                    languages=loc_data.get("languages", {})
-                )
-            elif "chinese_name" in loc_data or "other_languages" in loc_data:
-                # 旧格式 v1: {"chinese_name": ..., "other_languages": {...}}
-                languages = {}
-                chn_name = loc_data.get("chinese_name", "")
-                chn_desc = loc_data.get("chinese_description", "")
-                if chn_name or chn_desc:
-                    languages["Chinese"] = {"name": chn_name, "description": chn_desc}
-                other_langs = loc_data.get("other_languages", {})
-                for lang, data in other_langs.items():
-                    languages[lang] = {
-                        "name": data.get("name", ""),
-                        "description": data.get("description", ""),
-                    }
-                weapon.localization = WeaponLocalization(languages=languages)
-            else:
-                # 新格式: 直接是 languages 字典
-                weapon.localization = WeaponLocalization(languages=loc_data)
-
-            tex_data = weapon_data.get("textures", {})
-
-            # 处理贴图路径：将相对路径转为绝对路径以便程序使用
-            inventory_list = tex_data.get("inventory")
-            if inventory_list is None:
-                inventory_list = []
-                for key in ("inventory0", "inventory1", "inventory2"):
-                    if key in tex_data:
-                        inventory_list.append(tex_data.get(key, ""))
-                if not inventory_list:
-                    inventory_list = [""]
-
-            # 解析路径
-            char_path = self._resolve_path(tex_data.get("character", ""), project_dir)
-            char_left_path = self._resolve_path(
-                tex_data.get("character_left", ""), project_dir
-            )
-            loot_path = self._resolve_path(tex_data.get("loot", ""), project_dir)
-            inv_paths = [self._resolve_path(p, project_dir) for p in inventory_list]
-
-            # 解析帧动画路径
-            char_frames = [
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("character_frames", [])
-            ]
-            char_left_frames = [
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("character_left_frames", [])
-            ]
-            loot_frames = [
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("loot_frames", [])
-            ]
-
-            weapon.textures = WeaponTextures(
-                character=char_path,
-                character_left=char_left_path,
-                inventory=inv_paths,
-                loot=loot_path,
-                offset_x=tex_data.get("offset_x", 0),
-                offset_y=tex_data.get("offset_y", 0),
-                offset_x_left=tex_data.get("offset_x_left", 0),
-                offset_y_left=tex_data.get("offset_y_left", 0),
-                character_frames=char_frames,
-                character_left_frames=char_left_frames,
-                loot_frames=loot_frames,
-                loot_fps=round(
-                    tex_data.get("loot_fps", 10), 3
-                ),  # 四舍五入确保所见即所得
-                loot_use_relative_speed=tex_data.get("loot_use_relative_speed", False),
-            )
-
-            self.weapons.append(weapon)
-
-        # 加载护甲数据
-        self.armors = []
-        for armor_data in data.get("armors", []):
-            armor = Armor(
-                name=armor_data.get("name", ""),
-                tier=armor_data.get("tier", "Tier2"),
-                hook=armor_data.get("hook", "HELMETS"),
-                armor_class=armor_data.get("armor_class", "Light"),
-                rarity=armor_data.get("rarity", "Common"),
-                mat=armor_data.get("mat", "leather"),
-                tags=armor_data.get("tags", "aldor"),
-                price=armor_data.get("price", 100),
-                markup=armor_data.get("markup", 1.0),
-                max_duration=armor_data.get("max_duration", 100),
-                attributes=armor_data.get("attributes", {}),
-                fragments=armor_data.get("fragments", {}),
-            )
-            armor.fireproof = armor_data.get("fireproof", False)
-            armor.is_open = armor_data.get("is_open", False)
-            armor.no_drop = armor_data.get("no_drop", False)
-
-            loc_data = armor_data.get("localization", {})
-            armor.localization = ArmorLocalization(languages=loc_data)
-
-            tex_data = armor_data.get("textures", {})
-            inventory_list = tex_data.get("inventory", [""])
-            if not inventory_list:
-                inventory_list = [""]
-
-            char_path = self._resolve_path(tex_data.get("character", ""), project_dir)
-            char_left_path = self._resolve_path(
-                tex_data.get("character_left", ""), project_dir
-            )
-            loot_path = self._resolve_path(tex_data.get("loot", ""), project_dir)
-            inv_paths = [self._resolve_path(p, project_dir) for p in inventory_list]
-
-            char_frames = [
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("character_frames", [])
-            ]
-            char_left_frames = [
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("character_left_frames", [])
-            ]
-            loot_frames = [
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("loot_frames", [])
-            ]
-
-            armor.textures = ArmorTextures(
-                character=char_path,
-                character_left=char_left_path,
-                inventory=inv_paths,
-                loot=loot_path,
-                offset_x=tex_data.get("offset_x", 0),
-                offset_y=tex_data.get("offset_y", 0),
-                offset_x_left=tex_data.get("offset_x_left", 0),
-                offset_y_left=tex_data.get("offset_y_left", 0),
-                character_frames=char_frames,
-                character_left_frames=char_left_frames,
-                loot_frames=loot_frames,
-                loot_fps=round(tex_data.get("loot_fps", 10), 3),
-                loot_use_relative_speed=tex_data.get("loot_use_relative_speed", False),
-            )
-
-            self.armors.append(armor)
+        self.weapons = [
+            self._deserialize_item(w, project_dir, is_weapon=True)
+            for w in data.get("weapons", [])
+        ]
+        self.armors = [
+            self._deserialize_item(a, project_dir, is_weapon=False)
+            for a in data.get("armors", [])
+        ]
 
         # 加载后执行清理和检查
         self.clean_invalid_data()
@@ -1380,31 +1144,49 @@ class ModProject:
 
         return True
 
+    def _clear_left_texture(self, textures):
+        """清理左手贴图数据"""
+        textures.character_left = ""
+        textures.character_left_frames = []
+        textures.offset_x_left = 0
+        textures.offset_y_left = 0
+
+    def _clear_char_texture(self, textures):
+        """清理角色贴图数据"""
+        textures.character = ""
+        textures.character_frames = []
+        textures.offset_x = 0
+        textures.offset_y = 0
+
     def clean_invalid_data(self):
         """清理无效的武器/装备数据"""
-        # 清理武器数据
         for weapon in self.weapons:
-            # 清理左手贴图数据
             if weapon.slot not in LEFT_HAND_SLOTS:
-                weapon.textures.character_left = ""
-                weapon.textures.character_left_frames = []
-                weapon.textures.offset_x_left = 0
-                weapon.textures.offset_y_left = 0
+                self._clear_left_texture(weapon.textures)
 
-        # 清理护甲数据
         for armor in self.armors:
-            # 不需要角色贴图的槽位清理
             if not armor.needs_char_texture():
-                armor.textures.character = ""
-                armor.textures.character_frames = []
-                armor.textures.offset_x = 0
-                armor.textures.offset_y = 0
-            # 不需要左手贴图的装备清理（仅盾牌需要）
+                self._clear_char_texture(armor.textures)
             if not armor.needs_left_texture():
-                armor.textures.character_left = ""
-                armor.textures.character_left_frames = []
-                armor.textures.offset_x_left = 0
-                armor.textures.offset_y_left = 0
+                self._clear_left_texture(armor.textures)
+
+    def _collect_texture_paths(self, textures: WeaponTextures, project_dir: str) -> set:
+        """收集物品的所有贴图路径（武器/护甲通用）"""
+        used_files = set()
+        paths = [
+            textures.character,
+            textures.character_left,
+            textures.loot,
+            *textures.inventory,
+            *textures.character_frames,
+            *textures.character_left_frames,
+            *textures.loot_frames,
+        ]
+        for p in paths:
+            if p:
+                full_p = os.path.join(project_dir, p) if not os.path.isabs(p) else p
+                used_files.add(os.path.normpath(full_p).lower())
+        return used_files
 
     def clean_unused_assets(self):
         """清理未使用的资源文件"""
@@ -1419,44 +1201,8 @@ class ModProject:
 
         # 收集所有使用的文件路径
         used_files = set()
-
-        # 收集武器使用的路径
-        for weapon in self.weapons:
-            paths = []
-            paths.append(weapon.textures.character)
-            paths.append(weapon.textures.character_left)
-            paths.append(weapon.textures.loot)
-            paths.extend(weapon.textures.inventory)
-            paths.extend(weapon.textures.character_frames)
-            paths.extend(weapon.textures.character_left_frames)
-            paths.extend(weapon.textures.loot_frames)
-
-            for p in paths:
-                if p:
-                    if not os.path.isabs(p):
-                        full_p = os.path.join(project_dir, p)
-                    else:
-                        full_p = p
-                    used_files.add(os.path.normpath(full_p).lower())
-
-        # 收集护甲使用的路径
-        for armor in self.armors:
-            paths = []
-            paths.append(armor.textures.character)
-            paths.append(armor.textures.character_left)
-            paths.append(armor.textures.loot)
-            paths.extend(armor.textures.inventory)
-            paths.extend(armor.textures.character_frames)
-            paths.extend(armor.textures.character_left_frames)
-            paths.extend(armor.textures.loot_frames)
-
-            for p in paths:
-                if p:
-                    if not os.path.isabs(p):
-                        full_p = os.path.join(project_dir, p)
-                    else:
-                        full_p = p
-                    used_files.add(os.path.normpath(full_p).lower())
+        for item in self.weapons + self.armors:
+            used_files.update(self._collect_texture_paths(item.textures, project_dir))
 
         # 遍历 assets 目录
         cleaned_count = 0
@@ -1860,6 +1606,40 @@ class ModGeneratorGUI:
         self.renderer.shutdown()
         glfw.terminate()
 
+    def _draw_font_menu(
+        self, menu_label, font_type, attr_name, system_fonts, system_label
+    ):
+        """绘制字体选择子菜单"""
+        if imgui.begin_menu(menu_label):
+            current_path = getattr(self, attr_name)
+            bundled_fonts = self.get_bundled_fonts(font_type)
+            if bundled_fonts:
+                imgui.text_colored("内置字体:", 0.7, 0.7, 0.7, 1.0)
+                for font_file in bundled_fonts:
+                    if imgui.menu_item(font_file, selected=(current_path == font_file))[
+                        0
+                    ]:
+                        setattr(self, attr_name, font_file)
+                        self.save_config()
+                        self.should_reload_fonts = True
+                imgui.separator()
+
+            imgui.text_colored(system_label, 0.7, 0.7, 0.7, 1.0)
+            for label, path in system_fonts:
+                if os.path.exists(path):
+                    if imgui.menu_item(label, selected=(current_path == path))[0]:
+                        setattr(self, attr_name, path)
+                        self.save_config()
+                        self.should_reload_fonts = True
+
+            if current_path:
+                imgui.separator()
+                if imgui.menu_item("清除选择 (使用默认)", selected=False)[0]:
+                    setattr(self, attr_name, "")
+                    self.save_config()
+                    self.should_reload_fonts = True
+            imgui.end_menu()
+
     def draw_main_menu(self):
         if imgui.begin_main_menu_bar():
             if imgui.begin_menu("文件", True):
@@ -1925,85 +1705,32 @@ class ModGeneratorGUI:
                 imgui.separator()
 
                 if imgui.begin_menu("选择字体"):
-                    # 1. 英文字体 (主字体)
-                    if imgui.begin_menu("英文字体 (English)"):
-                        bundled_fonts = self.get_bundled_fonts("english")
-                        if bundled_fonts:
-                            imgui.text_colored("内置字体:", 0.7, 0.7, 0.7, 1.0)
-                            for font_file in bundled_fonts:
-                                is_selected = self.primary_font_path == font_file
-                                if imgui.menu_item(font_file, selected=is_selected)[0]:
-                                    self.primary_font_path = font_file
-                                    self.save_config()
-                                    self.should_reload_fonts = True
-                            imgui.separator()
-
-                        imgui.text_colored("系统英文字体:", 0.7, 0.7, 0.7, 1.0)
-                        english_system_fonts = [
+                    self._draw_font_menu(
+                        "英文字体 (English)",
+                        "english",
+                        "primary_font_path",
+                        [
                             ("Arial", "C:/Windows/Fonts/arial.ttf"),
                             ("Times New Roman", "C:/Windows/Fonts/times.ttf"),
                             ("Segoe UI", "C:/Windows/Fonts/segoeui.ttf"),
                             ("Verdana", "C:/Windows/Fonts/verdana.ttf"),
                             ("Tahoma", "C:/Windows/Fonts/tahoma.ttf"),
                             ("Consolas", "C:/Windows/Fonts/consolas.ttf"),
-                        ]
-                        for label, path in english_system_fonts:
-                            if os.path.exists(path):
-                                is_selected = self.primary_font_path == path
-                                if imgui.menu_item(label, selected=is_selected)[0]:
-                                    self.primary_font_path = path
-                                    self.save_config()
-                                    self.should_reload_fonts = True
-
-                        if self.primary_font_path:
-                            imgui.separator()
-                            if imgui.menu_item("清除选择 (使用默认)", selected=False)[
-                                0
-                            ]:
-                                self.primary_font_path = ""
-                                self.save_config()
-                                self.should_reload_fonts = True
-                        imgui.end_menu()
-
-                    # 2. 中文字体 (备用字体)
-                    if imgui.begin_menu("中文字体 (Chinese)"):
-                        bundled_fonts = self.get_bundled_fonts("chinese")
-                        if bundled_fonts:
-                            imgui.text_colored("内置字体:", 0.7, 0.7, 0.7, 1.0)
-                            for font_file in bundled_fonts:
-                                is_selected = self.fallback_font_path == font_file
-                                if imgui.menu_item(font_file, selected=is_selected)[0]:
-                                    self.fallback_font_path = font_file
-                                    self.save_config()
-                                    self.should_reload_fonts = True
-                            imgui.separator()
-
-                        imgui.text_colored("系统中文字体:", 0.7, 0.7, 0.7, 1.0)
-                        chinese_system_fonts = [
+                        ],
+                        "系统英文字体:",
+                    )
+                    self._draw_font_menu(
+                        "中文字体 (Chinese)",
+                        "chinese",
+                        "fallback_font_path",
+                        [
                             ("微软雅黑 (Microsoft YaHei)", "C:/Windows/Fonts/msyh.ttc"),
                             ("黑体 (SimHei)", "C:/Windows/Fonts/simhei.ttf"),
                             ("宋体 (SimSun)", "C:/Windows/Fonts/simsun.ttc"),
                             ("楷体 (KaiTi)", "C:/Windows/Fonts/simkai.ttf"),
-                        ]
-
-                        for label, path in chinese_system_fonts:
-                            if os.path.exists(path):
-                                is_selected = self.fallback_font_path == path
-                                if imgui.menu_item(label, selected=is_selected)[0]:
-                                    self.fallback_font_path = path
-                                    self.save_config()
-                                    self.should_reload_fonts = True
-
-                        if self.fallback_font_path:
-                            imgui.separator()
-                            if imgui.menu_item("清除选择 (使用默认)", selected=False)[
-                                0
-                            ]:
-                                self.fallback_font_path = ""
-                                self.save_config()
-                                self.should_reload_fonts = True
-                        imgui.end_menu()
-
+                        ],
+                        "系统中文字体:",
+                    )
                     imgui.end_menu()
 
                 imgui.end_menu()
@@ -2111,68 +1838,69 @@ class ModGeneratorGUI:
 
         imgui.end()
 
-    def draw_weapon_panel(self):
-        """绘制武器面板 (列表 + 编辑器)"""
-        # 使用子窗口实现左右布局
+    def _draw_item_panel(
+        self,
+        panel_id,
+        items,
+        current_index_attr,
+        draw_list_func,
+        draw_editor_func,
+        empty_hint,
+    ):
+        """绘制物品面板（列表 + 编辑器）的通用方法"""
         available_width = imgui.get_content_region_available_width()
         available_height = imgui.get_content_region_available().y
 
         list_width = min(300, available_width * 0.3)
         editor_width = available_width - list_width - 10
 
-        # 左侧: 武器列表
+        # 左侧: 列表
         imgui.begin_child(
-            "WeaponListPanel", width=list_width, height=available_height, border=True
+            f"{panel_id}ListPanel",
+            width=list_width,
+            height=available_height,
+            border=True,
         )
-        self.draw_weapon_list()
+        draw_list_func()
         imgui.end_child()
 
         imgui.same_line()
 
-        # 右侧: 武器编辑器
+        # 右侧: 编辑器
         imgui.begin_child(
-            "WeaponEditorPanel",
+            f"{panel_id}EditorPanel",
             width=editor_width,
             height=available_height,
             border=True,
         )
-        if self.current_weapon_index >= 0 and self.current_weapon_index < len(
-            self.project.weapons
-        ):
-            self.draw_weapon_editor()
+        current_index = getattr(self, current_index_attr)
+        if 0 <= current_index < len(items):
+            draw_editor_func()
         else:
-            imgui.text_colored("请从左侧列表选择一个武器进行编辑", 0.7, 0.7, 0.7, 1.0)
+            imgui.text_colored(empty_hint, 0.7, 0.7, 0.7, 1.0)
         imgui.end_child()
+
+    def draw_weapon_panel(self):
+        """绘制武器面板"""
+        self._draw_item_panel(
+            "Weapon",
+            self.project.weapons,
+            "current_weapon_index",
+            self.draw_weapon_list,
+            self.draw_weapon_editor,
+            "请从左侧列表选择一个武器进行编辑",
+        )
 
     def draw_armor_panel(self):
-        """绘制装备面板 (列表 + 编辑器)"""
-        # 使用子窗口实现左右布局
-        available_width = imgui.get_content_region_available_width()
-        available_height = imgui.get_content_region_available().y
-
-        list_width = min(300, available_width * 0.3)
-        editor_width = available_width - list_width - 10
-
-        # 左侧: 装备列表
-        imgui.begin_child(
-            "ArmorListPanel", width=list_width, height=available_height, border=True
+        """绘制装备面板"""
+        self._draw_item_panel(
+            "Armor",
+            self.project.armors,
+            "current_armor_index",
+            self.draw_armor_list,
+            self.draw_armor_editor,
+            "请从左侧列表选择一个装备进行编辑",
         )
-        self.draw_armor_list()
-        imgui.end_child()
-
-        imgui.same_line()
-
-        # 右侧: 装备编辑器
-        imgui.begin_child(
-            "ArmorEditorPanel", width=editor_width, height=available_height, border=True
-        )
-        if self.current_armor_index >= 0 and self.current_armor_index < len(
-            self.project.armors
-        ):
-            self.draw_armor_editor()
-        else:
-            imgui.text_colored("请从左侧列表选择一个装备进行编辑", 0.7, 0.7, 0.7, 1.0)
-        imgui.end_child()
 
     def draw_project_info(self):
         changed, self.project.name = imgui.input_text(
@@ -2214,146 +1942,119 @@ class ModGeneratorGUI:
                 imgui.text_colored(f"  • {err}", 1.0, 0.0, 0.0)
 
     def draw_weapon_list(self):
-        if imgui.button("添加武器"):
-            new_weapon = Weapon()
-            new_weapon.name = self.generate_default_weapon_name()
-            # 默认主语言名称和描述
-            new_weapon.localization.set_name(PRIMARY_LANGUAGE, "新武器")
-            new_weapon.localization.set_description(
-                PRIMARY_LANGUAGE, "这是新武器的描述"
-            )
-
-            self.project.weapons.append(new_weapon)
-            self.current_weapon_index = len(self.project.weapons) - 1
-
-        imgui.same_line()
-
-        if imgui.button("删除选中武器") and self.current_weapon_index >= 0:
-            del self.project.weapons[self.current_weapon_index]
-            self.current_weapon_index = min(
-                self.current_weapon_index, len(self.project.weapons) - 1
-            )
-
-        imgui.same_line()
-
-        if imgui.button("复制选中武器") and self.current_weapon_index >= 0:
-            source_weapon = self.project.weapons[self.current_weapon_index]
-            new_weapon = copy.deepcopy(source_weapon)
-
-            # 确保名称唯一
-            existing_names = {w.name for w in self.project.weapons}
-            base_name = f"{source_weapon.name}_copy"
-            new_name = base_name
-            idx = 1
-            while new_name in existing_names:
-                new_name = f"{base_name}_{idx}"
-                idx += 1
-            new_weapon.name = new_name
-
-            # 主语言名称加个标记，方便区分
-            primary_name = new_weapon.localization.get_name(PRIMARY_LANGUAGE)
-            if primary_name:
-                new_weapon.localization.set_name(
-                    PRIMARY_LANGUAGE, primary_name + " (副本)"
-                )
-
-            self.project.weapons.append(new_weapon)
-            self.current_weapon_index = len(self.project.weapons) - 1
-
-        for i, weapon in enumerate(self.project.weapons):
-            flags = imgui.TREE_NODE_LEAF
-            if i == self.current_weapon_index:
-                flags |= imgui.TREE_NODE_SELECTED
-
-            # 显示主语言名称和ID
-            display_name_text = weapon.localization.get_display_name()
-            display_name = f"{display_name_text} ({weapon.name})"
-
-            opened = imgui.tree_node(display_name, flags=flags)
-            if imgui.is_item_clicked():
-                self.current_weapon_index = i
-
-            if opened:
-                imgui.tree_pop()
-
-    def generate_default_weapon_name(self) -> str:
-        existing = {weapon.name for weapon in self.project.weapons if weapon.name}
-        base_name = "请设置武器系统ID"
-        if base_name not in existing:
-            return base_name
-
-        idx = 1
-        while True:
-            candidate = f"{base_name}_{idx}"
-            if candidate not in existing:
-                return candidate
-            idx += 1
+        """绘制武器列表（使用通用方法）"""
+        self._draw_item_list_generic(
+            items=self.project.weapons,
+            item_class=Weapon,
+            current_index_attr="current_weapon_index",
+            item_type_label="武器",
+            default_name="新武器",
+            default_desc="这是新武器的描述",
+            default_id_base="请设置武器系统ID",
+            get_display_suffix=lambda item: "",
+        )
 
     def draw_armor_list(self):
-        if imgui.button("添加装备"):
-            new_armor = Armor()
-            new_armor.name = self.generate_default_armor_name()
-            # 默认主语言名称和描述
-            new_armor.localization.set_name(PRIMARY_LANGUAGE, "新装备")
-            new_armor.localization.set_description(PRIMARY_LANGUAGE, "这是新装备的描述")
+        """绘制装备列表（使用通用方法）"""
+        self._draw_item_list_generic(
+            items=self.project.armors,
+            item_class=Armor,
+            current_index_attr="current_armor_index",
+            item_type_label="装备",
+            default_name="新装备",
+            default_desc="这是新装备的描述",
+            default_id_base="请设置装备系统ID",
+            get_display_suffix=lambda item: f" [{ARMOR_SLOT_LABELS.get(item.slot, item.slot)}]",
+        )
 
-            self.project.armors.append(new_armor)
-            self.current_armor_index = len(self.project.armors) - 1
+    def _draw_item_list_generic(
+        self,
+        items: list,
+        item_class,
+        current_index_attr: str,
+        item_type_label: str,
+        default_name: str,
+        default_desc: str,
+        default_id_base: str,
+        get_display_suffix=None,
+    ):
+        """通用物品列表绘制方法
+
+        Args:
+            items: 物品列表
+            item_class: 物品类（Weapon 或 Armor）
+            current_index_attr: 当前选中索引的属性名
+            item_type_label: 物品类型标签（用于按钮文字）
+            default_name: 新物品默认名称
+            default_desc: 新物品默认描述
+            default_id_base: 默认系统ID基础名称
+            get_display_suffix: 获取显示后缀的函数
+        """
+        current_index = getattr(self, current_index_attr)
+
+        if imgui.button(f"添加{item_type_label}"):
+            new_item = item_class()
+            new_item.name = self._generate_default_name(items, default_id_base)
+            new_item.localization.set_name(PRIMARY_LANGUAGE, default_name)
+            new_item.localization.set_description(PRIMARY_LANGUAGE, default_desc)
+
+            items.append(new_item)
+            setattr(self, current_index_attr, len(items) - 1)
 
         imgui.same_line()
 
-        if imgui.button("删除选中装备") and self.current_armor_index >= 0:
-            del self.project.armors[self.current_armor_index]
-            self.current_armor_index = min(
-                self.current_armor_index, len(self.project.armors) - 1
-            )
+        if imgui.button(f"删除选中{item_type_label}") and current_index >= 0:
+            del items[current_index]
+            setattr(self, current_index_attr, min(current_index, len(items) - 1))
 
         imgui.same_line()
 
-        if imgui.button("复制选中装备") and self.current_armor_index >= 0:
-            source_armor = self.project.armors[self.current_armor_index]
-            new_armor = copy.deepcopy(source_armor)
+        if imgui.button(f"复制选中{item_type_label}") and current_index >= 0:
+            source_item = items[current_index]
+            new_item = copy.deepcopy(source_item)
 
             # 确保名称唯一
-            existing_names = {a.name for a in self.project.armors}
-            base_name = f"{source_armor.name}_copy"
+            existing_names = {item.name for item in items}
+            base_name = f"{source_item.name}_copy"
             new_name = base_name
             idx = 1
             while new_name in existing_names:
                 new_name = f"{base_name}_{idx}"
                 idx += 1
-            new_armor.name = new_name
+            new_item.name = new_name
 
-            # 主语言名称加个标记，方便区分
-            primary_name = new_armor.localization.get_name(PRIMARY_LANGUAGE)
+            # 主语言名称加个标记
+            primary_name = new_item.localization.get_name(PRIMARY_LANGUAGE)
             if primary_name:
-                new_armor.localization.set_name(
+                new_item.localization.set_name(
                     PRIMARY_LANGUAGE, primary_name + " (副本)"
                 )
 
-            self.project.armors.append(new_armor)
-            self.current_armor_index = len(self.project.armors) - 1
+            items.append(new_item)
+            setattr(self, current_index_attr, len(items) - 1)
 
-        for i, armor in enumerate(self.project.armors):
+        # 更新当前索引（可能在上面的操作中被修改）
+        current_index = getattr(self, current_index_attr)
+
+        for i, item in enumerate(items):
             flags = imgui.TREE_NODE_LEAF
-            if i == self.current_armor_index:
+            if i == current_index:
                 flags |= imgui.TREE_NODE_SELECTED
 
-            # 显示主语言名称和ID
-            display_name_text = armor.localization.get_display_name()
-            slot_label = ARMOR_SLOT_LABELS.get(armor.slot, armor.slot)
-            display_name = f"{display_name_text} ({armor.name}) [{slot_label}]"
+            display_name_text = item.localization.get_display_name()
+            suffix = get_display_suffix(item) if get_display_suffix else ""
+            display_name = f"{display_name_text} ({item.name}){suffix}"
 
             opened = imgui.tree_node(display_name, flags=flags)
             if imgui.is_item_clicked():
-                self.current_armor_index = i
+                setattr(self, current_index_attr, i)
 
             if opened:
                 imgui.tree_pop()
 
-    def generate_default_armor_name(self) -> str:
-        existing = {armor.name for armor in self.project.armors if armor.name}
-        base_name = "请设置装备系统ID"
+    def _generate_default_name(self, items: list, base_name: str) -> str:
+        """生成唯一的默认名称"""
+        existing = {item.name for item in items if item.name}
         if base_name not in existing:
             return base_name
 
@@ -2380,13 +2081,11 @@ class ModGeneratorGUI:
             imgui.text(f"(ID: {armor.id})")
 
             # 等级
-            current_tier = (
-                ARMOR_TIER.index(armor.tier) if armor.tier in ARMOR_TIER else 0
-            )
-            tier_label = ARMOR_TIER_LABELS.get(armor.tier, armor.tier)
+            current_tier = TIER.index(armor.tier) if armor.tier in TIER else 0
+            tier_label = TIER_LABELS.get(armor.tier, armor.tier)
             if imgui.begin_combo("等级##armor", tier_label):
-                for i, tier in enumerate(ARMOR_TIER):
-                    display = ARMOR_TIER_LABELS.get(tier, tier)
+                for i, tier in enumerate(TIER):
+                    display = TIER_LABELS.get(tier, tier)
                     if imgui.selectable(display, i == current_tier)[0]:
                         armor.tier = tier
                 imgui.end_combo()
@@ -2394,7 +2093,7 @@ class ModGeneratorGUI:
             # 装备钩子 (Hook) - 决定槽位
             hook_label = ARMOR_HOOK_LABELS.get(armor.hook, armor.hook)
             if imgui.begin_combo("装备类型", hook_label):
-                for hook in ARMOR_HOOK:
+                for hook in ARMOR_HOOK_LABELS:
                     display = ARMOR_HOOK_LABELS.get(hook, hook)
                     if imgui.selectable(display, hook == armor.hook)[0]:
                         old_slot = armor.slot
@@ -2418,7 +2117,7 @@ class ModGeneratorGUI:
             # 护甲类别
             class_label = ARMOR_CLASS_LABELS.get(armor.armor_class, armor.armor_class)
             if imgui.begin_combo("护甲类别", class_label):
-                for ac in ARMOR_CLASS:
+                for ac in ARMOR_CLASS_LABELS:
                     display = ARMOR_CLASS_LABELS.get(ac, ac)
                     if imgui.selectable(display, ac == armor.armor_class)[0]:
                         armor.armor_class = ac
@@ -2427,14 +2126,14 @@ class ModGeneratorGUI:
             # 材料
             mat_label = ARMOR_MATERIAL_LABELS.get(armor.mat, armor.mat)
             if imgui.begin_combo("材料##armor", mat_label):
-                for mat in ARMOR_MATERIAL:
+                for mat in ARMOR_MATERIAL_LABELS:
                     display = ARMOR_MATERIAL_LABELS.get(mat, mat)
                     if imgui.selectable(display, mat == armor.mat)[0]:
                         armor.mat = mat
                 imgui.end_combo()
 
             # 标签
-            tag_options = ARMOR_TAGS.copy()
+            tag_options = list(ARMOR_TAG_LABELS.keys())
             if armor.tags not in tag_options:
                 tag_options.append(armor.tags)
             tag_label = ARMOR_TAG_LABELS.get(armor.tags, armor.tags)
@@ -2461,35 +2160,15 @@ class ModGeneratorGUI:
             self.draw_indented_separator()
 
             # 特殊属性
-            fireproof_str = "是" if armor.fireproof else "否"
-            if imgui.begin_combo("防火##armor", fireproof_str):
-                if imgui.selectable("是", armor.fireproof)[0]:
-                    armor.fireproof = True
-                if imgui.selectable("否", not armor.fireproof)[0]:
-                    armor.fireproof = False
-                imgui.end_combo()
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("未被拾取时是否会被火焰摧毁")
-
-            is_open_str = "是" if armor.is_open else "否"
-            if imgui.begin_combo("开放式", is_open_str):
-                if imgui.selectable("是", armor.is_open)[0]:
-                    armor.is_open = True
-                if imgui.selectable("否", not armor.is_open)[0]:
-                    armor.is_open = False
-                imgui.end_combo()
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("装备是否为开放式设计（如头盔的面甲）")
-
-            no_drop_str = "是" if armor.no_drop else "否"
-            if imgui.begin_combo("不可掉落##armor", no_drop_str):
-                if imgui.selectable("是", armor.no_drop)[0]:
-                    armor.no_drop = True
-                if imgui.selectable("否", not armor.no_drop)[0]:
-                    armor.no_drop = False
-                imgui.end_combo()
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("可能无法从宝箱中获取")
+            armor.fireproof = self._draw_bool_combo(
+                "防火##armor", armor.fireproof, "未被拾取时是否会被火焰摧毁"
+            )
+            armor.is_open = self._draw_bool_combo(
+                "开放式##armor", armor.is_open, "装备是否为开放式设计（如头盔的面甲）"
+            )
+            armor.no_drop = self._draw_bool_combo(
+                "不可掉落##armor", armor.no_drop, "可能无法从宝箱中获取"
+            )
 
             self.draw_indented_separator()
 
@@ -2527,72 +2206,18 @@ class ModGeneratorGUI:
 
         # 验证
         errors = armor.validate(self.project)
-        if errors:
-            self.draw_indented_separator()
-            imgui.text("消息:")
-            for error in errors:
-                if error.startswith("WARNING:"):
-                    imgui.text_colored(
-                        f"  • {error}", 1.0, 0.5, 0.0, 1.0
-                    )  # Orange for warning
-                else:
-                    imgui.text_colored(
-                        f"  • {error}", 1.0, 0.0, 0.0, 1.0
-                    )  # Red for error
+        self._draw_validation_errors(errors)
 
     def draw_armor_attributes_editor(self, armor):
-        for group_name, attributes in ARMOR_ATTRIBUTE_GROUPS.items():
-            if imgui.tree_node(f"{group_name}##armor_attr"):
-                for attr in attributes:
-                    # 获取描述
-                    desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
-                    desc_name = desc_info[0]
-                    desc_detail = desc_info[1] if len(desc_info) > 1 else ""
-
-                    val = armor.attributes.get(attr, 0)
-
-                    # 显示 Label 和输入框
-                    input_width = 100 + (self.font_size - 14) * 8
-                    imgui.push_item_width(input_width)
-                    changed, new_val = imgui.input_int(
-                        f"##{attr}_armor", val, step=1, step_fast=10
-                    )
-                    imgui.pop_item_width()
-
-                    # 限制 byte 类型属性的范围 (0-255)
-                    if attr in BYTE_ATTRIBUTES:
-                        if new_val < 0:
-                            new_val = 0
-                            changed = True
-                        elif new_val > 255:
-                            new_val = 255
-                            changed = True
-
-                    if changed:
-                        armor.attributes[attr] = new_val
-
-                    imgui.same_line()
-                    imgui.text(f"{attr}")
-                    imgui.same_line()
-                    imgui.text_colored(f"({desc_name})", 0.7, 0.7, 0.7, 1.0)
-
-                    # 悬停显示详细描述
-                    if imgui.is_item_hovered():
-                        tooltip_text = desc_detail
-                        if attr in BYTE_ATTRIBUTES:
-                            if tooltip_text:
-                                tooltip_text += "\n"
-                            tooltip_text += "类型: byte (0-255)"
-                        imgui.set_tooltip(tooltip_text)
-
-                imgui.tree_pop()
+        """装备属性编辑器（使用通用方法）"""
+        self._draw_attributes_editor_generic(armor, ARMOR_ATTRIBUTE_GROUPS, "armor")
 
     def draw_armor_fragments_editor(self, armor):
         imgui.text("设置装备拆解后可获得的材料")
         if imgui.is_item_hovered():
             imgui.set_tooltip("拆解装备时可能获得的材料碎片数量")
 
-        for frag_type in ARMOR_FRAGMENT_TYPES:
+        for frag_type in ARMOR_FRAGMENT_LABELS:
             frag_label = ARMOR_FRAGMENT_LABELS.get(frag_type, frag_type)
             val = armor.fragments.get(frag_type, 0)
 
@@ -2620,17 +2245,368 @@ class ModGeneratorGUI:
             imgui.text(frag_label)
 
     def draw_armor_localization_editor(self, armor):
-        # 语言添加器
-        if imgui.button("添加语言##armor"):
-            imgui.open_popup("add_language_popup_armor")
+        """装备本地化编辑器（使用通用方法）"""
+        self._draw_localization_editor_generic(armor, "armor")
 
-        if imgui.begin_popup("add_language_popup_armor"):
-            for lang in SUPPORTED_LANGUAGES:
+    def draw_armor_textures_editor(self, armor):
+        imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
+        self.draw_indented_separator()
+
+        # 预览设置（使用通用方法）
+        self._draw_preview_settings("armor", show_model=armor.needs_char_texture())
+
+        # 穿戴状态贴图 (仅部分槽位需要)
+        if armor.needs_char_texture():
+            self.draw_armor_texture_selector(
+                "穿戴状态贴图*", armor.textures.character, "character", armor
+            )
+
+            # 穿戴贴图偏移设置
+            armor.textures.offset_x, armor.textures.offset_y = self._draw_offset_inputs(
+                label="穿戴贴图偏移",
+                tooltip="调整装备相对于人物的相对位置",
+                offset_x=armor.textures.offset_x,
+                offset_y=armor.textures.offset_y,
+                id_suffix="armor",
+                item_type="装备",
+            )
+
+            self.draw_indented_separator()
+
+            # 左手穿戴贴图 (仅盾牌需要)
+            if armor.needs_left_texture():
+                self.draw_armor_texture_selector(
+                    "左手穿戴贴图*",
+                    armor.textures.character_left,
+                    "character_left",
+                    armor,
+                )
+
+                # 左手贴图偏移设置
+                armor.textures.offset_x_left, armor.textures.offset_y_left = (
+                    self._draw_offset_inputs(
+                        label="左手贴图偏移",
+                        tooltip="调整左手装备相对于人物的相对位置",
+                        offset_x=armor.textures.offset_x_left,
+                        offset_y=armor.textures.offset_y_left,
+                        id_suffix="armor_left",
+                        item_type="装备",
+                    )
+                )
+
+                self.draw_indented_separator()
+        else:
+            imgui.text_colored(
+                f"提示: {ARMOR_SLOT_LABELS.get(armor.slot, armor.slot)} 槽位不需要穿戴状态贴图",
+                0.7,
+                0.7,
+                0.7,
+                1.0,
+            )
+            self.draw_indented_separator()
+
+        # 常规贴图（使用通用方法）
+        self._draw_inventory_textures(armor, "armor", self.draw_armor_texture_selector)
+
+        self.draw_indented_separator()
+        self.draw_armor_texture_selector(
+            "战利品贴图*##armor", armor.textures.loot, "loot", armor
+        )
+
+        # 战利品贴图动画速度设置（仅当有动画帧时显示）
+        if armor.textures.loot_frames:
+            self._draw_loot_animation_settings(armor.textures, "armor")
+
+    def draw_armor_texture_selector(
+        self, label: str, current_path: str, field_identifier, armor=None
+    ):
+        """装备贴图选择器（使用通用方法）"""
+        self._draw_texture_selector_generic(
+            label=label,
+            current_path=current_path,
+            field_identifier=field_identifier,
+            item=armor,
+            id_prefix="armor",
+            preview_method=self.draw_armor_preview_with_reference,
+        )
+
+    def _apply_armor_texture_selection(
+        self, file_path: str, field_identifier, armor
+    ) -> bool:
+        """应用装备贴图选择（使用通用方法）"""
+        return self._apply_texture_selection_generic(file_path, field_identifier, armor)
+
+    def draw_armor_preview_with_reference(
+        self, preview, field_identifier, armor, override_size=None
+    ):
+        """绘制装备贴图预览（带人物参考）- 使用通用方法"""
+        # 装备使用与武器相同的预览逻辑
+        self.draw_preview_with_reference(
+            preview, field_identifier, armor, override_size
+        )
+
+    def draw_weapon_editor(self):
+        weapon = self.project.weapons[self.current_weapon_index]
+        weapon.markup = 1
+
+        # 基本属性
+        if imgui.tree_node("基本属性", flags=imgui.TREE_NODE_FRAMED):
+            changed, weapon.name = imgui.input_text("武器系统ID*", weapon.name, 256)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "用来让游戏识别该物品的内部名称，不向玩家展示。\n请确保ID尽可能独特，以免与其他Mod冲突！"
+                )
+            imgui.same_line()
+            imgui.text(f"(ID: {weapon.id})")
+
+            # 枚举选择
+            current_tier = TIER.index(weapon.tier) if weapon.tier in TIER else 0
+            tier_label = TIER_LABELS.get(weapon.tier, weapon.tier)
+            if imgui.begin_combo("等级", tier_label):
+                for i, tier in enumerate(TIER):
+                    display = TIER_LABELS.get(tier, tier)
+                    if imgui.selectable(display, i == current_tier)[0]:
+                        weapon.tier = tier
+                imgui.end_combo()
+
+            slot_options = list(SLOT_LABELS.keys())
+            if weapon.slot not in slot_options:
+                slot_options.append(weapon.slot)
+            slot_label = SLOT_LABELS.get(weapon.slot, weapon.slot)
+            if imgui.begin_combo("槽位", slot_label):
+                for slot in slot_options:
+                    display = SLOT_LABELS.get(slot, slot)
+                    if imgui.selectable(display, slot == weapon.slot)[0]:
+                        weapon.slot = slot
+
+                        # 切换槽位时清理无效的左手贴图数据
+                        if weapon.slot not in LEFT_HAND_SLOTS:
+                            weapon.textures.character_left = ""
+                            weapon.textures.character_left_frames = []
+                            weapon.textures.offset_x_left = 0
+                            weapon.textures.offset_y_left = 0
+
+                imgui.end_combo()
+
+            mat_keys = list(MATERIAL_LABELS.keys())
+            current_mat = mat_keys.index(weapon.mat) if weapon.mat in mat_keys else 0
+            material_label = MATERIAL_LABELS.get(weapon.mat, weapon.mat)
+            if imgui.begin_combo("材料", material_label):
+                for i, mat in enumerate(mat_keys):
+                    display = MATERIAL_LABELS.get(mat, mat)
+                    if imgui.selectable(display, i == current_mat)[0]:
+                        weapon.mat = mat
+                imgui.end_combo()
+
+            tag_options = list(TAG_LABELS.keys())
+            if weapon.tags not in tag_options:
+                tag_options.append(weapon.tags)
+            tag_label = TAG_LABELS.get(weapon.tags, weapon.tags)
+            if imgui.begin_combo("标签", tag_label):
+                for tag in tag_options:
+                    display = TAG_LABELS.get(tag, tag)
+                    if imgui.selectable(display, tag == weapon.tags)[0]:
+                        weapon.tags = tag
+                        # 自动设置稀有度
+                        if weapon.tags in ["unique", "special", "special exc"]:
+                            weapon.rarity = "Unique"
+                        else:
+                            weapon.rarity = "Common"
+                imgui.end_combo()
+
+            # 稀有度 - 禁用直接操作，只显示
+            rarity_label = RARITY_LABELS.get(weapon.rarity, weapon.rarity)
+            imgui.input_text(
+                "稀有度", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
+            )
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("由标签自动决定")
+
+            # 特殊属性
+            weapon.fireproof = self._draw_bool_combo(
+                "防火##weapon", weapon.fireproof, "未被拾取时是否会被火焰摧毁"
+            )
+            weapon.no_drop = self._draw_bool_combo(
+                "不可掉落##weapon", weapon.no_drop, "可能无法从宝箱中获取"
+            )
+
+            self.draw_indented_separator()
+            changed, weapon.price = imgui.input_int("价格", weapon.price)
+            changed, weapon.max_duration = imgui.input_int(
+                "最大耐久", weapon.max_duration
+            )
+
+            # Rng 锁定逻辑: 仅弓弩可调，其他锁定为 1
+            if weapon.slot in ["bow", "crossbow"]:
+                changed, weapon.rng = imgui.input_int("距离", weapon.rng)
+                if changed:
+                    if weapon.rng < 0:
+                        weapon.rng = 0
+                    if weapon.rng > 255:
+                        weapon.rng = 255
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip(
+                        "决定武器的基础攻击距离（游戏内部字段）\n类型: byte (0-255)"
+                    )
+            else:
+                weapon.rng = 1
+                # 使用只读模式显示
+                imgui.input_int("距离", weapon.rng, flags=imgui.INPUT_TEXT_READ_ONLY)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("除弓弩外，武器距离固定为 1")
+
+            imgui.tree_pop()
+
+        # 属性编辑
+        if imgui.tree_node("武器属性", flags=imgui.TREE_NODE_FRAMED):
+            self.draw_attributes_editor(weapon)
+            imgui.tree_pop()
+
+        # 武器名称与本地化
+        if imgui.tree_node("武器名称与本地化", flags=imgui.TREE_NODE_FRAMED):
+            self.draw_localization_editor(weapon)
+            imgui.tree_pop()
+
+        # 贴图
+        if imgui.tree_node("贴图文件", flags=imgui.TREE_NODE_FRAMED):
+            self.draw_textures_editor(weapon)
+            imgui.tree_pop()
+
+        # 验证
+        errors = weapon.validate(self.project)
+        self._draw_validation_errors(errors)
+
+    def draw_attributes_editor(self, weapon):
+        """武器属性编辑器（使用通用方法）"""
+        self._draw_attributes_editor_generic(weapon, ATTRIBUTE_GROUPS, "weapon")
+
+    def _draw_bool_combo(
+        self, label: str, current_value: bool, tooltip: str = ""
+    ) -> bool:
+        """绘制布尔值下拉选择框
+
+        Args:
+            label: 控件标签（需要包含 ## 后缀以确保唯一性）
+            current_value: 当前布尔值
+            tooltip: 悬停提示文字
+
+        Returns:
+            新的布尔值
+        """
+        value_str = "是" if current_value else "否"
+        new_value = current_value
+        if imgui.begin_combo(label, value_str):
+            if imgui.selectable("是", current_value)[0]:
+                new_value = True
+            if imgui.selectable("否", not current_value)[0]:
+                new_value = False
+            imgui.end_combo()
+        if tooltip and imgui.is_item_hovered():
+            imgui.set_tooltip(tooltip)
+        return new_value
+
+    def _draw_validation_errors(self, errors: List[str]):
+        """显示验证错误/警告列表
+
+        Args:
+            errors: 错误信息列表
+        """
+        if not errors:
+            return
+        self.draw_indented_separator()
+        imgui.text("消息:")
+        for error in errors:
+            if error.startswith("WARNING:"):
+                imgui.text_colored(f"  • {error}", 1.0, 0.5, 0.0, 1.0)  # Orange
+            else:
+                imgui.text_colored(f"  • {error}", 1.0, 0.0, 0.0, 1.0)  # Red
+
+    def _draw_attributes_editor_generic(
+        self,
+        item,
+        attribute_groups: Dict[str, List[str]],
+        id_suffix: str = "",
+    ):
+        """通用属性编辑器
+
+        Args:
+            item: 武器或装备对象（需要有 attributes 字典属性）
+            attribute_groups: 属性分组字典
+            id_suffix: ImGui ID 后缀，用于区分不同编辑器实例
+        """
+        for group_name, attributes in attribute_groups.items():
+            tree_id = f"{group_name}##{id_suffix}_attr" if id_suffix else group_name
+            if imgui.tree_node(tree_id):
+                for attr in attributes:
+                    # 获取描述
+                    desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
+                    desc_name = desc_info[0]
+                    desc_detail = desc_info[1] if len(desc_info) > 1 else ""
+
+                    val = item.attributes.get(attr, 0)
+
+                    # 显示输入框
+                    # 根据字体大小动态调整宽度，基础宽度 100，每像素字号增加 8
+                    input_width = 100 + (self.font_size - 14) * 8
+                    imgui.push_item_width(input_width)
+                    input_id = f"##{attr}_{id_suffix}" if id_suffix else f"##{attr}"
+                    changed, new_val = imgui.input_int(
+                        input_id, val, step=1, step_fast=10
+                    )
+                    imgui.pop_item_width()
+
+                    # 限制 byte 类型属性的范围 (0-255)
+                    if attr in BYTE_ATTRIBUTES:
+                        if new_val < 0:
+                            new_val = 0
+                            changed = True
+                        elif new_val > 255:
+                            new_val = 255
+                            changed = True
+
+                    if changed:
+                        item.attributes[attr] = new_val
+
+                    imgui.same_line()
+                    imgui.text(f"{attr}")
+                    imgui.same_line()
+                    imgui.text_colored(f"({desc_name})", 0.7, 0.7, 0.7, 1.0)
+
+                    # 悬停显示详细描述
+                    if imgui.is_item_hovered():
+                        tooltip_text = desc_detail
+                        if attr in BYTE_ATTRIBUTES:
+                            if tooltip_text:
+                                tooltip_text += "\n"
+                            tooltip_text += "类型: byte (0-255)"
+                        imgui.set_tooltip(tooltip_text)
+
+                imgui.tree_pop()
+
+    def draw_localization_editor(self, weapon):
+        """武器本地化编辑器（使用通用方法）"""
+        self._draw_localization_editor_generic(weapon, "weapon")
+
+    def _draw_localization_editor_generic(self, item, id_suffix: str = ""):
+        """通用本地化编辑器
+
+        Args:
+            item: 武器或装备对象（需要有 localization 属性）
+            id_suffix: ImGui ID 后缀，用于区分不同编辑器实例
+        """
+        suffix = f"_{id_suffix}" if id_suffix else ""
+
+        # 语言添加器
+        if imgui.button(f"添加语言##{id_suffix}"):
+            imgui.open_popup(f"add_language_popup{suffix}")
+
+        if imgui.begin_popup(f"add_language_popup{suffix}"):
+            for lang in LANGUAGE_LABELS:
                 # 跳过已添加的语言
-                if not armor.localization.has_language(lang):
+                if not item.localization.has_language(lang):
                     label = LANGUAGE_LABELS.get(lang, lang)
                     if imgui.selectable(label)[0]:
-                        armor.localization.languages[lang] = {
+                        item.localization.languages[lang] = {
                             "name": "",
                             "description": "",
                         }
@@ -2643,17 +2619,17 @@ class ModGeneratorGUI:
         imgui.text(f"{primary_label} (主语言)")
 
         # 确保主语言数据存在
-        if not armor.localization.has_language(PRIMARY_LANGUAGE):
-            armor.localization.languages[PRIMARY_LANGUAGE] = {
+        if not item.localization.has_language(PRIMARY_LANGUAGE):
+            item.localization.languages[PRIMARY_LANGUAGE] = {
                 "name": "",
                 "description": "",
             }
 
-        primary_data = armor.localization.languages[PRIMARY_LANGUAGE]
+        primary_data = item.localization.languages[PRIMARY_LANGUAGE]
 
         imgui.push_item_width(-1)
         changed, val = imgui.input_text(
-            f"##{PRIMARY_LANGUAGE}_name_armor", primary_data["name"], 256
+            f"##{PRIMARY_LANGUAGE}_name{suffix}", primary_data["name"], 256
         )
         if changed:
             primary_data["name"] = val
@@ -2663,7 +2639,7 @@ class ModGeneratorGUI:
 
         imgui.push_item_width(-1)
         changed, val = imgui.input_text_multiline(
-            f"##{PRIMARY_LANGUAGE}_desc_armor",
+            f"##{PRIMARY_LANGUAGE}_desc{suffix}",
             primary_data["description"],
             1024,
             height=60,
@@ -2673,26 +2649,26 @@ class ModGeneratorGUI:
         imgui.pop_item_width()
         imgui.dummy(0, 10)
 
-        # 渲染其他已添加语言（按 SUPPORTED_LANGUAGES 顺序）
+        # 渲染其他已添加语言（按 LANGUAGE_LABELS 顺序）
         langs_to_remove = []
-        for lang in SUPPORTED_LANGUAGES:
+        for lang in LANGUAGE_LABELS:
             if lang == PRIMARY_LANGUAGE:
                 continue  # 主语言已在上面渲染
-            if not armor.localization.has_language(lang):
+            if not item.localization.has_language(lang):
                 continue  # 未添加的语言跳过
 
-            data = armor.localization.languages[lang]
+            data = item.localization.languages[lang]
 
             self.draw_indented_separator()
             label = LANGUAGE_LABELS.get(lang, lang)
             imgui.text(f"{label}")
             imgui.same_line()
-            if imgui.button(f"删除##{lang}_armor"):
+            if imgui.button(f"删除##{lang}{suffix}"):
                 langs_to_remove.append(lang)
 
             imgui.text("名称")
             imgui.push_item_width(-1)
-            changed, val = imgui.input_text(f"##{lang}_name_armor", data["name"], 256)
+            changed, val = imgui.input_text(f"##{lang}_name{suffix}", data["name"], 256)
             if changed:
                 data["name"] = val
             imgui.pop_item_width()
@@ -2700,7 +2676,7 @@ class ModGeneratorGUI:
             imgui.text("描述")
             imgui.push_item_width(-1)
             changed, val = imgui.input_text_multiline(
-                f"##{lang}_desc_armor", data["description"], 1024, height=60
+                f"##{lang}_desc{suffix}", data["description"], 1024, height=60
             )
             if changed:
                 data["description"] = val
@@ -2708,18 +2684,106 @@ class ModGeneratorGUI:
             imgui.dummy(0, 5)
 
         for lang in langs_to_remove:
-            del armor.localization.languages[lang]
+            del item.localization.languages[lang]
 
-    def draw_armor_textures_editor(self, armor):
+    def draw_textures_editor(self, weapon):
         imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
         self.draw_indented_separator()
 
-        # 贴图倍率设置 (可自由输入)
+        # 预览设置（使用通用方法）
+        self._draw_preview_settings("weapon", show_model=True)
+
+        self.draw_texture_selector(
+            "手持状态贴图*", weapon.textures.character, "character", weapon
+        )
+
+        # 手持贴图偏移设置 (右手)
+        weapon.textures.offset_x, weapon.textures.offset_y = self._draw_offset_inputs(
+            label="手持贴图偏移 (右手/默认)",
+            tooltip="调整武器相对于人物手部的相对位置",
+            offset_x=weapon.textures.offset_x,
+            offset_y=weapon.textures.offset_y,
+            id_suffix="right",
+            item_type="武器",
+        )
+
+        self.draw_indented_separator()
+
+        # 左手持握贴图（仅特定单手武器显示）
+        if weapon.slot in LEFT_HAND_SLOTS:
+            self.draw_texture_selector(
+                "左手手持贴图*",
+                weapon.textures.character_left,
+                "character_left",
+                weapon,
+            )
+
+            # 左手贴图偏移设置
+            weapon.textures.offset_x_left, weapon.textures.offset_y_left = (
+                self._draw_offset_inputs(
+                    label="左手贴图偏移",
+                    tooltip="调整武器相对于人物手部的相对位置",
+                    offset_x=weapon.textures.offset_x_left,
+                    offset_y=weapon.textures.offset_y_left,
+                    id_suffix="left",
+                    item_type="武器",
+                )
+            )
+
+            self.draw_indented_separator()
+
+        # 常规贴图（使用通用方法）
+        self._draw_inventory_textures(weapon, "weapon", self.draw_texture_selector)
+
+        self.draw_indented_separator()
+        self.draw_texture_selector("战利品贴图*", weapon.textures.loot, "loot", weapon)
+
+        # 战利品贴图动画速度设置（仅当有动画帧时显示）
+        if weapon.textures.loot_frames:
+            self._draw_loot_animation_settings(weapon.textures, "weapon")
+
+    def _draw_inventory_textures(self, item, id_suffix: str, texture_selector_method):
+        """绘制常规贴图列表
+
+        Args:
+            item: 武器或装备对象
+            id_suffix: ImGui ID 后缀
+            texture_selector_method: 贴图选择器方法
+        """
+        item_type = "装备" if id_suffix == "armor" else "武器"
+        imgui.text("常规贴图（顺序越靠后耐久越低）")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                f"排在后面的贴图代表更低耐久状态下的{item_type}\n注意：游戏内一格为 27 像素"
+            )
+
+        for idx, texture_path in enumerate(item.textures.inventory):
+            texture_selector_method(
+                f"常规贴图 {idx + 1}##{id_suffix}",
+                texture_path,
+                ("inventory", idx),
+                item,
+            )
+
+        if imgui.button(f"添加贴图槽##{id_suffix}"):
+            item.textures.inventory.append("")
+        if len(item.textures.inventory) > 1:
+            imgui.same_line()
+            if imgui.button(f"删除最后一个贴图槽##{id_suffix}"):
+                item.textures.inventory.pop()
+
+    def _draw_preview_settings(self, id_suffix: str = "", show_model: bool = True):
+        """绘制预览设置（贴图倍率和模特选择）
+
+        Args:
+            id_suffix: ImGui ID 后缀
+            show_model: 是否显示模特选择
+        """
         imgui.text("预览设置")
         imgui.same_line()
         imgui.push_item_width(100)
         changed, self.texture_scale = imgui.input_float(
-            "倍率##texture_scale_armor",
+            f"倍率##texture_scale_{id_suffix}",
             self.texture_scale,
             step=0.5,
             step_fast=1.0,
@@ -2734,13 +2798,12 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip("设置预览图的显示倍率 (默认 4.0)")
 
-        # 模特选择 (仅对需要角色贴图的装备显示)
-        if armor.needs_char_texture():
+        if show_model:
             imgui.text("预览模特")
             current_model_label = CHARACTER_MODEL_LABELS.get(
                 self.selected_model, self.selected_model
             )
-            if imgui.begin_combo("##character_model_armor", current_model_label):
+            if imgui.begin_combo(f"##character_model_{id_suffix}", current_model_label):
                 for model_key, model_label in CHARACTER_MODEL_LABELS.items():
                     if imgui.selectable(model_label, model_key == self.selected_model)[
                         0
@@ -2750,194 +2813,209 @@ class ModGeneratorGUI:
 
         self.draw_indented_separator()
 
-        # 穿戴状态贴图 (仅部分槽位需要)
-        if armor.needs_char_texture():
-            self.draw_armor_texture_selector(
-                "穿戴状态贴图*", armor.textures.character, "character", armor
+    def _draw_offset_inputs(
+        self,
+        label: str,
+        tooltip: str,
+        offset_x: int,
+        offset_y: int,
+        id_suffix: str,
+        item_type: str = "物品",
+    ) -> tuple:
+        """绘制贴图偏移输入控件
+
+        Args:
+            label: 标签文字
+            tooltip: 提示文字
+            offset_x: 当前水平偏移值
+            offset_y: 当前垂直偏移值
+            id_suffix: ImGui ID 后缀
+            item_type: 物品类型（用于提示文字）
+
+        Returns:
+            (new_offset_x, new_offset_y) 元组
+        """
+        imgui.text(label)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(tooltip)
+
+        imgui.push_item_width(150)
+        changed_x, new_offset_x = imgui.input_int(f"水平偏移##{id_suffix}", offset_x)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(f"默认 0。正数使人物看起来向右（{item_type}向左）。")
+
+        imgui.same_line()
+        imgui.dummy(10, 0)
+        imgui.same_line()
+
+        changed_y, new_offset_y = imgui.input_int(f"垂直偏移##{id_suffix}", offset_y)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(f"默认 0。正数使人物看起来向下（{item_type}向上）。")
+        imgui.pop_item_width()
+
+        return new_offset_x, new_offset_y
+
+    def _draw_loot_animation_settings(self, textures, id_suffix: str = ""):
+        """绘制战利品贴图动画速度设置
+
+        Args:
+            textures: WeaponTextures 或 ArmorTextures 对象
+            id_suffix: ImGui ID 后缀
+        """
+        imgui.text("战利品动画速度设置")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "设置战利品贴图的动画播放速度。\n此设置会影响生成的模组代码。"
             )
 
-            # 穿戴贴图偏移设置
-            imgui.text("穿戴贴图偏移")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("调整装备相对于人物的相对位置")
+        # 速度模式选择
+        mode_labels = ["固定帧率 (FPS)", "相对帧率"]
+        current_mode = 1 if textures.loot_use_relative_speed else 0
+        if imgui.begin_combo(
+            f"速度模式##{id_suffix}_loot_speed_mode", mode_labels[current_mode]
+        ):
+            if imgui.selectable("固定帧率 (FPS)", not textures.loot_use_relative_speed)[
+                0
+            ]:
+                if textures.loot_use_relative_speed:
+                    textures.loot_use_relative_speed = False
+                    textures.loot_fps = 10.0
+            if imgui.selectable("相对帧率", textures.loot_use_relative_speed)[0]:
+                if not textures.loot_use_relative_speed:
+                    textures.loot_use_relative_speed = True
+                    textures.loot_fps = 0.25
+            imgui.end_combo()
 
+        if not textures.loot_use_relative_speed:
+            # 固定帧率模式
             imgui.push_item_width(150)
-            changed, armor.textures.offset_x = imgui.input_int(
-                "水平偏移##armor", armor.textures.offset_x
+            changed, textures.loot_fps = imgui.input_float(
+                f"播放帧率 (FPS)##{id_suffix}_loot_fps",
+                textures.loot_fps,
+                step=1.0,
+                step_fast=5.0,
+                format="%.1f",
             )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("默认 0。正数使人物看起来向右（装备向左）。")
-
-            imgui.same_line()
-            imgui.dummy(10, 0)
-            imgui.same_line()
-
-            changed, armor.textures.offset_y = imgui.input_int(
-                "垂直偏移##armor", armor.textures.offset_y
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("默认 0。正数使人物看起来向下（装备向上）。")
+            if changed and textures.loot_fps < 0.1:
+                textures.loot_fps = 0.1
             imgui.pop_item_width()
-
-            self.draw_indented_separator()
-
-            # 左手穿戴贴图 (仅盾牌需要)
-            if armor.needs_left_texture():
-                self.draw_armor_texture_selector(
-                    "左手穿戴贴图*",
-                    armor.textures.character_left,
-                    "character_left",
-                    armor,
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "每秒播放的帧数。\n"
+                    "这是一个固定值，不会随游戏速度变化。\n"
+                    "默认值: 10"
                 )
-
-                # 左手贴图偏移设置
-                imgui.text("左手贴图偏移")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("调整左手装备相对于人物的相对位置")
-
-                imgui.push_item_width(150)
-                changed, armor.textures.offset_x_left = imgui.input_int(
-                    "水平偏移##armor_left", armor.textures.offset_x_left
-                )
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("默认 0。正数使人物看起来向右（装备向左）。")
-
-                imgui.same_line()
-                imgui.dummy(10, 0)
-                imgui.same_line()
-
-                changed, armor.textures.offset_y_left = imgui.input_int(
-                    "垂直偏移##armor_left", armor.textures.offset_y_left
-                )
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("默认 0。正数使人物看起来向下（装备向上）。")
-                imgui.pop_item_width()
-
-                self.draw_indented_separator()
         else:
+            # 相对帧率模式
+            imgui.push_item_width(180)
+            changed, textures.loot_fps = imgui.input_float(
+                f"相对帧率##{id_suffix}_loot_relative_fps",
+                textures.loot_fps,
+                step=0.01,
+                step_fast=0.1,
+                format="%.3f",
+            )
+            if changed:
+                if textures.loot_fps < 0.001:
+                    textures.loot_fps = 0.001
+                textures.loot_fps = round(textures.loot_fps, 3)
+            imgui.pop_item_width()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "每个游戏帧内动画前进的帧数。\n\n"
+                    "例如:\n"
+                    f"  • 值为 0.1 时: 实际播放速度 = {GAME_FPS} × 0.1 = 4 fps\n"
+                    f"  • 值为 0.25 时: 实际播放速度 = {GAME_FPS} × 0.25 = 10 fps\n"
+                    f"  • 值为 0.5 时: 实际播放速度 = {GAME_FPS} × 0.5 = 20 fps\n"
+                    f"  • 值为 1.0 时: 实际播放速度 = {GAME_FPS} × 1.0 = 40 fps\n\n"
+                    "此模式的好处是动画速度会随游戏速度同步变化，\n"
+                    "当游戏变慢时动画也会相应变慢。\n\n"
+                    f"提示: 手持贴图默认相对帧率为 0.25 (即 {GAME_FPS // 4} fps)。\n"
+                    "若想与手持贴图保持相同速度，请设为 0.25。\n"
+                    "最小值: 0.001"
+                )
+
+            # 显示实际播放速度
+            actual_fps = GAME_FPS * textures.loot_fps
             imgui.text_colored(
-                f"提示: {ARMOR_SLOT_LABELS.get(armor.slot, armor.slot)} 槽位不需要穿戴状态贴图",
+                f"实际播放速度: {actual_fps:.3f} fps (游戏 {GAME_FPS} fps 时)",
                 0.7,
                 0.7,
                 0.7,
                 1.0,
             )
-            self.draw_indented_separator()
 
-        # 常规贴图
-        imgui.text("常规贴图（顺序越靠后耐久越低）")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip(
-                "排在后面的贴图代表更低耐久状态下的装备\n注意：游戏内一格为 27 像素"
-            )
+    def _import_and_resolve_texture(self, source_path: str) -> str:
+        """导入贴图并返回解析后的绝对路径
 
-        for idx, texture_path in enumerate(armor.textures.inventory):
-            self.draw_armor_texture_selector(
-                f"常规贴图 {idx + 1}##armor", texture_path, ("inventory", idx), armor
-            )
+        如果项目已保存，将贴图导入到 assets 目录并返回绝对路径。
+        如果项目未保存，直接返回源路径。
+        """
+        if self.project.file_path:
+            rel_path = self.project.import_texture(source_path)
+            return os.path.join(os.path.dirname(self.project.file_path), rel_path)
+        return source_path
 
-        if imgui.button("添加贴图槽##armor"):
-            armor.textures.inventory.append("")
-        if len(armor.textures.inventory) > 1:
-            imgui.same_line()
-            if imgui.button("删除最后一个贴图槽##armor"):
-                armor.textures.inventory.pop()
-
-        self.draw_indented_separator()
-        self.draw_armor_texture_selector(
-            "战利品贴图*##armor", armor.textures.loot, "loot", armor
+    def draw_texture_selector(
+        self, label: str, current_path: str, field_identifier, weapon=None
+    ):
+        """武器贴图选择器（使用通用方法）"""
+        self._draw_texture_selector_generic(
+            label=label,
+            current_path=current_path,
+            field_identifier=field_identifier,
+            item=weapon,
+            id_prefix="weapon",
+            preview_method=self.draw_preview_with_reference,
         )
 
-        # 战利品贴图动画速度设置（仅当有动画帧时显示）
-        if armor.textures.loot_frames:
-            imgui.text("战利品动画速度设置")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "设置战利品贴图的动画播放速度。\n" "此设置会影响生成的模组代码。"
-                )
-
-            # 速度模式选择
-            mode_labels = ["固定帧率 (FPS)", "相对帧率"]
-            current_mode = 1 if armor.textures.loot_use_relative_speed else 0
-            if imgui.begin_combo(
-                "速度模式##armor_loot_speed_mode", mode_labels[current_mode]
-            ):
-                if imgui.selectable(
-                    "固定帧率 (FPS)", not armor.textures.loot_use_relative_speed
-                )[0]:
-                    if armor.textures.loot_use_relative_speed:
-                        armor.textures.loot_use_relative_speed = False
-                        armor.textures.loot_fps = 10.0
-                if imgui.selectable("相对帧率", armor.textures.loot_use_relative_speed)[
-                    0
-                ]:
-                    if not armor.textures.loot_use_relative_speed:
-                        armor.textures.loot_use_relative_speed = True
-                        armor.textures.loot_fps = 0.25
-                imgui.end_combo()
-
-            if not armor.textures.loot_use_relative_speed:
-                imgui.push_item_width(150)
-                changed, armor.textures.loot_fps = imgui.input_float(
-                    "播放帧率 (FPS)##armor_loot_fps",
-                    armor.textures.loot_fps,
-                    step=1.0,
-                    step_fast=5.0,
-                    format="%.1f",
-                )
-                if changed and armor.textures.loot_fps < 0.1:
-                    armor.textures.loot_fps = 0.1
-                imgui.pop_item_width()
-            else:
-                imgui.push_item_width(180)
-                changed, armor.textures.loot_fps = imgui.input_float(
-                    "相对帧率##armor_loot_relative_fps",
-                    armor.textures.loot_fps,
-                    step=0.01,
-                    step_fast=0.1,
-                    format="%.3f",
-                )
-                if changed:
-                    if armor.textures.loot_fps < 0.001:
-                        armor.textures.loot_fps = 0.001
-                    armor.textures.loot_fps = round(armor.textures.loot_fps, 3)
-                imgui.pop_item_width()
-
-                actual_fps = GAME_FPS * armor.textures.loot_fps
-                imgui.text_colored(
-                    f"实际播放速度: {actual_fps:.3f} fps (游戏 {GAME_FPS} fps 时)",
-                    0.7,
-                    0.7,
-                    0.7,
-                    1.0,
-                )
-
-    def draw_armor_texture_selector(
-        self, label: str, current_path: str, field_identifier, armor=None
+    def _draw_texture_selector_generic(
+        self,
+        label: str,
+        current_path: str,
+        field_identifier,
+        item,
+        id_prefix: str,
+        preview_method,
     ):
-        """装备贴图选择器 (简化版，无左手贴图)"""
+        """通用贴图选择器
+
+        Args:
+            label: 显示标签
+            current_path: 当前贴图路径
+            field_identifier: 字段标识符
+            item: 武器或装备对象
+            id_prefix: ImGui ID 前缀
+            preview_method: 预览绘制方法
+        """
         imgui.text(label)
         imgui.same_line()
 
         # 动画相关数据
         frames = []
         is_anim_field = False
-        if armor and field_identifier in ["character", "character_left", "loot"]:
+        if item and field_identifier in ["character", "character_left", "loot"]:
             is_anim_field = True
-            frames = getattr(armor.textures, f"{field_identifier}_frames")
+            frames = getattr(item.textures, f"{field_identifier}_frames")
 
         # 创建唯一的标签后缀
-        label_suffix = f"_armor_{field_identifier}"
+        label_suffix = f"_{id_prefix}_{field_identifier}"
         if isinstance(field_identifier, tuple):
-            label_suffix = f"_armor_{field_identifier[0]}_{field_identifier[1]}"
+            label_suffix = f"_{id_prefix}_{field_identifier[0]}_{field_identifier[1]}"
+        state_key = f"{id_prefix}_{field_identifier}"
 
         # 如果是动画模式且有帧数据，显示动画管理界面
         if is_anim_field and frames:
             imgui.text(f"动画模式 (共 {len(frames)} 张图片)")
-
-            fps = PREVIEW_ANIMATION_FPS
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    f"当前动画包含 {len(frames)} 张图片。\n"
+                    f"预览播放速度: {PREVIEW_ANIMATION_FPS} fps\n"
+                    f"(游戏中手持贴图默认以此速度播放)"
+                )
 
             if imgui.button(f"添加帧##{label_suffix}"):
+                self.current_texture_field = field_identifier
                 paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
                 if paths:
                     if not isinstance(paths, list):
@@ -2946,14 +3024,13 @@ class ModGeneratorGUI:
                         final_path = self._import_and_resolve_texture(path)
                         frames.append(final_path)
                     if len(frames) >= 1:
-                        setattr(armor.textures, field_identifier, frames[0])
+                        setattr(item.textures, field_identifier, frames[0])
 
             imgui.same_line()
             if imgui.button(f"清空/转为静态##{label_suffix}"):
                 frames.clear()
 
             # 预览控制
-            state_key = f"armor_{field_identifier}"
             state = self.preview_states.get(
                 state_key, {"paused": False, "current_frame": 0}
             )
@@ -3010,14 +3087,20 @@ class ModGeneratorGUI:
                     imgui.same_line()
                     if imgui.arrow_button("##up", imgui.DIRECTION_UP):
                         frames_to_move_up.append(i)
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("上移")
 
                     imgui.same_line()
                     if imgui.arrow_button("##down", imgui.DIRECTION_DOWN):
                         frames_to_move_down.append(i)
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("下移")
 
                     imgui.same_line()
                     if imgui.small_button("X"):
                         frames_to_remove.append(i)
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("删除此帧")
 
                     imgui.pop_id()
 
@@ -3033,10 +3116,10 @@ class ModGeneratorGUI:
                     frames.pop(i)
 
                 if not frames:
-                    setattr(armor.textures, field_identifier, "")
+                    setattr(item.textures, field_identifier, "")
 
                 if frames:
-                    setattr(armor.textures, field_identifier, frames[0])
+                    setattr(item.textures, field_identifier, frames[0])
 
                 imgui.tree_pop()
 
@@ -3044,6 +3127,7 @@ class ModGeneratorGUI:
             # 常规单图选择模式
             button_id = f"选择文件##{label_suffix}"
             if imgui.button(button_id):
+                self.current_texture_field = field_identifier
                 paths = self.file_dialog([("PNG文件", "*.png")], multiple=is_anim_field)
 
                 if paths:
@@ -3052,8 +3136,8 @@ class ModGeneratorGUI:
 
                     first_path = paths[0]
                     final_path_0 = self._import_and_resolve_texture(first_path)
-                    self._apply_armor_texture_selection(
-                        final_path_0, field_identifier, armor
+                    self._apply_texture_selection_generic(
+                        final_path_0, field_identifier, item
                     )
 
                     if is_anim_field:
@@ -3075,6 +3159,7 @@ class ModGeneratorGUI:
                     if not frames:
                         frames.append(current_path)
 
+                    self.current_texture_field = field_identifier
                     paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
                     if paths:
                         if not isinstance(paths, list):
@@ -3087,13 +3172,12 @@ class ModGeneratorGUI:
         preview_path = current_path
         if is_anim_field and frames:
             fps = PREVIEW_ANIMATION_FPS
-            if field_identifier == "loot" and armor:
-                if armor.textures.loot_use_relative_speed:
-                    fps = GAME_FPS * armor.textures.loot_fps
+            if field_identifier == "loot" and item:
+                if item.textures.loot_use_relative_speed:
+                    fps = GAME_FPS * item.textures.loot_fps
                 else:
-                    fps = armor.textures.loot_fps
+                    fps = item.textures.loot_fps
 
-            state_key = f"armor_{field_identifier}"
             state = self.preview_states.get(
                 state_key, {"paused": False, "current_frame": 0}
             )
@@ -3131,965 +3215,8 @@ class ModGeneratorGUI:
 
             imgui.new_line()
 
-            # 绘制预览 (带人物参考)
-            self.draw_armor_preview_with_reference(
-                preview, field_identifier, armor, override_size
-            )
-
-    def _apply_armor_texture_selection(
-        self, file_path: str, field_identifier, armor
-    ) -> bool:
-        """应用装备贴图选择"""
-        if not file_path or not os.path.exists(file_path):
-            return False
-
-        if armor is None:
-            return False
-
-        field = field_identifier
-        if isinstance(field, tuple):
-            field_type, idx = field
-            if (
-                field_type == "inventory"
-                and idx is not None
-                and 0 <= idx < len(armor.textures.inventory)
-            ):
-                armor.textures.inventory[idx] = file_path
-                return True
-        else:
-            if field == "character":
-                armor.textures.character = file_path
-                return True
-            if field == "character_left":
-                armor.textures.character_left = file_path
-                return True
-            if field == "loot":
-                armor.textures.loot = file_path
-                return True
-        return False
-
-    def draw_armor_preview_with_reference(
-        self, preview, field_identifier, armor, override_size=None
-    ):
-        """绘制装备贴图预览（带人物参考）"""
-        scale = self.texture_scale
-
-        tex_w = preview["width"]
-        tex_h = preview["height"]
-
-        box_w = tex_w
-        box_h = tex_h
-        if override_size:
-            box_w, box_h = override_size
-
-        # 确定是否需要人物背景
-        is_worn = False
-        if isinstance(field_identifier, str) and field_identifier in [
-            "character",
-            "character_left",
-        ]:
-            is_worn = True
-
-        draw_list = imgui.get_window_draw_list()
-        start_pos = imgui.get_cursor_screen_pos()
-
-        if is_worn and armor and armor.needs_char_texture():
-            # 使用选定的模特
-            use_single_hand_pose = True  # 装备默认使用姿态0
-            pose_index = 0
-
-            model_files = CHARACTER_MODELS.get(
-                self.selected_model, ["s_elf_male_0.png", "s_elf_male_1.png"]
-            )
-            if pose_index >= len(model_files):
-                pose_index = 0
-
-            ref_img_name = model_files[pose_index]
-            ref_path = os.path.join("resources", ref_img_name)
-            if not os.path.exists(ref_path):
-                ref_path = ref_img_name
-
-            ref_preview = self.get_texture_preview(ref_path)
-
-            if ref_preview:
-                # 根据贴图类型选择正确的偏移值
-                if field_identifier == "character_left":
-                    off_x = armor.textures.offset_x_left
-                    off_y = armor.textures.offset_y_left
-                else:
-                    off_x = armor.textures.offset_x
-                    off_y = armor.textures.offset_y
-
-                viewport_w = VALID_AREA_SIZE * scale
-                viewport_h = VALID_AREA_SIZE * scale
-
-                self.draw_checkerboard(
-                    draw_list,
-                    start_pos,
-                    (start_pos[0] + viewport_w, start_pos[1] + viewport_h),
-                    cell_size=int(8 * scale),
-                )
-
-                draw_list.push_clip_rect(
-                    start_pos[0],
-                    start_pos[1],
-                    start_pos[0] + viewport_w,
-                    start_pos[1] + viewport_h,
-                )
-
-                char_draw_x = start_pos[0] + VIEWPORT_CHAR_OFFSET_X * scale
-                char_draw_y = start_pos[1] + VIEWPORT_CHAR_OFFSET_Y * scale
-
-                draw_list.add_image(
-                    ref_preview["tex_id"],
-                    (float(char_draw_x), float(char_draw_y)),
-                    (
-                        float(char_draw_x + ref_preview["width"] * scale),
-                        float(char_draw_y + ref_preview["height"] * scale),
-                    ),
-                )
-
-                armor_rel_x = -off_x
-                armor_rel_y = -off_y
-
-                armor_draw_x = char_draw_x + armor_rel_x * scale
-                armor_draw_y = char_draw_y + armor_rel_y * scale
-
-                draw_list.add_image(
-                    preview["tex_id"],
-                    (float(armor_draw_x), float(armor_draw_y)),
-                    (
-                        float(armor_draw_x + tex_w * scale),
-                        float(armor_draw_y + tex_h * scale),
-                    ),
-                )
-
-                draw_list.add_rect(
-                    armor_draw_x,
-                    armor_draw_y,
-                    armor_draw_x + tex_w * scale,
-                    armor_draw_y + tex_h * scale,
-                    imgui.get_color_u32_rgba(0.0, 1.0, 1.0, 0.8),
-                    thickness=2.0,
-                )
-
-                draw_list.pop_clip_rect()
-
-                imgui.dummy(viewport_w, viewport_h)
-
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "视图已锁定为 64x64 游戏有效区域。\n超出此区域的贴图部分将不会显示。\n青色框指示装备贴图的完整范围。"
-                    )
-
-                return
-
-        # 默认绘制逻辑
-        width = tex_w * scale
-        height = tex_h * scale
-
-        bg_width = box_w * scale
-        bg_height = box_h * scale
-
-        self.draw_checkerboard(
-            draw_list,
-            start_pos,
-            (start_pos[0] + bg_width, start_pos[1] + bg_height),
-            cell_size=int(8 * scale),
-        )
-
-        draw_list.add_image(
-            preview["tex_id"],
-            (float(start_pos[0]), float(start_pos[1])),
-            (float(start_pos[0] + width), float(start_pos[1] + height)),
-        )
-
-        imgui.dummy(bg_width, bg_height)
-
-    def draw_weapon_editor(self):
-        weapon = self.project.weapons[self.current_weapon_index]
-        weapon.markup = 1
-
-        # 基本属性
-        if imgui.tree_node("基本属性", flags=imgui.TREE_NODE_FRAMED):
-            changed, weapon.name = imgui.input_text("武器系统ID*", weapon.name, 256)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "用来让游戏识别该物品的内部名称，不向玩家展示。\n请确保ID尽可能独特，以免与其他Mod冲突！"
-                )
-            imgui.same_line()
-            imgui.text(f"(ID: {weapon.id})")
-
-            # 枚举选择
-            current_tier = (
-                WEAPONS_TIER.index(weapon.tier) if weapon.tier in WEAPONS_TIER else 0
-            )
-            tier_label = TIER_LABELS.get(weapon.tier, weapon.tier)
-            if imgui.begin_combo("等级", tier_label):
-                for i, tier in enumerate(WEAPONS_TIER):
-                    display = TIER_LABELS.get(tier, tier)
-                    if imgui.selectable(display, i == current_tier)[0]:
-                        weapon.tier = tier
-                imgui.end_combo()
-
-            slot_options = [slot for slot in WEAPONS_SLOT if slot not in HIDDEN_SLOTS]
-            if weapon.slot not in slot_options:
-                slot_options.append(weapon.slot)
-            slot_label = SLOT_LABELS.get(weapon.slot, weapon.slot)
-            if imgui.begin_combo("槽位", slot_label):
-                for slot in slot_options:
-                    display = SLOT_LABELS.get(slot, slot)
-                    if imgui.selectable(display, slot == weapon.slot)[0]:
-                        weapon.slot = slot
-
-                        # 切换槽位时清理无效的左手贴图数据
-                        if weapon.slot not in LEFT_HAND_SLOTS:
-                            weapon.textures.character_left = ""
-                            weapon.textures.character_left_frames = []
-                            weapon.textures.offset_x_left = 0
-                            weapon.textures.offset_y_left = 0
-
-                imgui.end_combo()
-
-            current_mat = (
-                WEAPONS_MATERIAL.index(weapon.mat)
-                if weapon.mat in WEAPONS_MATERIAL
-                else 0
-            )
-            material_label = MATERIAL_LABELS.get(weapon.mat, weapon.mat)
-            if imgui.begin_combo("材料", material_label):
-                for i, mat in enumerate(WEAPONS_MATERIAL):
-                    display = MATERIAL_LABELS.get(mat, mat)
-                    if imgui.selectable(display, i == current_mat)[0]:
-                        weapon.mat = mat
-                imgui.end_combo()
-
-            tag_options = ALLOWED_TAGS.copy()
-            if weapon.tags not in tag_options:
-                tag_options.append(weapon.tags)
-            tag_label = TAG_LABELS.get(weapon.tags, weapon.tags)
-            if imgui.begin_combo("标签", tag_label):
-                for tag in tag_options:
-                    display = TAG_LABELS.get(tag, tag)
-                    if imgui.selectable(display, tag == weapon.tags)[0]:
-                        weapon.tags = tag
-                        # 自动设置稀有度
-                        if weapon.tags in ["unique", "special", "special exc"]:
-                            weapon.rarity = "Unique"
-                        else:
-                            weapon.rarity = "Common"
-                imgui.end_combo()
-
-            # 稀有度 - 禁用直接操作，只显示
-            rarity_label = RARITY_LABELS.get(weapon.rarity, weapon.rarity)
-            imgui.input_text(
-                "稀有度", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("由标签自动决定")
-
-            # 特殊属性 - 改用 Combo
-            # 映射 True/False 到 "是"/"否"
-            fireproof_str = "是" if weapon.fireproof else "否"
-            if imgui.begin_combo("防火", fireproof_str):
-                if imgui.selectable("是", weapon.fireproof)[0]:
-                    weapon.fireproof = True
-                if imgui.selectable("否", not weapon.fireproof)[0]:
-                    weapon.fireproof = False
-                imgui.end_combo()
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("未被拾取时是否会被火焰摧毁")
-
-            no_drop_str = "是" if weapon.no_drop else "否"
-            if imgui.begin_combo("不可掉落", no_drop_str):
-                if imgui.selectable("是", weapon.no_drop)[0]:
-                    weapon.no_drop = True
-                if imgui.selectable("否", not weapon.no_drop)[0]:
-                    weapon.no_drop = False
-                imgui.end_combo()
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("可能无法从宝箱中获取")
-
-            self.draw_indented_separator()
-            changed, weapon.price = imgui.input_int("价格", weapon.price)
-            changed, weapon.max_duration = imgui.input_int(
-                "最大耐久", weapon.max_duration
-            )
-
-            # Rng 锁定逻辑: 仅弓弩可调，其他锁定为 1
-            if weapon.slot in ["bow", "crossbow"]:
-                changed, weapon.rng = imgui.input_int("距离", weapon.rng)
-                if changed:
-                    if weapon.rng < 0:
-                        weapon.rng = 0
-                    if weapon.rng > 255:
-                        weapon.rng = 255
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "决定武器的基础攻击距离（游戏内部字段）\n类型: byte (0-255)"
-                    )
-            else:
-                weapon.rng = 1
-                # 使用只读模式显示
-                imgui.input_int("距离", weapon.rng, flags=imgui.INPUT_TEXT_READ_ONLY)
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("除弓弩外，武器距离固定为 1")
-
-            imgui.tree_pop()
-
-        # 属性编辑
-        if imgui.tree_node("武器属性", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_attributes_editor(weapon)
-            imgui.tree_pop()
-
-        # 武器名称与本地化
-        if imgui.tree_node("武器名称与本地化", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_localization_editor(weapon)
-            imgui.tree_pop()
-
-        # 贴图
-        if imgui.tree_node("贴图文件", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_textures_editor(weapon)
-            imgui.tree_pop()
-
-        # 验证
-        # 传入 project 以便检查重复ID
-        errors = weapon.validate(self.project)
-        if errors:
-            self.draw_indented_separator()
-            imgui.text("消息:")
-            for error in errors:
-                if error.startswith("WARNING:"):
-                    imgui.text_colored(
-                        f"  • {error}", 1.0, 0.5, 0.0, 1.0
-                    )  # Orange for warning
-                else:
-                    imgui.text_colored(
-                        f"  • {error}", 1.0, 0.0, 0.0, 1.0
-                    )  # Red for error
-
-    def draw_attributes_editor(self, weapon):
-        for group_name, attributes in ATTRIBUTE_GROUPS.items():
-            if imgui.tree_node(group_name):
-                for attr in attributes:
-                    # 获取描述
-                    desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
-                    desc_name = desc_info[0]
-                    desc_detail = desc_info[1] if len(desc_info) > 1 else ""
-
-                    val = weapon.attributes.get(attr, 0)
-
-                    # 显示 Label 和输入框
-                    # 使用 PushItemWidth 限制输入框宽度
-                    # 根据字体大小动态调整宽度，基础宽度 100，每像素字号增加 5
-                    input_width = 100 + (self.font_size - 14) * 8
-                    imgui.push_item_width(input_width)
-                    # 使用 input_int 提供 +/- 按钮进行微调
-                    changed, new_val = imgui.input_int(
-                        f"##{attr}", val, step=1, step_fast=10
-                    )
-                    imgui.pop_item_width()
-
-                    # 限制 byte 类型属性的范围 (0-255)
-                    if attr in BYTE_ATTRIBUTES:
-                        if new_val < 0:
-                            new_val = 0
-                            changed = True
-                        elif new_val > 255:
-                            new_val = 255
-                            changed = True
-
-                    if changed:
-                        weapon.attributes[attr] = new_val
-
-                    imgui.same_line()
-                    imgui.text(f"{attr}")
-                    imgui.same_line()
-                    imgui.text_colored(f"({desc_name})", 0.7, 0.7, 0.7, 1.0)
-
-                    # 悬停显示详细描述
-                    if imgui.is_item_hovered():
-                        tooltip_text = desc_detail
-                        if attr in BYTE_ATTRIBUTES:
-                            if tooltip_text:
-                                tooltip_text += "\n"
-                            tooltip_text += "类型: byte (0-255)"
-                        imgui.set_tooltip(tooltip_text)
-
-                imgui.tree_pop()
-
-    def draw_localization_editor(self, weapon):
-        # 语言添加器
-        if imgui.button("添加语言"):
-            imgui.open_popup("add_language_popup")
-
-        if imgui.begin_popup("add_language_popup"):
-            for lang in SUPPORTED_LANGUAGES:
-                # 跳过已添加的语言
-                if not weapon.localization.has_language(lang):
-                    label = LANGUAGE_LABELS.get(lang, lang)
-                    if imgui.selectable(label)[0]:
-                        weapon.localization.languages[lang] = {
-                            "name": "",
-                            "description": "",
-                        }
-            imgui.end_popup()
-
-        self.draw_indented_separator()
-
-        # 首先渲染主语言（不可删除）
-        primary_label = LANGUAGE_LABELS.get(PRIMARY_LANGUAGE, PRIMARY_LANGUAGE)
-        imgui.text(f"{primary_label} (主语言)")
-
-        # 确保主语言数据存在
-        if not weapon.localization.has_language(PRIMARY_LANGUAGE):
-            weapon.localization.languages[PRIMARY_LANGUAGE] = {
-                "name": "",
-                "description": "",
-            }
-
-        primary_data = weapon.localization.languages[PRIMARY_LANGUAGE]
-
-        imgui.push_item_width(-1)
-        changed, val = imgui.input_text(
-            f"##{PRIMARY_LANGUAGE}_name", primary_data["name"], 256
-        )
-        if changed:
-            primary_data["name"] = val
-        if not primary_data["name"] and imgui.is_item_hovered():
-            imgui.set_tooltip("主语言名称（建议填写）")
-        imgui.pop_item_width()
-
-        imgui.push_item_width(-1)
-        changed, val = imgui.input_text_multiline(
-            f"##{PRIMARY_LANGUAGE}_desc", primary_data["description"], 1024, height=60
-        )
-        if changed:
-            primary_data["description"] = val
-        imgui.pop_item_width()
-        imgui.dummy(0, 10)
-
-        # 渲染其他已添加语言（按 SUPPORTED_LANGUAGES 顺序）
-        langs_to_remove = []
-        for lang in SUPPORTED_LANGUAGES:
-            if lang == PRIMARY_LANGUAGE:
-                continue  # 主语言已在上面渲染
-            if not weapon.localization.has_language(lang):
-                continue  # 未添加的语言跳过
-
-            data = weapon.localization.languages[lang]
-
-            self.draw_indented_separator()
-            label = LANGUAGE_LABELS.get(lang, lang)
-            imgui.text(f"{label}")
-            imgui.same_line()
-            if imgui.button(f"删除##{lang}"):
-                langs_to_remove.append(lang)
-
-            imgui.text("名称")
-            imgui.push_item_width(-1)
-            changed, val = imgui.input_text(f"##{lang}_name", data["name"], 256)
-            if changed:
-                data["name"] = val
-            imgui.pop_item_width()
-
-            imgui.text("描述")
-            imgui.push_item_width(-1)
-            changed, val = imgui.input_text_multiline(
-                f"##{lang}_desc", data["description"], 1024, height=60
-            )
-            if changed:
-                data["description"] = val
-            imgui.pop_item_width()
-            imgui.dummy(0, 5)
-
-        for lang in langs_to_remove:
-            del weapon.localization.languages[lang]
-
-    def draw_textures_editor(self, weapon):
-        imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
-        self.draw_indented_separator()
-
-        # 贴图倍率设置 (可自由输入)
-        imgui.text("预览设置")
-        imgui.same_line()
-        imgui.push_item_width(100)
-        changed, self.texture_scale = imgui.input_float(
-            "倍率##texture_scale",
-            self.texture_scale,
-            step=0.5,
-            step_fast=1.0,
-            format="%.1f",
-        )
-        imgui.pop_item_width()
-        if changed:
-            # 限制最小倍率为 0.1 以防止错误
-            if self.texture_scale < 0.1:
-                self.texture_scale = 0.1
-            self.save_config()
-
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("设置预览图的显示倍率 (默认 4.0)")
-
-        # 模特选择
-        imgui.text("预览模特")
-        current_model_label = CHARACTER_MODEL_LABELS.get(
-            self.selected_model, self.selected_model
-        )
-        if imgui.begin_combo("##character_model", current_model_label):
-            for model_key, model_label in CHARACTER_MODEL_LABELS.items():
-                if imgui.selectable(model_label, model_key == self.selected_model)[0]:
-                    self.selected_model = model_key
-            imgui.end_combo()
-
-        self.draw_indented_separator()
-
-        self.draw_texture_selector(
-            "手持状态贴图*", weapon.textures.character, "character", weapon
-        )
-
-        # 手持贴图偏移设置 (右手)
-        imgui.text("手持贴图偏移 (右手/默认)")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("调整武器相对于人物手部的相对位置")
-
-        imgui.push_item_width(150)
-        changed, weapon.textures.offset_x = imgui.input_int(
-            "水平偏移##right", weapon.textures.offset_x
-        )
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("默认 0。正数使人物看起来向右（武器向左）。")
-
-        imgui.same_line()
-        imgui.dummy(10, 0)  # 添加间距
-        imgui.same_line()
-
-        changed, weapon.textures.offset_y = imgui.input_int(
-            "垂直偏移##right", weapon.textures.offset_y
-        )
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("默认 0。正数使人物看起来向下（武器向上）。")
-        imgui.pop_item_width()
-
-        self.draw_indented_separator()
-
-        # 左手持握贴图（仅特定单手武器显示）
-        if weapon.slot in LEFT_HAND_SLOTS:
-            self.draw_texture_selector(
-                "左手手持贴图*",
-                weapon.textures.character_left,
-                "character_left",
-                weapon,
-            )
-
-            # 左手贴图偏移设置
-            imgui.text("左手贴图偏移")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("调整武器相对于人物手部的相对位置")
-
-            imgui.push_item_width(150)
-            changed, weapon.textures.offset_x_left = imgui.input_int(
-                "水平偏移##left", weapon.textures.offset_x_left
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("默认 0。正数使人物看起来向右（武器向左）。")
-
-            imgui.same_line()
-            imgui.dummy(10, 0)  # 添加间距
-            imgui.same_line()
-
-            changed, weapon.textures.offset_y_left = imgui.input_int(
-                "垂直偏移##left", weapon.textures.offset_y_left
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("默认 0。正数使人物看起来向下（武器向上）。")
-            imgui.pop_item_width()
-
-            self.draw_indented_separator()
-
-        imgui.text("常规贴图（顺序越靠后耐久越低）")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip(
-                "排在后面的贴图代表更低耐久状态下的武器\n注意：游戏内一格为 27 像素"
-            )
-
-        for idx, texture_path in enumerate(weapon.textures.inventory):
-            self.draw_texture_selector(
-                f"常规贴图 {idx + 1}", texture_path, ("inventory", idx)
-            )
-
-        if imgui.button("添加贴图槽"):
-            weapon.textures.inventory.append("")
-        if len(weapon.textures.inventory) > 1:
-            imgui.same_line()
-            if imgui.button("删除最后一个贴图槽"):
-                weapon.textures.inventory.pop()
-
-        self.draw_indented_separator()
-        self.draw_texture_selector("战利品贴图*", weapon.textures.loot, "loot", weapon)
-
-        # 战利品贴图动画速度设置（仅当有动画帧时显示）
-        if weapon.textures.loot_frames:
-            imgui.text("战利品动画速度设置")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "设置战利品贴图的动画播放速度。\n" "此设置会影响生成的模组代码。"
-                )
-
-            # 速度模式选择
-            mode_labels = ["固定帧率 (FPS)", "相对帧率"]
-            current_mode = 1 if weapon.textures.loot_use_relative_speed else 0
-            if imgui.begin_combo(
-                "速度模式##loot_speed_mode", mode_labels[current_mode]
-            ):
-                if imgui.selectable(
-                    "固定帧率 (FPS)", not weapon.textures.loot_use_relative_speed
-                )[0]:
-                    if (
-                        weapon.textures.loot_use_relative_speed
-                    ):  # 从相对帧率切换到固定帧率
-                        weapon.textures.loot_use_relative_speed = False
-                        weapon.textures.loot_fps = 10.0  # 重置为默认固定帧率
-                if imgui.selectable(
-                    "相对帧率", weapon.textures.loot_use_relative_speed
-                )[0]:
-                    if (
-                        not weapon.textures.loot_use_relative_speed
-                    ):  # 从固定帧率切换到相对帧率
-                        weapon.textures.loot_use_relative_speed = True
-                        weapon.textures.loot_fps = (
-                            0.25  # 重置为默认相对帧率 (与手持贴图相同)
-                        )
-                imgui.end_combo()
-
-            if not weapon.textures.loot_use_relative_speed:
-                # 固定帧率模式
-                imgui.push_item_width(150)
-                changed, weapon.textures.loot_fps = imgui.input_float(
-                    "播放帧率 (FPS)##loot_fps",
-                    weapon.textures.loot_fps,
-                    step=1.0,
-                    step_fast=5.0,
-                    format="%.1f",
-                )
-                if changed and weapon.textures.loot_fps < 0.1:
-                    weapon.textures.loot_fps = 0.1
-                imgui.pop_item_width()
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "每秒播放的帧数。\n"
-                        "这是一个固定值，不会随游戏速度变化。\n"
-                        "默认值: 10"
-                    )
-            else:
-                # 相对帧率模式
-                imgui.push_item_width(180)  # 增加宽度以容纳更多小数位显示
-                changed, weapon.textures.loot_fps = imgui.input_float(
-                    "相对帧率##loot_relative_fps",
-                    weapon.textures.loot_fps,
-                    step=0.01,
-                    step_fast=0.1,
-                    format="%.3f",
-                )
-                # 允许非常小的值，但不能为0或负数
-                if changed:
-                    if weapon.textures.loot_fps < 0.001:
-                        weapon.textures.loot_fps = 0.001
-                    # 四舍五入到3位小数，确保所见即所得
-                    weapon.textures.loot_fps = round(weapon.textures.loot_fps, 3)
-                imgui.pop_item_width()
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "每个游戏帧内动画前进的帧数。\n\n"
-                        "例如:\n"
-                        f"  • 值为 0.1 时: 实际播放速度 = {GAME_FPS} × 0.1 = 4 fps\n"
-                        f"  • 值为 0.25 时: 实际播放速度 = {GAME_FPS} × 0.25 = 10 fps\n"
-                        f"  • 值为 0.5 时: 实际播放速度 = {GAME_FPS} × 0.5 = 20 fps\n"
-                        f"  • 值为 1.0 时: 实际播放速度 = {GAME_FPS} × 1.0 = 40 fps\n\n"
-                        "此模式的好处是动画速度会随游戏速度同步变化，\n"
-                        "当游戏变慢时动画也会相应变慢。\n\n"
-                        f"提示: 手持贴图默认相对帧率为 0.25 (即 {GAME_FPS // 4} fps)。\n"
-                        "若想与手持贴图保持相同速度，请设为 0.25。\n"
-                        "最小值: 0.001"
-                    )
-
-                # 显示实际播放速度（使用与输入相同的精度）
-                actual_fps = GAME_FPS * weapon.textures.loot_fps
-                imgui.text_colored(
-                    f"实际播放速度: {actual_fps:.3f} fps (游戏 {GAME_FPS} fps 时)",
-                    0.7,
-                    0.7,
-                    0.7,
-                    1.0,
-                )
-
-    def _import_and_resolve_texture(self, source_path: str) -> str:
-        """导入贴图并返回解析后的绝对路径
-
-        如果项目已保存，将贴图导入到 assets 目录并返回绝对路径。
-        如果项目未保存，直接返回源路径。
-        """
-        if self.project.file_path:
-            rel_path = self.project.import_texture(source_path)
-            return os.path.join(os.path.dirname(self.project.file_path), rel_path)
-        return source_path
-
-    def draw_texture_selector(
-        self, label: str, current_path: str, field_identifier, weapon=None
-    ):
-        imgui.text(label)
-        imgui.same_line()
-
-        # 动画相关数据
-        frames = []
-        is_anim_field = False
-        if weapon and field_identifier in ["character", "character_left", "loot"]:
-            is_anim_field = True
-            frames = getattr(weapon.textures, f"{field_identifier}_frames")
-
-        # 如果是动画模式且有帧数据，显示动画管理界面
-        if is_anim_field and frames:
-            imgui.text(f"动画模式 (共 {len(frames)} 张图片)")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    f"当前动画包含 {len(frames)} 张图片。\n"
-                    f"预览播放速度: {PREVIEW_ANIMATION_FPS} fps\n"
-                    f"(游戏中手持贴图默认以此速度播放)"
-                )
-
-            fps = PREVIEW_ANIMATION_FPS
-
-            if imgui.button(f"添加帧##{label}"):
-                self.current_texture_field = field_identifier
-                paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
-                if paths:
-                    if not isinstance(paths, list):
-                        paths = [paths]
-
-                    for path in paths:
-                        final_path = self._import_and_resolve_texture(path)
-                        frames.append(final_path)
-
-                    # 如果是第一帧，同时也更新主路径以便兼容
-                    if len(frames) >= 1 and hasattr(weapon.textures, field_identifier):
-                        setattr(weapon.textures, field_identifier, frames[0])
-
-            imgui.same_line()
-            if imgui.button(f"清空/转为静态##{label}"):
-                frames.clear()
-
-            # 预览控制 (暂停/指定帧)
-            state = self.preview_states.get(
-                field_identifier, {"paused": False, "current_frame": 0}
-            )
-            imgui.same_line()
-            if imgui.checkbox(f"暂停##{label}", state["paused"])[0]:
-                state["paused"] = not state["paused"]
-
-            if state["paused"] and len(frames) > 0:
-                max_frame = max(0, len(frames) - 1)
-                if state["current_frame"] > max_frame:
-                    state["current_frame"] = 0
-
-                imgui.same_line()
-                # 上一帧
-                if imgui.arrow_button(f"##prev_{label}", imgui.DIRECTION_LEFT):
-                    state["current_frame"] -= 1
-                    if state["current_frame"] < 0:
-                        state["current_frame"] = max_frame
-
-                imgui.same_line()
-                imgui.push_item_width(100)
-                # 滑块 (显示 1-based)
-                current_frame_1based = state["current_frame"] + 1
-                changed, current_frame_1based = imgui.slider_int(
-                    f"##frame_slider_{label}",
-                    current_frame_1based,
-                    1,
-                    max_frame + 1,
-                    format="%d",
-                )
-                if changed:
-                    state["current_frame"] = current_frame_1based - 1
-                imgui.pop_item_width()
-
-                imgui.same_line()
-                # 下一帧
-                if imgui.arrow_button(f"##next_{label}", imgui.DIRECTION_RIGHT):
-                    state["current_frame"] += 1
-                    if state["current_frame"] > max_frame:
-                        state["current_frame"] = 0
-
-                imgui.same_line()
-                imgui.text(f"帧: {state['current_frame'] + 1} / {max_frame + 1}")
-
-            self.preview_states[field_identifier] = state
-
-            # 显示帧列表 (简略)
-            if imgui.tree_node(f"帧列表##{label}"):
-                frames_to_remove = []
-                frames_to_move_up = []
-                frames_to_move_down = []
-
-                for i, frame_path in enumerate(frames):
-                    imgui.push_id(f"frame_{label}_{i}")
-                    imgui.text(f"帧 {i+1}: {os.path.basename(frame_path)}")
-
-                    imgui.same_line()
-                    if imgui.arrow_button("##up", imgui.DIRECTION_UP):
-                        frames_to_move_up.append(i)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("上移")
-
-                    imgui.same_line()
-                    if imgui.arrow_button("##down", imgui.DIRECTION_DOWN):
-                        frames_to_move_down.append(i)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("下移")
-
-                    imgui.same_line()
-                    if imgui.small_button("X"):
-                        frames_to_remove.append(i)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("删除此帧")
-
-                    imgui.pop_id()
-
-                # 处理移动 (先处理移动，再处理删除)
-                for i in frames_to_move_up:
-                    if i > 0:
-                        frames[i], frames[i - 1] = frames[i - 1], frames[i]
-
-                for i in frames_to_move_down:
-                    if i < len(frames) - 1:
-                        frames[i], frames[i + 1] = frames[i + 1], frames[i]
-
-                # 处理删除
-                for i in sorted(frames_to_remove, reverse=True):
-                    frames.pop(i)
-
-                # 如果删空了，主路径也清空
-                if not frames and hasattr(weapon.textures, field_identifier):
-                    setattr(weapon.textures, field_identifier, "")
-
-                # 如果还有帧，更新主路径为第一帧
-                if frames and hasattr(weapon.textures, field_identifier):
-                    setattr(weapon.textures, field_identifier, frames[0])
-
-                imgui.tree_pop()
-
-        else:
-            # 常规单图选择模式
-            button_id = f"选择文件##{label}"
-            if imgui.button(button_id):
-                self.current_texture_field = field_identifier
-                # 打开文件对话框
-                # 如果是动画字段，允许选择多个
-                paths = self.file_dialog([("PNG文件", "*.png")], multiple=is_anim_field)
-
-                if paths:
-                    # 统一处理为列表
-                    if not isinstance(paths, list):
-                        paths = [paths]  # 单个文件转列表
-
-                    # 处理第一个文件作为主贴图
-                    first_path = paths[0]
-                    final_path_0 = self._import_and_resolve_texture(first_path)
-                    self.apply_texture_selection(final_path_0, field_identifier)
-
-                    # 如果是动画字段，且选择了多个文件，或者只是想把这一个作为第一帧
-                    if is_anim_field:
-                        frames.clear()  # 重新选择文件时清空旧帧
-                        for path in paths:
-                            final_path = self._import_and_resolve_texture(path)
-                            frames.append(final_path)
-
-            imgui.same_line()
-            # 显示文件名而不是全路径，比较简洁
-            display_path = os.path.basename(current_path) if current_path else "未选择"
-            imgui.text(display_path)
-
-            if current_path and imgui.is_item_hovered():
-                imgui.set_tooltip(current_path)
-
-            # 如果是动画支持字段，提供转换为动画的按钮（如果已有图片）
-            if is_anim_field and current_path:
-                imgui.same_line()
-                if imgui.button(f"添加更多帧##{label}"):
-                    # 确保 frames 至少包含当前主贴图
-                    if not frames:
-                        frames.append(current_path)
-
-                    # 打开选择更多帧
-                    self.current_texture_field = field_identifier
-                    paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
-                    if paths:
-                        if not isinstance(paths, list):
-                            paths = [paths]
-
-                        for path in paths:
-                            final_path = self._import_and_resolve_texture(path)
-                            frames.append(final_path)
-
-        # 预览逻辑
-        # 如果是动画模式，预览当前帧
-        preview_path = current_path
-        if is_anim_field and frames:
-            # 根据贴图类型选择预览帧率
-            fps = PREVIEW_ANIMATION_FPS  # 默认使用手持贴图帧率
-
-            # 如果是战利品贴图，使用用户配置的帧率
-            if field_identifier == "loot" and weapon:
-                if weapon.textures.loot_use_relative_speed:
-                    # 相对帧率模式：实际fps = 游戏fps × 相对帧率
-                    fps = GAME_FPS * weapon.textures.loot_fps
-                else:
-                    # 固定帧率模式
-                    fps = weapon.textures.loot_fps
-
-            state = self.preview_states.get(
-                field_identifier, {"paused": False, "current_frame": 0}
-            )
-            if state["paused"]:
-                frame_idx = state["current_frame"]
-            else:
-                # 计算当前帧
-                current_time = time.time()
-                frame_idx = int(current_time * fps) % len(frames)
-
-            # 安全检查
-            if frame_idx >= len(frames):
-                frame_idx = 0
-            preview_path = frames[frame_idx]
-
-        # 计算最大尺寸 (针对动画)
-        override_size = None
-        if is_anim_field and frames:
-            max_w = 0
-            max_h = 0
-            for f_path in frames:
-                p = self.get_texture_preview(f_path)
-                if p:
-                    max_w = max(max_w, p["width"])
-                    max_h = max(max_h, p["height"])
-            if max_w > 0 and max_h > 0:
-                override_size = (max_w, max_h)
-
-        preview = self.get_texture_preview(preview_path)
-        if preview:
-            # 显示尺寸
-            imgui.same_line()
-            # 如果有 override_size，显示 Max
-            if override_size:
-                dims_text = f"({override_size[0]}x{override_size[1]})"
-            else:
-                dims_text = f"({preview['width']}x{preview['height']})"
-            imgui.text_colored(dims_text, 0.7, 0.7, 0.7, 1.0)
-
-            imgui.new_line()
-
-            # 绘制预览 (带人物参考)
-            self.draw_preview_with_reference(preview, field_identifier, override_size)
+            # 绘制预览
+            preview_method(preview, field_identifier, item, override_size)
 
     def draw_checkerboard(self, draw_list, p_min, p_max, cell_size=24):
         """绘制棋盘格背景"""
@@ -4119,15 +3246,23 @@ class ModGeneratorGUI:
             row += 1
 
     def draw_preview_with_reference(
-        self, preview, field_identifier, override_size=None
+        self, preview, field_identifier, item=None, override_size=None
     ):
-        scale = self.texture_scale  # 使用用户设置的倍率
+        """武器贴图预览（带人物参考）
+
+        Args:
+            preview: 贴图预览数据
+            field_identifier: 字段标识符
+            item: 武器对象（可选，用于兼容通用接口，如传入则忽略当前选中武器）
+            override_size: 覆盖显示尺寸
+        """
+        scale = self.texture_scale
 
         # 预览图实际尺寸
         tex_w = preview["width"]
         tex_h = preview["height"]
 
-        # 包围盒尺寸 (如果有 override_size 则使用，否则用当前图尺寸)
+        # 包围盒尺寸
         box_w = tex_w
         box_h = tex_h
         if override_size:
@@ -4145,24 +3280,31 @@ class ModGeneratorGUI:
         start_pos = imgui.get_cursor_screen_pos()
 
         if is_handheld:
-            # 加载参考图 - 使用选定的模特
-            if self.current_weapon_index >= 0 and self.current_weapon_index < len(
-                self.project.weapons
-            ):
-                weapon = self.project.weapons[self.current_weapon_index]
-            else:
-                return  # 无法获取武器信息
+            # 获取物品对象（优先使用传入的 item，否则使用当前选中武器）
+            target_item = item
+            if target_item is None:
+                if self.current_weapon_index >= 0 and self.current_weapon_index < len(
+                    self.project.weapons
+                ):
+                    target_item = self.project.weapons[self.current_weapon_index]
+                else:
+                    return  # 无法获取物品信息
 
-            # 根据武器类型选择姿态
-            use_single_hand_pose = weapon.slot in [
-                "dagger",
-                "mace",
-                "sword",
-                "axe",
-                "spear",
-                "bow",
-            ]
-            pose_index = 0 if use_single_hand_pose else 1
+            # 根据物品类型选择姿态
+            # 武器根据槽位判断，装备默认使用姿态0
+            pose_index = 0
+            if hasattr(target_item, "slot"):
+                slot = target_item.slot
+                # 武器槽位判断
+                use_single_hand_pose = slot in [
+                    "dagger",
+                    "mace",
+                    "sword",
+                    "axe",
+                    "spear",
+                    "bow",
+                ]
+                pose_index = 0 if use_single_hand_pose else 1
 
             model_files = CHARACTER_MODELS.get(
                 self.selected_model, ["s_elf_male_0.png", "s_elf_male_1.png"]
@@ -4179,13 +3321,13 @@ class ModGeneratorGUI:
 
             if ref_preview:
                 # 获取偏移量 (即 UI 上的 "水平偏移/垂直偏移")
-                # 用户视角：+X 表示人物向右移(武器向左移)，+Y 表示人物向下移(武器向上移)
-                # 实际上偏移是修改了武器的 Anchor 相对于 (22, 34) 的位置。
-                off_x = weapon.textures.offset_x
-                off_y = weapon.textures.offset_y
+                # 用户视角：+X 表示人物向右移(物品向左移)，+Y 表示人物向下移(物品向上移)
+                # 实际上偏移是修改了物品的 Anchor 相对于 (22, 34) 的位置。
+                off_x = target_item.textures.offset_x
+                off_y = target_item.textures.offset_y
                 if field_identifier == "character_left":
-                    off_x = weapon.textures.offset_x_left
-                    off_y = weapon.textures.offset_y_left
+                    off_x = target_item.textures.offset_x_left
+                    off_y = target_item.textures.offset_y_left
 
                 # --- 视口绘制逻辑 ---
                 # 视口固定为 VALID_AREA_SIZE (64x64)
@@ -4300,10 +3442,7 @@ class ModGeneratorGUI:
         imgui.dummy(bg_width, bg_height)
 
     def apply_texture_selection(self, file_path: str, field_identifier=None) -> bool:
-        if not file_path or not os.path.exists(file_path):
-            return False
-
-        # 如果没有传 identifier，尝试使用 self.current_texture_field
+        """应用武器贴图选择（使用通用方法）"""
         if field_identifier is None:
             field_identifier = self.current_texture_field
 
@@ -4312,6 +3451,25 @@ class ModGeneratorGUI:
         ):
             return False
         weapon = self.project.weapons[self.current_weapon_index]
+        return self._apply_texture_selection_generic(
+            file_path, field_identifier, weapon
+        )
+
+    def _apply_texture_selection_generic(
+        self, file_path: str, field_identifier, item
+    ) -> bool:
+        """通用贴图选择应用方法
+
+        Args:
+            file_path: 贴图文件路径
+            field_identifier: 字段标识符
+            item: 武器或装备对象
+        """
+        if not file_path or not os.path.exists(file_path):
+            return False
+
+        if item is None:
+            return False
 
         field = field_identifier
         if isinstance(field, tuple):
@@ -4319,19 +3477,19 @@ class ModGeneratorGUI:
             if (
                 field_type == "inventory"
                 and idx is not None
-                and 0 <= idx < len(weapon.textures.inventory)
+                and 0 <= idx < len(item.textures.inventory)
             ):
-                weapon.textures.inventory[idx] = file_path
+                item.textures.inventory[idx] = file_path
                 return True
         else:
             if field == "character":
-                weapon.textures.character = file_path
+                item.textures.character = file_path
                 return True
             if field == "character_left":
-                weapon.textures.character_left = file_path
+                item.textures.character_left = file_path
                 return True
             if field == "loot":
-                weapon.textures.loot = file_path
+                item.textures.loot = file_path
                 return True
         return False
 
@@ -4537,136 +3695,27 @@ class ModGeneratorGUI:
             # 复制贴图文件
             print("复制贴图文件...")
             for weapon in self.project.weapons:
-                weapon_id = weapon.id
-                # 手持贴图 (支持动画)
-                if weapon.textures.character_frames:
-                    for idx, frame_path in enumerate(weapon.textures.character_frames):
-                        self.copy_texture(
-                            frame_path,
-                            sprites_dir / f"s_char_{weapon_id}_{idx}.png",
-                            mask_offsets=(
-                                weapon.textures.offset_x,
-                                weapon.textures.offset_y,
-                            ),
-                        )
-                else:
-                    self.copy_texture(
-                        weapon.textures.character,
-                        sprites_dir / f"s_char_{weapon_id}.png",
-                        mask_offsets=(
-                            weapon.textures.offset_x,
-                            weapon.textures.offset_y,
-                        ),
-                    )
-
-                # 复制左手贴图（如果有）(支持动画)
-                if weapon.textures.character_left_frames:
-                    for idx, frame_path in enumerate(
-                        weapon.textures.character_left_frames
-                    ):
-                        self.copy_texture(
-                            frame_path,
-                            sprites_dir / f"s_charleft_{weapon_id}_{idx}.png",
-                            mask_offsets=(
-                                weapon.textures.offset_x_left,
-                                weapon.textures.offset_y_left,
-                            ),
-                        )
-                elif weapon.textures.character_left:
-                    self.copy_texture(
-                        weapon.textures.character_left,
-                        sprites_dir / f"s_charleft_{weapon_id}.png",
-                        mask_offsets=(
-                            weapon.textures.offset_x_left,
-                            weapon.textures.offset_y_left,
-                        ),
-                    )
-
-                for idx, inv_texture in enumerate(weapon.textures.inventory):
-                    self.copy_texture(
-                        inv_texture, sprites_dir / f"s_inv_{weapon_id}_{idx}.png"
-                    )
-
-                # 战利品贴图 (支持动画)
-                if weapon.textures.loot_frames:
-                    for idx, frame_path in enumerate(weapon.textures.loot_frames):
-                        self.copy_texture(
-                            frame_path, sprites_dir / f"s_loot_{weapon_id}_{idx}.png"
-                        )
-                else:
-                    self.copy_texture(
-                        weapon.textures.loot, sprites_dir / f"s_loot_{weapon_id}.png"
-                    )
+                self._copy_item_textures(
+                    item_id=weapon.id,
+                    textures=weapon.textures,
+                    sprites_dir=sprites_dir,
+                    copy_char=True,
+                    copy_left=bool(
+                        weapon.textures.character_left
+                        or weapon.textures.character_left_frames
+                    ),
+                )
 
             # 复制护甲贴图
             print("复制护甲贴图...")
             for armor in self.project.armors:
-                armor_id = armor.id
-
-                # 穿戴状态贴图 (仅部分槽位需要，支持动画)
-                if armor.needs_char_texture():
-                    if armor.textures.character_frames:
-                        for idx, frame_path in enumerate(
-                            armor.textures.character_frames
-                        ):
-                            self.copy_texture(
-                                frame_path,
-                                sprites_dir / f"s_char_{armor_id}_{idx}.png",
-                                mask_offsets=(
-                                    armor.textures.offset_x,
-                                    armor.textures.offset_y,
-                                ),
-                            )
-                    else:
-                        self.copy_texture(
-                            armor.textures.character,
-                            sprites_dir / f"s_char_{armor_id}.png",
-                            mask_offsets=(
-                                armor.textures.offset_x,
-                                armor.textures.offset_y,
-                            ),
-                        )
-
-                # 复制左手贴图（仅盾牌需要，支持动画）
-                if armor.needs_left_texture():
-                    if armor.textures.character_left_frames:
-                        for idx, frame_path in enumerate(
-                            armor.textures.character_left_frames
-                        ):
-                            self.copy_texture(
-                                frame_path,
-                                sprites_dir / f"s_charleft_{armor_id}_{idx}.png",
-                                mask_offsets=(
-                                    armor.textures.offset_x_left,
-                                    armor.textures.offset_y_left,
-                                ),
-                            )
-                    elif armor.textures.character_left:
-                        self.copy_texture(
-                            armor.textures.character_left,
-                            sprites_dir / f"s_charleft_{armor_id}.png",
-                            mask_offsets=(
-                                armor.textures.offset_x_left,
-                                armor.textures.offset_y_left,
-                            ),
-                        )
-
-                # 常规贴图 (物品栏)
-                for idx, inv_texture in enumerate(armor.textures.inventory):
-                    self.copy_texture(
-                        inv_texture, sprites_dir / f"s_inv_{armor_id}_{idx}.png"
-                    )
-
-                # 战利品贴图 (支持动画)
-                if armor.textures.loot_frames:
-                    for idx, frame_path in enumerate(armor.textures.loot_frames):
-                        self.copy_texture(
-                            frame_path, sprites_dir / f"s_loot_{armor_id}_{idx}.png"
-                        )
-                else:
-                    self.copy_texture(
-                        armor.textures.loot, sprites_dir / f"s_loot_{armor_id}.png"
-                    )
+                self._copy_item_textures(
+                    item_id=armor.id,
+                    textures=armor.textures,
+                    sprites_dir=sprites_dir,
+                    copy_char=armor.needs_char_texture(),
+                    copy_left=armor.needs_left_texture(),
+                )
 
             print("生成成功！")
             self.show_success_popup = True
@@ -4674,6 +3723,68 @@ class ModGeneratorGUI:
             print(f"生成模组时发生错误: {e}")
             self.error_message = f"生成模组失败:\n{e}"
             self.show_error_popup = True
+
+    def _copy_item_textures(
+        self,
+        item_id: str,
+        textures: WeaponTextures,
+        sprites_dir: Path,
+        copy_char: bool,
+        copy_left: bool,
+    ):
+        """复制物品的所有贴图文件（武器/护甲通用）
+
+        Args:
+            item_id: 物品ID
+            textures: 贴图数据对象
+            sprites_dir: 目标精灵目录
+            copy_char: 是否复制角色贴图
+            copy_left: 是否复制左手贴图
+        """
+        # 角色/手持贴图
+        if copy_char:
+            if textures.character_frames:
+                for idx, frame_path in enumerate(textures.character_frames):
+                    self.copy_texture(
+                        frame_path,
+                        sprites_dir / f"s_char_{item_id}_{idx}.png",
+                        mask_offsets=(textures.offset_x, textures.offset_y),
+                    )
+            elif textures.character:
+                self.copy_texture(
+                    textures.character,
+                    sprites_dir / f"s_char_{item_id}.png",
+                    mask_offsets=(textures.offset_x, textures.offset_y),
+                )
+
+        # 左手贴图
+        if copy_left:
+            if textures.character_left_frames:
+                for idx, frame_path in enumerate(textures.character_left_frames):
+                    self.copy_texture(
+                        frame_path,
+                        sprites_dir / f"s_charleft_{item_id}_{idx}.png",
+                        mask_offsets=(textures.offset_x_left, textures.offset_y_left),
+                    )
+            elif textures.character_left:
+                self.copy_texture(
+                    textures.character_left,
+                    sprites_dir / f"s_charleft_{item_id}.png",
+                    mask_offsets=(textures.offset_x_left, textures.offset_y_left),
+                )
+
+        # 常规/物品栏贴图
+        for idx, inv_texture in enumerate(textures.inventory):
+            self.copy_texture(inv_texture, sprites_dir / f"s_inv_{item_id}_{idx}.png")
+
+        # 战利品贴图
+        if textures.loot_frames:
+            for idx, frame_path in enumerate(textures.loot_frames):
+                self.copy_texture(
+                    frame_path, sprites_dir / f"s_loot_{item_id}_{idx}.png"
+                )
+        else:
+            self.copy_texture(textures.loot, sprites_dir / f"s_loot_{item_id}.png")
 
     def _calculate_crop_region(
         self, img_width: int, img_height: int, off_x: int, off_y: int
@@ -4905,15 +4016,22 @@ public class {code_namespace} : Mod
         return code
 
     def _generate_localization_code(self, weapon: Weapon) -> str:
-        """生成本地化 C# 代码
+        """生成武器本地化 C# 代码（使用通用方法）"""
+        return self._generate_localization_code_generic(weapon)
+
+    def _generate_localization_code_generic(self, item) -> str:
+        """通用本地化 C# 代码生成
 
         强制生成的语言条目:
         - 主语言 (PRIMARY_LANGUAGE) - 必须存在（即使为空）
         - 英文 - 必须存在（即使为空），除非主语言就是英文
+
+        Args:
+            item: 武器或装备对象（需要有 name 和 localization 属性）
         """
         code = "        Msl.InjectTableWeaponTextsLocalization(\n"
         code += "            new LocalizationWeaponText(\n"
-        code += f'                id: "{weapon.name}",\n'
+        code += f'                id: "{item.name}",\n'
         code += "                name: new Dictionary<ModLanguage, string>() {\n"
 
         # 确定必须生成的语言
@@ -4923,31 +4041,31 @@ public class {code_namespace} : Mod
 
         # 收集所有需要生成的语言（必须语言 + 已填写的语言）
         langs_to_generate = set(required_langs)
-        for lang in weapon.localization.languages:
+        for lang in item.localization.languages:
             if lang in LANGUAGE_TO_ENUM_MAP:
                 langs_to_generate.add(lang)
 
-        # 按 SUPPORTED_LANGUAGES 顺序生成名称
-        for lang in SUPPORTED_LANGUAGES:
+        # 按 LANGUAGE_LABELS 顺序生成名称
+        for lang in LANGUAGE_LABELS:
             if lang not in langs_to_generate:
                 continue
             lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
             if not lang_enum:
                 continue
-            name = weapon.localization.get_name(lang)
+            name = item.localization.get_name(lang)
             code += f'                    {{{lang_enum}, "{name}"}},\n'
 
         code += "                },\n"
         code += "                description: new Dictionary<ModLanguage, string>() {\n"
 
-        # 按 SUPPORTED_LANGUAGES 顺序生成描述
-        for lang in SUPPORTED_LANGUAGES:
+        # 按 LANGUAGE_LABELS 顺序生成描述
+        for lang in LANGUAGE_LABELS:
             if lang not in langs_to_generate:
                 continue
             lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
             if not lang_enum:
                 continue
-            desc = weapon.localization.get_description(lang)
+            desc = item.localization.get_description(lang)
             formatted_desc = self.format_description(desc)
             code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
 
@@ -5037,19 +4155,26 @@ popz.v"""
         return code
 
     def _generate_loot_sprite_animation_code(self, weapon: Weapon) -> str:
-        """生成战利品贴图动画设置的 C# 代码
+        """生成武器战利品贴图动画设置的 C# 代码（使用通用方法）"""
+        return self._generate_loot_sprite_animation_code_generic(weapon)
+
+    def _generate_loot_sprite_animation_code_generic(self, item) -> str:
+        """通用战利品贴图动画设置 C# 代码生成
 
         当战利品贴图为动画形式时，生成设置播放速度的代码。
+
+        Args:
+            item: 武器或装备对象（需要有 id 和 textures 属性）
         """
         # 只有当有多帧动画时才需要生成代码
-        if not weapon.textures.loot_frames or len(weapon.textures.loot_frames) <= 1:
+        if not item.textures.loot_frames or len(item.textures.loot_frames) <= 1:
             return ""
 
-        sprite_name = f"s_loot_{weapon.id}"
-        fps_value = weapon.textures.loot_fps
+        sprite_name = f"s_loot_{item.id}"
+        fps_value = item.textures.loot_fps
 
         # 根据速度模式选择不同的类型
-        if weapon.textures.loot_use_relative_speed:
+        if item.textures.loot_use_relative_speed:
             speed_type = "AnimSpeedType.FramesPerGameFrame"
         else:
             speed_type = "AnimSpeedType.FramesPerSecond"
@@ -5059,12 +4184,12 @@ popz.v"""
 
         code = f"""
         // 设置战利品贴图动画播放速度
-        UndertaleSprite lootSprite_{weapon.id} = Msl.GetSprite("{sprite_name}");
-        lootSprite_{weapon.id}.CollisionMasks.RemoveAt(0);
-        lootSprite_{weapon.id}.IsSpecialType = true;
-        lootSprite_{weapon.id}.SVersion = 3;
-        lootSprite_{weapon.id}.GMS2PlaybackSpeed = {fps_formatted}f;
-        lootSprite_{weapon.id}.GMS2PlaybackSpeedType = {speed_type};
+        UndertaleSprite lootSprite_{item.id} = Msl.GetSprite("{sprite_name}");
+        lootSprite_{item.id}.CollisionMasks.RemoveAt(0);
+        lootSprite_{item.id}.IsSpecialType = true;
+        lootSprite_{item.id}.SVersion = 3;
+        lootSprite_{item.id}.GMS2PlaybackSpeed = {fps_formatted}f;
+        lootSprite_{item.id}.GMS2PlaybackSpeedType = {speed_type};
 
 """
         return code
@@ -5133,82 +4258,12 @@ popz.v"""
         return code
 
     def _generate_armor_localization_code(self, armor: Armor) -> str:
-        """生成护甲本地化 C# 代码"""
-        # 注意：护甲与武器使用相同的本地化类 LocalizationWeaponText
-        code = "        Msl.InjectTableWeaponTextsLocalization(\n"
-        code += "            new LocalizationWeaponText(\n"
-        code += f'                id: "{armor.name}",\n'
-        code += "                name: new Dictionary<ModLanguage, string>() {\n"
-
-        # 确定必须生成的语言
-        required_langs = {PRIMARY_LANGUAGE}
-        if PRIMARY_LANGUAGE != "English":
-            required_langs.add("English")
-
-        # 收集所有需要生成的语言
-        langs_to_generate = set(required_langs)
-        for lang in armor.localization.languages:
-            if lang in LANGUAGE_TO_ENUM_MAP:
-                langs_to_generate.add(lang)
-
-        # 按 SUPPORTED_LANGUAGES 顺序生成名称
-        for lang in SUPPORTED_LANGUAGES:
-            if lang not in langs_to_generate:
-                continue
-            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
-            if not lang_enum:
-                continue
-            name = armor.localization.get_name(lang)
-            code += f'                    {{{lang_enum}, "{name}"}},\n'
-
-        code += "                },\n"
-        code += "                description: new Dictionary<ModLanguage, string>() {\n"
-
-        # 按 SUPPORTED_LANGUAGES 顺序生成描述
-        for lang in SUPPORTED_LANGUAGES:
-            if lang not in langs_to_generate:
-                continue
-            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
-            if not lang_enum:
-                continue
-            desc = armor.localization.get_description(lang)
-            formatted_desc = self.format_description(desc)
-            code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
-
-        code += "                }\n"
-        code += "            )\n"
-        code += "        );\n"
-        return code
+        """生成护甲本地化 C# 代码（使用通用方法）"""
+        return self._generate_localization_code_generic(armor)
 
     def _generate_armor_loot_sprite_animation_code(self, armor: Armor) -> str:
-        """生成护甲战利品贴图动画设置的 C# 代码"""
-        # 只有当有多帧动画时才需要生成代码
-        if not armor.textures.loot_frames or len(armor.textures.loot_frames) <= 1:
-            return ""
-
-        sprite_name = f"s_loot_{armor.id}"
-        fps_value = armor.textures.loot_fps
-
-        # 根据速度模式选择不同的类型
-        if armor.textures.loot_use_relative_speed:
-            speed_type = "AnimSpeedType.FramesPerGameFrame"
-        else:
-            speed_type = "AnimSpeedType.FramesPerSecond"
-
-        # 格式化帧率值
-        fps_formatted = f"{fps_value:.3f}"
-
-        code = f"""
-        // 设置战利品贴图动画播放速度
-        UndertaleSprite lootSprite_{armor.id} = Msl.GetSprite("{sprite_name}");
-        lootSprite_{armor.id}.CollisionMasks.RemoveAt(0);
-        lootSprite_{armor.id}.IsSpecialType = true;
-        lootSprite_{armor.id}.SVersion = 3;
-        lootSprite_{armor.id}.GMS2PlaybackSpeed = {fps_formatted}f;
-        lootSprite_{armor.id}.GMS2PlaybackSpeedType = {speed_type};
-
-"""
-        return code
+        """生成护甲战利品贴图动画设置的 C# 代码（使用通用方法）"""
+        return self._generate_loot_sprite_animation_code_generic(armor)
 
 
 if __name__ == "__main__":
