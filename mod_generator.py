@@ -526,6 +526,109 @@ CHARACTER_MODEL_LABELS = {
 }
 
 
+# ============== 物品类型配置 ==============
+# UI 层配置，用于根据物品类型获取显示相关的配置
+# 这些配置属于 UI/展示层，不属于 Model 层
+
+
+def get_item_type_key(item) -> str:
+    """根据物品类型返回配置键（UI 层辅助函数）"""
+    # 延迟导入避免循环引用，这里用字符串判断类名
+    return "weapon" if type(item).__name__ == "Weapon" else "armor"
+
+
+def get_item_config(item) -> dict:
+    """根据物品获取 UI 配置（UI 层辅助函数）"""
+    key = get_item_type_key(item)
+    return ITEM_TYPE_CONFIG.get(key, ITEM_TYPE_CONFIG["weapon"])
+
+
+ITEM_TYPE_CONFIG = {
+    "weapon": {
+        "type_name": "武器",
+        "slot_labels": SLOT_LABELS,
+        "material_labels": WEAPON_MATERIAL_LABELS,
+        "tag_labels": TAG_LABELS,
+        "rarity_labels": RARITY_LABELS,
+        "attributes_config": ATTRIBUTE_GROUPS,
+    },
+    "armor": {
+        "type_name": "装备",
+        "slot_labels": ARMOR_SLOT_LABELS,
+        "material_labels": ARMOR_MATERIAL_LABELS,
+        "tag_labels": ARMOR_TAG_LABELS,
+        "rarity_labels": ARMOR_RARITY_LABELS,
+        "attributes_config": ARMOR_ATTRIBUTE_GROUPS,
+    },
+}
+
+
+def validate_item(item, project=None, include_warnings: bool = False) -> List[str]:
+    """验证物品数据的完整性（UI 层辅助函数）
+
+    Args:
+        item: 物品对象（Weapon 或 Armor）
+        project: 项目对象，用于检查ID唯一性
+        include_warnings: 是否包含警告信息
+
+    Returns:
+        格式化的错误列表，包含物品标题和缩进的错误详情
+    """
+    config = get_item_config(item)
+    type_name = config["type_name"]
+    slot_labels = config["slot_labels"]
+    slot_name = slot_labels.get(item.slot, item.slot)
+
+    # 获取同类物品列表用于检查 ID 唯一性
+    if project:
+        item_list = (
+            project.weapons
+            if isinstance(item, type(item)) and get_item_type_key(item) == "weapon"
+            else []
+        )
+        if get_item_type_key(item) == "armor":
+            item_list = project.armors
+        elif get_item_type_key(item) == "weapon":
+            item_list = project.weapons
+    else:
+        item_list = []
+
+    # 构建贴图错误提示
+    char_label = (
+        f"槽位为 '{slot_name}' 的{type_name}必须提供穿戴/手持状态贴图"
+        if item.needs_char_texture()
+        else ""
+    )
+    left_label = (
+        f"槽位为 '{slot_name}' 的{type_name}必须提供左手贴图"
+        if item.needs_left_texture()
+        else ""
+    )
+
+    raw_errors = _validate_item_base(
+        item=item,
+        item_type=type_name,
+        item_list=item_list,
+        slot_labels=slot_labels,
+        needs_char_texture=item.needs_char_texture(),
+        char_texture_label=char_label,
+        needs_left_texture=item.needs_left_texture(),
+        left_texture_label=left_label,
+    )
+
+    # 过滤 WARNING（除非明确要求包含）
+    if not include_warnings:
+        raw_errors = [e for e in raw_errors if not e.startswith("WARNING:")]
+
+    if not raw_errors:
+        return []
+
+    # 格式化输出：物品标题 + 缩进的错误详情
+    formatted = [f"{type_name} {item.name} ({item.id}):"]
+    formatted.extend(f"  • {err}" for err in raw_errors)
+    return formatted
+
+
 # 主语言配置（暂时固定为中文，未来可配置）
 PRIMARY_LANGUAGE = "Chinese"
 
@@ -628,10 +731,237 @@ class WeaponTextures:
     loot_fps: float = 10.0  # 战利品贴图播放帧率/相对帧率
     loot_use_relative_speed: bool = False  # 是否使用相对帧率模式
 
+    def clear_left(self):
+        """清理左手贴图数据"""
+        self.character_left = ""
+        self.character_left_frames = []
+        self.offset_x_left = 0
+        self.offset_y_left = 0
+
+    def clear_char(self):
+        """清理角色贴图数据"""
+        self.character = ""
+        self.character_frames = []
+        self.offset_x = 0
+        self.offset_y = 0
+
 
 # 兼容性别名
 ArmorTextures = WeaponTextures
 ArmorLocalization = ItemLocalization
+
+
+# ============== 纯工具函数 ==============
+
+
+def calculate_crop_region(
+    img_width: int, img_height: int, off_x: int, off_y: int
+) -> tuple:
+    """计算武器贴图的裁剪区域
+
+    Args:
+        img_width: 原图宽度
+        img_height: 原图高度
+        off_x: 用户设置的水平偏移
+        off_y: 用户设置的垂直偏移
+
+    Returns:
+        tuple: (crop_x1, crop_y1, crop_x2, crop_y2, is_valid)
+               crop_x1, crop_y1: 裁剪区域左上角（在原图坐标系中）
+               crop_x2, crop_y2: 裁剪区域右下角（在原图坐标系中）
+               is_valid: 裁剪区域是否有效（非空）
+    """
+    # 有效范围相对于武器贴图左上角(0,0)
+    # 转换公式: WeaponLocal = World - (GML_ANCHOR - WeaponAnchor)
+    # WeaponLocal = World + off_x (对于 x 轴)
+    valid_local_min_x = VALID_MIN_X + off_x
+    valid_local_max_x = VALID_MAX_X + off_x
+    valid_local_min_y = VALID_MIN_Y + off_y
+    valid_local_max_y = VALID_MAX_Y + off_y
+
+    # 计算裁剪框（与原图相交的部分）
+    crop_x1 = int(max(0, valid_local_min_x))
+    crop_y1 = int(max(0, valid_local_min_y))
+    crop_x2 = int(min(img_width, valid_local_max_x))
+    crop_y2 = int(min(img_height, valid_local_max_y))
+
+    is_valid = crop_x1 < crop_x2 and crop_y1 < crop_y2
+    return crop_x1, crop_y1, crop_x2, crop_y2, is_valid
+
+
+def calculate_adjusted_offsets(off_x: int, off_y: int) -> tuple:
+    """计算真正裁剪后的调整偏移量
+
+    当贴图被真正裁剪时，如果裁剪掉了左侧或上侧的像素，
+    偏移量会被"限制"到最大有效值。
+
+    原理：
+    - crop_x1 = max(0, VALID_MIN_X + off_x)
+    - adjusted_off_x = off_x - crop_x1
+
+    当 off_x <= VIEWPORT_CHAR_OFFSET_X 时: crop_x1 = 0, adjusted = off_x
+    当 off_x > VIEWPORT_CHAR_OFFSET_X 时: adjusted = VIEWPORT_CHAR_OFFSET_X
+
+    简化为: adjusted_off = min(off, VIEWPORT_CHAR_OFFSET)
+
+    X方向最大有效偏移: VIEWPORT_CHAR_OFFSET_X = 8
+    Y方向最大有效偏移: VIEWPORT_CHAR_OFFSET_Y = 12
+
+    超过这些值后，继续增大偏移不会改变实际锚点位置，
+    因为被裁剪掉的像素数与偏移增量相同。
+    """
+    adjusted_off_x = min(off_x, VIEWPORT_CHAR_OFFSET_X)
+    adjusted_off_y = min(off_y, VIEWPORT_CHAR_OFFSET_Y)
+    return adjusted_off_x, adjusted_off_y
+
+
+def copy_texture(src_path: str, dst_path, mask_offsets: tuple = None):
+    """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行真正的裁剪
+
+    Args:
+        src_path: 源贴图路径
+        dst_path: 目标路径 (str 或 Path)
+        mask_offsets: 可选的偏移量元组 (off_x, off_y)
+    """
+    if not src_path or not os.path.exists(src_path):
+        return
+
+    # 确保目标目录存在
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+
+    if mask_offsets and Image:
+        try:
+            off_x, off_y = mask_offsets
+            with Image.open(src_path) as img:
+                img = img.convert("RGBA")
+                w, h = img.size
+
+                crop_x1, crop_y1, crop_x2, crop_y2, is_valid = calculate_crop_region(
+                    w, h, off_x, off_y
+                )
+
+                if is_valid:
+                    # 真正裁剪图像（不保留原尺寸，直接裁切）
+                    cropped = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
+                    cropped.save(dst_path)
+                    return
+                else:
+                    # 有效区域为空，创建一个 1x1 透明图像作为占位
+                    print(f"警告: 贴图 {src_path} 完全超出有效显示区域")
+                    placeholder = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+                    placeholder.save(dst_path)
+                    return
+        except Exception as e:
+            print(f"处理贴图裁剪失败，将直接复制: {e}")
+
+    # 如果没有 offsets 或处理失败，直接复制
+    try:
+        shutil.copy2(src_path, dst_path)
+    except Exception as e:
+        print(f"复制贴图失败: {e}")
+
+
+def format_description(text: str) -> str:
+    """处理描述文本：strip -> splitlines -> join('##') -> 转移双引号"""
+    if not text:
+        return ""
+    # strip 并按行分割，过滤掉空行（如果需要保留空行可以调整）
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    # 用 ## 连接
+    joined = "##".join(lines)
+    # 转义双引号
+    return joined.replace('"', '\\"')
+
+
+def get_relative_path(path: str, project_dir: str) -> str:
+    """将绝对路径转换为相对于项目目录的路径
+
+    如果路径已在项目目录下，返回相对路径；否则返回原路径。
+    """
+    if not path:
+        return ""
+    try:
+        # 如果路径已经在项目目录下，直接转相对路径
+        if os.path.commonpath([project_dir, os.path.abspath(path)]) == os.path.abspath(
+            project_dir
+        ):
+            return os.path.relpath(path, project_dir)
+    except ValueError:
+        pass
+    # 否则返回原路径（可能是绝对路径，意味着尚未导入到 assets）
+    return path
+
+
+def resolve_path(path: str, project_dir: str) -> str:
+    """将相对路径转换为绝对路径（用于加载项目时）"""
+    if not path:
+        return ""
+    if os.path.isabs(path):
+        return path
+    return os.path.normpath(os.path.join(project_dir, path))
+
+
+def copy_item_textures(
+    item_id: str,
+    textures: "WeaponTextures",
+    sprites_dir: Path,
+    copy_char: bool,
+    copy_left: bool,
+):
+    """复制物品的所有贴图文件（武器/护甲通用）
+
+    Args:
+        item_id: 物品ID
+        textures: 贴图数据对象
+        sprites_dir: 目标精灵目录
+        copy_char: 是否复制角色贴图
+        copy_left: 是否复制左手贴图
+    """
+    # 角色/手持贴图
+    if copy_char:
+        if textures.character_frames:
+            for idx, frame_path in enumerate(textures.character_frames):
+                copy_texture(
+                    frame_path,
+                    sprites_dir / f"s_char_{item_id}_{idx}.png",
+                    mask_offsets=(textures.offset_x, textures.offset_y),
+                )
+        elif textures.character:
+            copy_texture(
+                textures.character,
+                sprites_dir / f"s_char_{item_id}.png",
+                mask_offsets=(textures.offset_x, textures.offset_y),
+            )
+
+    # 左手贴图
+    if copy_left:
+        if textures.character_left_frames:
+            for idx, frame_path in enumerate(textures.character_left_frames):
+                copy_texture(
+                    frame_path,
+                    sprites_dir / f"s_charleft_{item_id}_{idx}.png",
+                    mask_offsets=(textures.offset_x_left, textures.offset_y_left),
+                )
+        elif textures.character_left:
+            copy_texture(
+                textures.character_left,
+                sprites_dir / f"s_charleft_{item_id}.png",
+                mask_offsets=(textures.offset_x_left, textures.offset_y_left),
+            )
+
+    # 常规/物品栏贴图
+    for idx, inv_texture in enumerate(textures.inventory):
+        copy_texture(inv_texture, sprites_dir / f"s_inv_{item_id}_{idx}.png")
+
+    # 战利品贴图
+    if textures.loot_frames:
+        for idx, frame_path in enumerate(textures.loot_frames):
+            copy_texture(frame_path, sprites_dir / f"s_loot_{item_id}_{idx}.png")
+    else:
+        copy_texture(textures.loot, sprites_dir / f"s_loot_{item_id}.png")
+
+
+# ============== 验证函数 ==============
 
 
 def _validate_item_base(
@@ -695,113 +1025,101 @@ def _validate_item_base(
 
 
 @dataclass
-class Armor:
-    """护甲/装备数据类"""
+class Item:
+    """物品基类 - 武器和护甲的公共数据字段
+
+    职责：纯数据容器 + 派生数据 + 业务规则（如贴图需求判断）
+    不包含：UI 显示逻辑、配置获取（这些属于 UI 层）
+    """
 
     name: str = ""  # 系统ID
     tier: str = "Tier2"
-    slot: str = "Head"  # 用户选择的槽位
-    armor_class: str = "Light"  # ArmorClass
+    slot: str = ""  # 由子类设置默认值
     rarity: str = "Common"
-    mat: str = "leather"
+    mat: str = ""  # 由子类设置默认值
     tags: str = "aldor"
     price: int = 100
-    markup: float = 1.0
+    markup: int = 1  # 固定为 1
     max_duration: int = 100
 
     # 属性字段
     attributes: Dict[str, Any] = field(default_factory=dict)
 
-    # 拆解材料
-    fragments: Dict[str, int] = field(default_factory=dict)
-
     # 本地化
-    localization: ArmorLocalization = field(default_factory=ArmorLocalization)
-
-    # 贴图
-    textures: ArmorTextures = field(default_factory=ArmorTextures)
-
-    fireproof: bool = False
-    is_open: bool = False
-    no_drop: bool = False
-
-    @property
-    def id(self) -> str:
-        """根据name自动生成id"""
-        return self.name.lower().replace(" ", "").replace("'", "")
-
-    @property
-    def hook(self) -> str:
-        """根据slot自动获取hook（内部实现细节）"""
-        return ARMOR_SLOT_TO_HOOK.get(self.slot, "HELMETS")
-
-    def needs_char_texture(self) -> bool:
-        """判断该装备是否需要角色穿戴贴图"""
-        return self.slot in ARMOR_SLOTS_WITH_CHAR_PREVIEW
-
-    def needs_left_texture(self) -> bool:
-        """判断该装备是否需要左手贴图 (仅盾牌需要)"""
-        return self.slot == "shield"
-
-    def validate(self, project=None) -> List[str]:
-        """验证装备数据的完整性"""
-        slot_name = ARMOR_SLOT_LABELS.get(self.slot, self.slot)
-        return _validate_item_base(
-            item=self,
-            item_type="装备",
-            item_list=project.armors if project else [],
-            slot_labels=ARMOR_SLOT_LABELS,
-            needs_char_texture=self.needs_char_texture(),
-            char_texture_label=f"槽位为 '{slot_name}' 的装备必须提供穿戴状态贴图",
-            needs_left_texture=self.needs_left_texture(),
-            left_texture_label="盾牌必须提供左手穿戴贴图",
-        )
-
-
-@dataclass
-class Weapon:
-    name: str = ""  # 实质性标识
-    tier: str = "Tier2"
-    slot: str = "sword"
-    rarity: str = "Common"
-    mat: str = "metal"
-    tags: str = "aldor"
-    price: int = 100
-    markup: int = 1
-    max_duration: int = 100
-    rng: int = 1
-
-    # 属性字段
-    attributes: Dict[str, Any] = field(default_factory=dict)
-
-    # 本地化
-    localization: WeaponLocalization = field(default_factory=WeaponLocalization)
+    localization: ItemLocalization = field(default_factory=ItemLocalization)
 
     # 贴图
     textures: WeaponTextures = field(default_factory=WeaponTextures)
 
+    # 布尔属性
     fireproof: bool = False
     no_drop: bool = False
 
     @property
     def id(self) -> str:
-        """根据name自动生成id"""
+        """根据name自动生成id（派生数据）"""
         return self.name.lower().replace(" ", "").replace("'", "")
 
-    def validate(self, project=None) -> List[str]:
-        """验证武器数据的完整性"""
-        needs_left = self.slot in LEFT_HAND_SLOTS
-        slot_name = SLOT_LABELS.get(self.slot, self.slot)
-        return _validate_item_base(
-            item=self,
-            item_type="武器",
-            item_list=project.weapons if project else [],
-            slot_labels=SLOT_LABELS,
-            needs_char_texture=True,  # 武器始终需要手持贴图
-            char_texture_label="必须提供手持状态贴图",
-            needs_left_texture=needs_left,
-            left_texture_label=f"槽位为 '{slot_name}' 的武器必须提供左手手持贴图",
-        )
+    def needs_char_texture(self) -> bool:
+        """判断是否需要角色贴图（业务规则）- 子类重写"""
+        return True
+
+    def needs_left_texture(self) -> bool:
+        """判断是否需要左手贴图（业务规则）- 子类重写"""
+        return False
+
+
+@dataclass
+class Armor(Item):
+    """护甲/装备数据类
+
+    职责：护甲特有的数据字段 + 业务规则
+    """
+
+    slot: str = "Head"
+    mat: str = "leather"
+    armor_class: str = "Light"  # ArmorClass
+
+    # 拆解材料 (护甲特有)
+    fragments: Dict[str, int] = field(default_factory=dict)
+
+    # 护甲特有布尔属性
+    is_open: bool = False
+
+    @property
+    def hook(self) -> str:
+        """根据slot自动获取hook（派生数据，用于代码生成）"""
+        return ARMOR_SLOT_TO_HOOK.get(self.slot, "HELMETS")
+
+    def needs_char_texture(self) -> bool:
+        """判断该装备是否需要角色穿戴贴图（业务规则）"""
+        return self.slot in ARMOR_SLOTS_WITH_CHAR_PREVIEW
+
+    def needs_left_texture(self) -> bool:
+        """判断该装备是否需要左手贴图（业务规则：仅盾牌需要）"""
+        return self.slot == "shield"
+
+
+@dataclass
+class Weapon(Item):
+    """武器数据类
+
+    职责：武器特有的数据字段 + 业务规则
+    """
+
+    slot: str = "sword"
+    mat: str = "metal"
+
+    # 武器特有字段
+    rng: int = 1  # 射程，弓弩专用
+
+    def needs_char_texture(self) -> bool:
+        """武器始终需要手持贴图（业务规则）"""
+        return True
+
+    def needs_left_texture(self) -> bool:
+        """判断该武器是否需要左手贴图（业务规则）"""
+        return self.slot in LEFT_HAND_SLOTS
 
 
 @dataclass
@@ -869,17 +1187,18 @@ class ModProject:
 
         return True
 
-    def _serialize_item(self, item, project_dir: str) -> dict:
+    def _serialize_item(self, item: Item, project_dir: str) -> dict:
         """序列化物品数据为字典（武器/护甲通用）"""
-        # 公共字段
+        # 公共字段（来自 Item 基类）
         item_data = {
             "name": item.name,
             "tier": item.tier,
+            "slot": item.slot,
             "rarity": item.rarity,
             "mat": item.mat,
             "tags": item.tags,
             "price": item.price,
-            "markup": getattr(item, "markup", 1),
+            "markup": item.markup,
             "max_duration": item.max_duration,
             "attributes": item.attributes,
             "fireproof": item.fireproof,
@@ -889,64 +1208,38 @@ class ModProject:
         }
         # 武器特有字段
         if isinstance(item, Weapon):
-            item_data["slot"] = item.slot
             item_data["rng"] = item.rng
         # 护甲特有字段
         elif isinstance(item, Armor):
-            item_data["slot"] = item.slot  # 保存 slot，hook 由 slot 自动计算
             item_data["armor_class"] = item.armor_class
             item_data["fragments"] = item.fragments
             item_data["is_open"] = item.is_open
         return item_data
 
-    def _get_relative_path(self, path: str, project_dir: str) -> str:
-        """将绝对路径转换为相对于项目目录的路径，如果是外部文件则不处理（应当在导入时处理）"""
-        if not path:
-            return ""
-        try:
-            # 如果路径已经在项目目录下，直接转相对路径
-            if os.path.commonpath(
-                [project_dir, os.path.abspath(path)]
-            ) == os.path.abspath(project_dir):
-                return os.path.relpath(path, project_dir)
-        except ValueError:
-            pass
-        # 否则返回原路径（可能是绝对路径，意味着尚未导入到 assets）
-        return path
-
-    def _resolve_path(self, path: str, project_dir: str) -> str:
-        """将相对路径转换为绝对路径（用于加载项目时）"""
-        if not path:
-            return ""
-        if os.path.isabs(path):
-            return path
-        return os.path.normpath(os.path.join(project_dir, path))
+    # _get_relative_path 和 _resolve_path 已提取为模块级函数 get_relative_path 和 resolve_path
 
     def _serialize_textures(self, textures: WeaponTextures, project_dir: str) -> dict:
         """序列化贴图数据为字典（武器/护甲通用）"""
         return {
-            "character": self._get_relative_path(textures.character, project_dir),
-            "character_left": self._get_relative_path(
-                textures.character_left, project_dir
-            ),
+            "character": get_relative_path(textures.character, project_dir),
+            "character_left": get_relative_path(textures.character_left, project_dir),
             "inventory": [
-                self._get_relative_path(p, project_dir) for p in textures.inventory
+                get_relative_path(p, project_dir) for p in textures.inventory
             ],
-            "loot": self._get_relative_path(textures.loot, project_dir),
+            "loot": get_relative_path(textures.loot, project_dir),
             "offset_x": textures.offset_x,
             "offset_y": textures.offset_y,
             "offset_x_left": textures.offset_x_left,
             "offset_y_left": textures.offset_y_left,
             "character_frames": [
-                self._get_relative_path(p, project_dir)
-                for p in textures.character_frames
+                get_relative_path(p, project_dir) for p in textures.character_frames
             ],
             "character_left_frames": [
-                self._get_relative_path(p, project_dir)
+                get_relative_path(p, project_dir)
                 for p in textures.character_left_frames
             ],
             "loot_frames": [
-                self._get_relative_path(p, project_dir) for p in textures.loot_frames
+                get_relative_path(p, project_dir) for p in textures.loot_frames
             ],
             "loot_fps": round(textures.loot_fps, 3),
             "loot_use_relative_speed": textures.loot_use_relative_speed,
@@ -974,38 +1267,50 @@ class ModProject:
             inventory_list = [""]
 
         return WeaponTextures(
-            character=self._resolve_path(tex_data.get("character", ""), project_dir),
-            character_left=self._resolve_path(
+            character=resolve_path(tex_data.get("character", ""), project_dir),
+            character_left=resolve_path(
                 tex_data.get("character_left", ""), project_dir
             ),
-            inventory=[self._resolve_path(p, project_dir) for p in inventory_list],
-            loot=self._resolve_path(tex_data.get("loot", ""), project_dir),
+            inventory=[resolve_path(p, project_dir) for p in inventory_list],
+            loot=resolve_path(tex_data.get("loot", ""), project_dir),
             offset_x=tex_data.get("offset_x", 0),
             offset_y=tex_data.get("offset_y", 0),
             offset_x_left=tex_data.get("offset_x_left", 0),
             offset_y_left=tex_data.get("offset_y_left", 0),
             character_frames=[
-                self._resolve_path(p, project_dir)
+                resolve_path(p, project_dir)
                 for p in tex_data.get("character_frames", [])
             ],
             character_left_frames=[
-                self._resolve_path(p, project_dir)
+                resolve_path(p, project_dir)
                 for p in tex_data.get("character_left_frames", [])
             ],
             loot_frames=[
-                self._resolve_path(p, project_dir)
-                for p in tex_data.get("loot_frames", [])
+                resolve_path(p, project_dir) for p in tex_data.get("loot_frames", [])
             ],
             loot_fps=round(tex_data.get("loot_fps", 10), 3),
             loot_use_relative_speed=tex_data.get("loot_use_relative_speed", False),
         )
 
-    def _deserialize_item(self, item_data: dict, project_dir: str, is_weapon: bool):
+    def _deserialize_item(
+        self, item_data: dict, project_dir: str, is_weapon: bool
+    ) -> Item:
         """反序列化物品数据（武器/护甲通用）"""
-        # 公共字段
+        # 处理 slot 的兼容性
+        if is_weapon:
+            slot = item_data.get("slot", "sword")
+        else:
+            # 兼容旧格式：如果有 hook 但没有 slot，从 hook 转换
+            slot = item_data.get("slot")
+            if slot is None and "hook" in item_data:
+                slot = ARMOR_HOOK_TO_SLOT.get(item_data["hook"], "Head")
+            slot = slot or "Head"
+
+        # 公共字段（来自 Item 基类）
         common_kwargs = {
             "name": item_data.get("name", ""),
             "tier": item_data.get("tier", "Tier2"),
+            "slot": slot,
             "rarity": item_data.get("rarity", "Common"),
             "mat": item_data.get("mat", "metal" if is_weapon else "leather"),
             "tags": item_data.get("tags", "aldor"),
@@ -1015,15 +1320,11 @@ class ModProject:
         }
 
         if is_weapon:
-            item = Weapon(
-                **common_kwargs,
-                slot=item_data.get("slot", "sword"),
-                rng=item_data.get("rng", 1),
-            )
+            item = Weapon(**common_kwargs, rng=item_data.get("rng", 1))
             # 处理本地化兼容（武器有旧格式）
             loc_data = item_data.get("localization", {})
             if "languages" in loc_data:
-                item.localization = WeaponLocalization(
+                item.localization = ItemLocalization(
                     languages=loc_data.get("languages", {})
                 )
             elif "chinese_name" in loc_data or "other_languages" in loc_data:
@@ -1037,28 +1338,20 @@ class ModProject:
                         "name": data.get("name", ""),
                         "description": data.get("description", ""),
                     }
-                item.localization = WeaponLocalization(languages=languages)
+                item.localization = ItemLocalization(languages=languages)
             else:
-                item.localization = WeaponLocalization(languages=loc_data)
+                item.localization = ItemLocalization(languages=loc_data)
             item.textures = self._deserialize_textures(
                 item_data.get("textures", {}), project_dir, legacy_mode=True
             )
         else:
-            # 兼容旧格式：如果有 hook 但没有 slot，从 hook 转换
-            slot = item_data.get("slot")
-            if slot is None and "hook" in item_data:
-                slot = ARMOR_HOOK_TO_SLOT.get(item_data["hook"], "Head")
-            slot = slot or "Head"
-            
             item = Armor(
                 **common_kwargs,
-                slot=slot,
                 armor_class=item_data.get("armor_class", "Light"),
-                markup=item_data.get("markup", 1.0),
                 fragments=item_data.get("fragments", {}),
             )
             item.is_open = item_data.get("is_open", False)
-            item.localization = ArmorLocalization(
+            item.localization = ItemLocalization(
                 languages=item_data.get("localization", {})
             )
             item.textures = self._deserialize_textures(
@@ -1143,31 +1436,15 @@ class ModProject:
 
         return True
 
-    def _clear_left_texture(self, textures):
-        """清理左手贴图数据"""
-        textures.character_left = ""
-        textures.character_left_frames = []
-        textures.offset_x_left = 0
-        textures.offset_y_left = 0
-
-    def _clear_char_texture(self, textures):
-        """清理角色贴图数据"""
-        textures.character = ""
-        textures.character_frames = []
-        textures.offset_x = 0
-        textures.offset_y = 0
+    # _clear_left_texture 和 _clear_char_texture 已移到 WeaponTextures 类
 
     def clean_invalid_data(self):
         """清理无效的武器/装备数据"""
-        for weapon in self.weapons:
-            if weapon.slot not in LEFT_HAND_SLOTS:
-                self._clear_left_texture(weapon.textures)
-
-        for armor in self.armors:
-            if not armor.needs_char_texture():
-                self._clear_char_texture(armor.textures)
-            if not armor.needs_left_texture():
-                self._clear_left_texture(armor.textures)
+        for item in self.weapons + self.armors:
+            if not item.needs_char_texture():
+                item.textures.clear_char()
+            if not item.needs_left_texture():
+                item.textures.clear_left()
 
     def _collect_texture_paths(self, textures: WeaponTextures, project_dir: str) -> set:
         """收集物品的所有贴图路径（武器/护甲通用）"""
@@ -1252,6 +1529,305 @@ class ModProject:
             imported_count += 1
 
         return True, f"成功导入 {imported_count} 把武器", conflicts
+
+
+# ============== 代码生成器 ==============
+
+
+class CodeGenerator:
+    """C# 模组代码生成器
+
+    将代码生成逻辑与 GUI 分离，职责更加清晰。
+    """
+
+    def __init__(self, project: ModProject):
+        self.project = project
+
+    def generate(self) -> str:
+        """生成完整的 C# 模组代码"""
+        code_namespace = self.project.code_name.strip() or "ModNamespace"
+
+        code = f"""using ModShardLauncher;
+using ModShardLauncher.Mods;
+using UndertaleModLib;
+using UndertaleModLib.Models;
+using System.Collections.Generic;
+
+namespace {code_namespace};
+public class {code_namespace} : Mod
+{{
+    public override string Author => "{self.project.author}";
+    public override string Name => "{self.project.name}";
+    public override string Description => "{self.project.description}";
+    public override string Version => "{self.project.version}";
+    public override string TargetVersion => "{self.project.target_version}";
+
+    public override void PatchMod()
+    {{
+"""
+
+        for weapon in self.project.weapons:
+            code += f"        Add{weapon.id}();\n"
+        for armor in self.project.armors:
+            code += f"        AddArmor{armor.id}();\n"
+
+        code += "    }\n\n"
+
+        for item in self.project.weapons + self.project.armors:
+            code += self._generate_item_method(item)
+
+        code += "}\n"
+        return code
+
+    def _generate_item_method(self, item: Item) -> str:
+        """生成单个物品的 C# 方法（武器/护甲通用）"""
+        is_weapon = isinstance(item, Weapon)
+        method_name = f"Add{item.id}" if is_weapon else f"AddArmor{item.id}"
+
+        code = f"    private void {method_name}()\n    {{\n"
+        code += self._generate_item_injection_code(item)
+        code += self._generate_localization_code(item)
+        # GML 偏移代码仅武器需要
+        if is_weapon:
+            code += self._generate_gml_offset_code(item)
+        code += self._generate_loot_animation_code(item)
+        code += "    }\n\n"
+
+        return code
+
+    def _generate_item_injection_code(self, item: Item) -> str:
+        """生成物品注入 C# 代码（武器/护甲通用）"""
+        is_weapon = isinstance(item, Weapon)
+
+        if is_weapon:
+            prefix = "Weapons"
+            code = "        Msl.InjectTableWeapons(\n"
+        else:
+            prefix = "Armor"
+            code = "        Msl.InjectTableArmor(\n"
+            # 护甲需要 hook
+            code += f"            hook: Msl.ArmorHook.{item.hook},\n"
+
+        # 公共字段
+        code += f'            name: "{item.name}",\n'
+        code += f"            Tier: Msl.{prefix}Tier.{item.tier},\n"
+        code += f'            id: "{item.id}",\n'
+        code += f"            Slot: Msl.{prefix}Slot.{item.slot},\n"
+
+        # 护甲特有：Class
+        if isinstance(item, Armor):
+            code += f"            Class: Msl.ArmorClass.{item.armor_class},\n"
+
+        # 公共字段继续
+        code += f"            rarity: Msl.{prefix}Rarity.{item.rarity},\n"
+        code += f"            Mat: Msl.{prefix}Material.{item.mat},\n"
+        code += f"            tags: Msl.{prefix}Tags.{item.tags.replace(' ', '')},\n"
+
+        # 字段顺序有差异，需要分开处理
+        if is_weapon:
+            code += f"            Price: {item.price},\n"
+            code += "            Markup: 1,\n"
+            code += f"            MaxDuration: {item.max_duration},\n"
+            code += f"            Rng: {item.rng}"
+
+            # 武器特有：Balance
+            balance_value = SLOT_BALANCE.get(item.slot)
+            if balance_value is not None:
+                code += f",\n            Balance: {balance_value}"
+        else:
+            code += f"            MaxDuration: {item.max_duration},\n"
+            code += f"            Price: {item.price},\n"
+            code += "            Markup: 1"
+
+        # 布尔属性
+        code += f",\n            fireproof: {'true' if item.fireproof else 'false'}"
+        # 护甲特有：IsOpen
+        if isinstance(item, Armor):
+            code += f",\n            IsOpen: {'true' if item.is_open else 'false'}"
+        code += f",\n            NoDrop: {'true' if item.no_drop else 'false'}"
+
+        # 添加属性
+        for attr, value in item.attributes.items():
+            if value != 0:
+                # 特殊处理 typo（仅武器需要）
+                attr_name = attr
+                if is_weapon and attr == "Electromantic_Power":
+                    attr_name = "Electroantic_Power"
+                code += f",\n            {attr_name}: {value}"
+
+        # 护甲特有：添加拆解材料
+        if isinstance(item, Armor):
+            for frag_type, frag_value in item.fragments.items():
+                if frag_value > 0:
+                    code += f",\n            {frag_type}: {frag_value}"
+
+        code += "\n        );\n\n"
+        return code
+
+    def _generate_localization_code(self, item) -> str:
+        """通用本地化 C# 代码生成
+
+        强制生成的语言条目:
+        - 主语言 (PRIMARY_LANGUAGE) - 必须存在（即使为空）
+        - 英文 - 必须存在（即使为空），除非主语言就是英文
+        """
+        code = "        Msl.InjectTableWeaponTextsLocalization(\n"
+        code += "            new LocalizationWeaponText(\n"
+        code += f'                id: "{item.name}",\n'
+        code += "                name: new Dictionary<ModLanguage, string>() {\n"
+
+        # 确定必须生成的语言
+        required_langs = {PRIMARY_LANGUAGE}
+        if PRIMARY_LANGUAGE != "English":
+            required_langs.add("English")
+
+        # 收集所有需要生成的语言（必须语言 + 已填写的语言）
+        langs_to_generate = set(required_langs)
+        for lang in item.localization.languages:
+            if lang in LANGUAGE_TO_ENUM_MAP:
+                langs_to_generate.add(lang)
+
+        # 按 LANGUAGE_LABELS 顺序生成名称
+        for lang in LANGUAGE_LABELS:
+            if lang not in langs_to_generate:
+                continue
+            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
+            if not lang_enum:
+                continue
+            name = item.localization.get_name(lang)
+            code += f'                    {{{lang_enum}, "{name}"}},\n'
+
+        code += "                },\n"
+        code += "                description: new Dictionary<ModLanguage, string>() {\n"
+
+        # 按 LANGUAGE_LABELS 顺序生成描述
+        for lang in LANGUAGE_LABELS:
+            if lang not in langs_to_generate:
+                continue
+            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
+            if not lang_enum:
+                continue
+            desc = item.localization.get_description(lang)
+            formatted_desc = format_description(desc)
+            code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
+
+        code += "                }\n"
+        code += "            )\n"
+        code += "        );\n"
+        return code
+
+    def _generate_anchor_gml_block(
+        self, val_y: int, val_x: int, sprite_name: str
+    ) -> str:
+        """生成单个锚点的 GML 代码块"""
+        code = f"pushi.e {val_y}\n"
+        code += "conv.i.v\n"
+        code += f"pushi.e {val_x}\n"
+        code += "conv.i.v\n"
+        code += "call.i @@NewGMLArray@@(argc=2)\n"
+        code += f"pushi.e {sprite_name}\n"
+        code += "conv.i.v\n"
+        code += "pushglb.v global.customizationAnchors\n"
+        code += "call.i ds_map_add(argc=3)\n"
+        code += "popz.v\n"
+        return code
+
+    def _generate_gml_offset_code(self, weapon: Weapon) -> str:
+        """生成 GML 偏移注入代码
+
+        注意：由于贴图会被真正裁剪（而非仅透明化），如果裁剪掉了左侧或上侧的像素，
+        需要相应调整偏移量以保持正确的锚点位置。
+        """
+        gml_code_block = ""
+
+        # 处理右手/默认手持
+        if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
+            # 计算真正裁剪后的调整偏移量
+            adj_off_x, adj_off_y = calculate_adjusted_offsets(
+                weapon.textures.offset_x, weapon.textures.offset_y
+            )
+
+            # 只有调整后偏移不为零时才需要生成代码
+            if adj_off_x != 0 or adj_off_y != 0:
+                val_y = GML_ANCHOR_Y + adj_off_y
+                val_x = GML_ANCHOR_X + adj_off_x
+                sprite_name = f"s_char_{weapon.id}"
+                gml_code_block += self._generate_anchor_gml_block(
+                    val_y, val_x, sprite_name
+                )
+
+        # 处理左手手持
+        if weapon.textures.character_left or weapon.textures.character_left_frames:
+            if weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0:
+                # 计算真正裁剪后的调整偏移量
+                adj_off_x_left, adj_off_y_left = calculate_adjusted_offsets(
+                    weapon.textures.offset_x_left, weapon.textures.offset_y_left
+                )
+
+                # 只有调整后偏移不为零时才需要生成代码
+                if adj_off_x_left != 0 or adj_off_y_left != 0:
+                    val_y = GML_ANCHOR_Y + adj_off_y_left
+                    val_x = GML_ANCHOR_X + adj_off_x_left
+                    sprite_name = f"s_charleft_{weapon.id}"
+                    gml_code_block += self._generate_anchor_gml_block(
+                        val_y, val_x, sprite_name
+                    )
+
+        if not gml_code_block:
+            return ""
+
+        # 移除最后的换行符，避免多余空行
+        gml_code_block = gml_code_block.rstrip()
+
+        match_gml = """pushi.e 34
+conv.i.v
+pushi.e 29
+conv.i.v
+call.i @@NewGMLArray@@(argc=2)
+pushi.e 16635
+conv.i.v
+pushglb.v global.customizationAnchors
+call.i ds_map_add(argc=3)
+popz.v"""
+
+        code = f'        Msl.LoadAssemblyAsString("gml_GlobalScript_scr_ds_init")\n'
+        code += f'            .MatchFrom(@"{match_gml}")\n'
+        code += f'            .InsertBelow(@"{gml_code_block}")\n'
+        code += "            .Save();\n"
+        return code
+
+    def _generate_loot_animation_code(self, item) -> str:
+        """通用战利品贴图动画设置 C# 代码生成
+
+        当战利品贴图为动画形式时，生成设置播放速度的代码。
+        """
+        # 只有当有多帧动画时才需要生成代码
+        if not item.textures.loot_frames or len(item.textures.loot_frames) <= 1:
+            return ""
+
+        sprite_name = f"s_loot_{item.id}"
+        fps_value = item.textures.loot_fps
+
+        # 根据速度模式选择不同的类型
+        if item.textures.loot_use_relative_speed:
+            speed_type = "AnimSpeedType.FramesPerGameFrame"
+        else:
+            speed_type = "AnimSpeedType.FramesPerSecond"
+
+        # 格式化帧率值，确保输出与显示一致（3位小数）
+        fps_formatted = f"{fps_value:.3f}"
+
+        code = f"""
+        // 设置战利品贴图动画播放速度
+        UndertaleSprite lootSprite_{item.id} = Msl.GetSprite("{sprite_name}");
+        lootSprite_{item.id}.CollisionMasks.RemoveAt(0);
+        lootSprite_{item.id}.IsSpecialType = true;
+        lootSprite_{item.id}.SVersion = 3;
+        lootSprite_{item.id}.GMS2PlaybackSpeed = {fps_formatted}f;
+        lootSprite_{item.id}.GMS2PlaybackSpeedType = {speed_type};
+
+"""
+        return code
 
 
 class ModGeneratorGUI:
@@ -1755,9 +2331,7 @@ class ModGeneratorGUI:
                 os.makedirs(assets_dir, exist_ok=True)
                 self.project.save()  # 保存初始状态
             except Exception as e:
-                print(f"创建项目失败: {e}")
-                self.error_message = f"创建项目失败: {e}"
-                self.show_error_popup = True
+                self._show_error(f"创建项目失败: {e}")
 
     def draw_main_interface(self):
         # 获取主窗口（viewport）尺寸
@@ -2069,12 +2643,12 @@ class ModGeneratorGUI:
 
         # 基本属性
         if imgui.tree_node("基本属性##armor", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_armor_basic_properties(armor)
+            self._draw_item_basic_properties(armor)
             imgui.tree_pop()
 
         # 装备属性
         if imgui.tree_node("装备属性", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_armor_attributes_editor(armor)
+            self._draw_attributes_editor_generic(armor)
             imgui.tree_pop()
 
         # 拆解材料
@@ -2084,92 +2658,115 @@ class ModGeneratorGUI:
 
         # 装备名称与本地化
         if imgui.tree_node("装备名称与本地化", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_armor_localization_editor(armor)
+            self._draw_localization_editor_generic(armor)
             imgui.tree_pop()
 
         # 贴图
         if imgui.tree_node("贴图文件##armor", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_armor_textures_editor(armor)
+            self._draw_item_textures_editor(armor)
             imgui.tree_pop()
 
-        # 验证
-        errors = armor.validate(self.project)
+        # 验证（编辑器中显示包含警告）
+        errors = validate_item(armor, self.project, include_warnings=True)
         self._draw_validation_errors(errors)
 
-    def _draw_armor_basic_properties(self, armor):
-        """绘制装备基本属性编辑区"""
+    def _draw_item_basic_properties(self, item: Item):
+        """绘制物品基本属性编辑区（武器/护甲通用）"""
+        config = get_item_config(item)
+        id_suffix = get_item_type_key(item)
+        material_labels = config["material_labels"]
+
         # 系统ID
-        self._draw_item_system_id(armor, "装备", "armor")
+        self._draw_item_system_id(item)
 
         # 等级
-        armor.tier = self._draw_enum_combo(
-            "等级##armor", armor.tier, TIER, TIER_LABELS
+        item.tier = self._draw_enum_combo(
+            f"等级##{id_suffix}", item.tier, TIER, TIER_LABELS
         )
 
         # 槽位选择
-        new_slot = self._draw_armor_slot_combo(armor)
-        if new_slot != armor.slot:
-            armor.slot = new_slot
-            # 如果槽位变化，清理不再需要的角色贴图
-            if not armor.needs_char_texture():
-                armor.textures.character = ""
-                armor.textures.character_frames = []
-                armor.textures.offset_x = 0
-                armor.textures.offset_y = 0
+        new_slot = self._draw_slot_combo(item)
+        if new_slot != item.slot:
+            item.slot = new_slot
+            # 槽位变化时清理不再需要的贴图
+            if not item.needs_char_texture():
+                item.textures.clear_char()
+            if not item.needs_left_texture():
+                item.textures.clear_left()
 
-        # 护甲类别
-        armor.armor_class = self._draw_enum_combo(
-            "护甲类别", armor.armor_class, list(ARMOR_CLASS_LABELS.keys()), ARMOR_CLASS_LABELS
-        )
+        # 护甲特有：护甲类别
+        if isinstance(item, Armor):
+            item.armor_class = self._draw_enum_combo(
+                "护甲类别",
+                item.armor_class,
+                list(ARMOR_CLASS_LABELS.keys()),
+                ARMOR_CLASS_LABELS,
+            )
 
         # 材料
-        armor.mat = self._draw_enum_combo(
-            "材料##armor", armor.mat, list(ARMOR_MATERIAL_LABELS.keys()), ARMOR_MATERIAL_LABELS
+        item.mat = self._draw_enum_combo(
+            f"材料##{id_suffix}",
+            item.mat,
+            list(material_labels.keys()),
+            material_labels,
         )
 
         # 标签（带自动稀有度设置）
-        armor.tags = self._draw_tags_combo_with_rarity(
-            armor.tags, armor, "armor", ARMOR_TAG_LABELS
-        )
+        item.tags = self._draw_tags_combo_with_rarity(item)
 
         # 稀有度 - 只读显示
-        self._draw_readonly_rarity(armor.rarity, "armor", ARMOR_RARITY_LABELS)
+        self._draw_readonly_rarity(item)
 
         self.draw_indented_separator()
 
         # 特殊属性
-        armor.fireproof = self._draw_bool_combo(
-            "防火##armor", armor.fireproof, "未被拾取时是否会被火焰摧毁"
+        item.fireproof = self._draw_bool_combo(
+            f"防火##{id_suffix}", item.fireproof, "未被拾取时是否会被火焰摧毁"
         )
-        armor.is_open = self._draw_bool_combo(
-            "开放式##armor", armor.is_open, "装备是否为开放式设计（如头盔的面甲）"
-        )
-        armor.no_drop = self._draw_bool_combo(
-            "不可掉落##armor", armor.no_drop, "可能无法从宝箱中获取"
+        # 护甲特有：开放式
+        if isinstance(item, Armor):
+            item.is_open = self._draw_bool_combo(
+                f"开放式##{id_suffix}",
+                item.is_open,
+                "装备是否为开放式设计（如头盔的面甲）",
+            )
+        item.no_drop = self._draw_bool_combo(
+            f"不可掉落##{id_suffix}", item.no_drop, "可能无法从宝箱中获取"
         )
 
         self.draw_indented_separator()
 
         # 数值属性
-        changed, armor.price = imgui.input_int("价格##armor", armor.price)
-        changed, armor.markup = imgui.input_float(
-            "溢价倍率", armor.markup, step=0.1, step_fast=0.5, format="%.2f"
-        )
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("影响商店售价的倍率，默认为1.0")
-        changed, armor.max_duration = imgui.input_int(
-            "最大耐久##armor", armor.max_duration
+        changed, item.price = imgui.input_int(f"价格##{id_suffix}", item.price)
+        item.markup = 1  # markup 固定为 1
+        changed, item.max_duration = imgui.input_int(
+            f"最大耐久##{id_suffix}", item.max_duration
         )
 
-    def _draw_armor_slot_combo(self, armor) -> str:
-        """绘制装备槽位选择器"""
-        return self._draw_enum_combo(
-            "槽位##armor", armor.slot, list(ARMOR_SLOT_LABELS.keys()), ARMOR_SLOT_LABELS
-        )
+        # 武器特有：射程
+        if isinstance(item, Weapon):
+            self._draw_weapon_range_input(item)
 
-    def draw_armor_attributes_editor(self, armor):
-        """装备属性编辑器（使用通用方法）"""
-        self._draw_attributes_editor_generic(armor, ARMOR_ATTRIBUTE_GROUPS, "armor")
+    def _draw_slot_combo(self, item: Item) -> str:
+        """绘制槽位选择器（通用）"""
+        config = get_item_config(item)
+        slot_labels = config["slot_labels"]
+        id_suffix = get_item_type_key(item)
+
+        slot_options = list(slot_labels.keys())
+        if item.slot not in slot_options:
+            slot_options.append(item.slot)
+        slot_label = slot_labels.get(item.slot, item.slot)
+        new_slot = item.slot
+        if imgui.begin_combo(f"槽位##{id_suffix}", slot_label):
+            for slot in slot_options:
+                display = slot_labels.get(slot, slot)
+                if imgui.selectable(display, slot == item.slot)[0]:
+                    new_slot = slot
+            imgui.end_combo()
+        return new_slot
+
+    # draw_armor_attributes_editor 已删除，直接调用 _draw_attributes_editor_generic
 
     def draw_armor_fragments_editor(self, armor):
         imgui.text("设置装备拆解后可获得的材料")
@@ -2203,78 +2800,9 @@ class ModGeneratorGUI:
             imgui.same_line()
             imgui.text(frag_label)
 
-    def draw_armor_localization_editor(self, armor):
-        """装备本地化编辑器（使用通用方法）"""
-        self._draw_localization_editor_generic(armor, "armor")
+    # draw_armor_localization_editor 已删除，直接调用 _draw_localization_editor_generic
 
-    def draw_armor_textures_editor(self, armor):
-        imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
-        self.draw_indented_separator()
-
-        # 预览设置（使用通用方法）
-        self._draw_preview_settings("armor", show_model=armor.needs_char_texture())
-
-        # 穿戴状态贴图 (仅部分槽位需要)
-        if armor.needs_char_texture():
-            self.draw_armor_texture_selector(
-                "穿戴状态贴图*", armor.textures.character, "character", armor
-            )
-
-            # 穿戴贴图偏移设置
-            armor.textures.offset_x, armor.textures.offset_y = self._draw_offset_inputs(
-                label="穿戴贴图偏移",
-                tooltip="调整装备相对于人物的相对位置",
-                offset_x=armor.textures.offset_x,
-                offset_y=armor.textures.offset_y,
-                id_suffix="armor",
-                item_type="装备",
-            )
-
-            self.draw_indented_separator()
-
-            # 左手穿戴贴图 (仅盾牌需要)
-            if armor.needs_left_texture():
-                self.draw_armor_texture_selector(
-                    "左手穿戴贴图*",
-                    armor.textures.character_left,
-                    "character_left",
-                    armor,
-                )
-
-                # 左手贴图偏移设置
-                armor.textures.offset_x_left, armor.textures.offset_y_left = (
-                    self._draw_offset_inputs(
-                        label="左手贴图偏移",
-                        tooltip="调整左手装备相对于人物的相对位置",
-                        offset_x=armor.textures.offset_x_left,
-                        offset_y=armor.textures.offset_y_left,
-                        id_suffix="armor_left",
-                        item_type="装备",
-                    )
-                )
-
-                self.draw_indented_separator()
-        else:
-            imgui.text_colored(
-                f"提示: {ARMOR_SLOT_LABELS.get(armor.slot, armor.slot)} 槽位不需要穿戴状态贴图",
-                0.7,
-                0.7,
-                0.7,
-                1.0,
-            )
-            self.draw_indented_separator()
-
-        # 常规贴图（使用通用方法）
-        self._draw_inventory_textures(armor, "armor", self.draw_armor_texture_selector)
-
-        self.draw_indented_separator()
-        self.draw_armor_texture_selector(
-            "战利品贴图*##armor", armor.textures.loot, "loot", armor
-        )
-
-        # 战利品贴图动画速度设置（仅当有动画帧时显示）
-        if armor.textures.loot_frames:
-            self._draw_loot_animation_settings(armor.textures, "armor")
+    # draw_armor_textures_editor 已统一到 _draw_item_textures_editor
 
     def draw_armor_texture_selector(
         self, label: str, current_path: str, field_identifier, armor=None
@@ -2286,22 +2814,7 @@ class ModGeneratorGUI:
             field_identifier=field_identifier,
             item=armor,
             id_prefix="armor",
-            preview_method=self.draw_armor_preview_with_reference,
-        )
-
-    def _apply_armor_texture_selection(
-        self, file_path: str, field_identifier, armor
-    ) -> bool:
-        """应用装备贴图选择（使用通用方法）"""
-        return self._apply_texture_selection_generic(file_path, field_identifier, armor)
-
-    def draw_armor_preview_with_reference(
-        self, preview, field_identifier, armor, override_size=None
-    ):
-        """绘制装备贴图预览（带人物参考）- 使用通用方法"""
-        # 装备使用与武器相同的预览逻辑
-        self.draw_preview_with_reference(
-            preview, field_identifier, armor, override_size
+            preview_method=self.draw_preview_with_reference,
         )
 
     def draw_weapon_editor(self):
@@ -2310,95 +2823,29 @@ class ModGeneratorGUI:
 
         # 基本属性
         if imgui.tree_node("基本属性", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_weapon_basic_properties(weapon)
+            self._draw_item_basic_properties(weapon)
             imgui.tree_pop()
 
         # 属性编辑
         if imgui.tree_node("武器属性", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_attributes_editor(weapon)
+            self._draw_attributes_editor_generic(weapon)
             imgui.tree_pop()
 
         # 武器名称与本地化
         if imgui.tree_node("武器名称与本地化", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_localization_editor(weapon)
+            self._draw_localization_editor_generic(weapon)
             imgui.tree_pop()
 
         # 贴图
         if imgui.tree_node("贴图文件", flags=imgui.TREE_NODE_FRAMED):
-            self.draw_textures_editor(weapon)
+            self._draw_item_textures_editor(weapon)
             imgui.tree_pop()
 
-        # 验证
-        errors = weapon.validate(self.project)
+        # 验证（编辑器中显示包含警告）
+        errors = validate_item(weapon, self.project, include_warnings=True)
         self._draw_validation_errors(errors)
 
-    def _draw_weapon_basic_properties(self, weapon):
-        """绘制武器基本属性编辑区"""
-        # 系统ID
-        self._draw_item_system_id(weapon, "武器", "weapon")
-
-        # 等级
-        weapon.tier = self._draw_enum_combo(
-            "等级", weapon.tier, TIER, TIER_LABELS
-        )
-
-        # 槽位（需要特殊处理：槽位变化时清理左手贴图）
-        new_slot = self._draw_weapon_slot_combo(weapon)
-        if new_slot != weapon.slot:
-            weapon.slot = new_slot
-            # 切换槽位时清理无效的左手贴图数据
-            if weapon.slot not in LEFT_HAND_SLOTS:
-                weapon.textures.character_left = ""
-                weapon.textures.character_left_frames = []
-                weapon.textures.offset_x_left = 0
-                weapon.textures.offset_y_left = 0
-
-        # 材料
-        weapon.mat = self._draw_enum_combo(
-            "材料", weapon.mat, list(WEAPON_MATERIAL_LABELS.keys()), WEAPON_MATERIAL_LABELS
-        )
-
-        # 标签（带自动稀有度设置）
-        weapon.tags = self._draw_tags_combo_with_rarity(
-            weapon.tags, weapon, "weapon", TAG_LABELS
-        )
-
-        # 稀有度 - 只读显示
-        self._draw_readonly_rarity(weapon.rarity, "weapon", RARITY_LABELS)
-
-        # 特殊属性
-        weapon.fireproof = self._draw_bool_combo(
-            "防火##weapon", weapon.fireproof, "未被拾取时是否会被火焰摧毁"
-        )
-        weapon.no_drop = self._draw_bool_combo(
-            "不可掉落##weapon", weapon.no_drop, "可能无法从宝箱中获取"
-        )
-
-        self.draw_indented_separator()
-
-        # 数值属性
-        changed, weapon.price = imgui.input_int("价格", weapon.price)
-        changed, weapon.max_duration = imgui.input_int(
-            "最大耐久", weapon.max_duration
-        )
-
-        # Rng 锁定逻辑: 仅弓弩可调，其他锁定为 1
-        self._draw_weapon_range_input(weapon)
-
-    def _draw_weapon_slot_combo(self, weapon) -> str:
-        """绘制武器槽位选择器"""
-        slot_options = list(SLOT_LABELS.keys())
-        if weapon.slot not in slot_options:
-            slot_options.append(weapon.slot)
-        slot_label = SLOT_LABELS.get(weapon.slot, weapon.slot)
-        new_slot = weapon.slot
-        if imgui.begin_combo("槽位", slot_label):
-            for slot in slot_options:
-                display = SLOT_LABELS.get(slot, slot)
-                if imgui.selectable(display, slot == weapon.slot)[0]:
-                    new_slot = slot
-            imgui.end_combo()
-        return new_slot
+    # _draw_weapon_basic_properties 和 _draw_weapon_slot_combo 已统一到 _draw_item_basic_properties 和 _draw_slot_combo
 
     def _draw_weapon_range_input(self, weapon):
         """绘制武器距离输入"""
@@ -2418,15 +2865,12 @@ class ModGeneratorGUI:
 
     # ========== 通用编辑器辅助方法 ==========
 
-    def _draw_item_system_id(self, item, item_type: str, id_suffix: str):
-        """绘制物品系统ID输入框
-
-        Args:
-            item: 武器或装备对象
-            item_type: 物品类型名称（如"武器"或"装备"）
-            id_suffix: ImGui ID 后缀
-        """
-        label = f"{item_type}系统ID*##{id_suffix}"
+    def _draw_item_system_id(self, item: Item):
+        """绘制物品系统ID输入框"""
+        config = get_item_config(item)
+        type_name = config["type_name"]
+        id_suffix = get_item_type_key(item)
+        label = f"{type_name}系统ID*##{id_suffix}"
         changed, item.name = imgui.input_text(label, item.name, 256)
         if imgui.is_item_hovered():
             imgui.set_tooltip(
@@ -2436,30 +2880,18 @@ class ModGeneratorGUI:
         imgui.same_line()
         imgui.text(f"(ID: {item.id})")
 
-    def _draw_tags_combo_with_rarity(
-        self,
-        current_tags: str,
-        item,
-        id_suffix: str,
-        tag_labels: dict,
-    ) -> str:
-        """绘制标签选择器并自动设置稀有度
+    def _draw_tags_combo_with_rarity(self, item: Item) -> str:
+        """绘制标签选择器并自动设置稀有度"""
+        config = get_item_config(item)
+        tag_labels = config["tag_labels"]
+        id_suffix = get_item_type_key(item)
 
-        Args:
-            current_tags: 当前标签值
-            item: 武器或装备对象
-            id_suffix: ImGui ID 后缀
-            tag_labels: 标签显示名称字典
-
-        Returns:
-            新的标签值
-        """
         new_tags = self._draw_enum_combo_with_custom(
-            f"标签##{id_suffix}", current_tags, list(tag_labels.keys()), tag_labels
+            f"标签##{id_suffix}", item.tags, list(tag_labels.keys()), tag_labels
         )
 
         # 自动设置稀有度
-        if new_tags != current_tags:
+        if new_tags != item.tags:
             if new_tags in ["unique", "special", "special exc"]:
                 item.rarity = "Unique"
             else:
@@ -2467,24 +2899,20 @@ class ModGeneratorGUI:
 
         return new_tags
 
-    def _draw_readonly_rarity(self, rarity: str, id_suffix: str, rarity_labels: dict):
-        """绘制只读的稀有度显示
+    def _draw_readonly_rarity(self, item: Item):
+        """绘制只读的稀有度显示"""
+        config = get_item_config(item)
+        rarity_labels = config["rarity_labels"]
+        id_suffix = get_item_type_key(item)
 
-        Args:
-            rarity: 当前稀有度值
-            id_suffix: ImGui ID 后缀
-            rarity_labels: 稀有度显示名称字典
-        """
-        rarity_label = rarity_labels.get(rarity, rarity)
+        rarity_label = rarity_labels.get(item.rarity, item.rarity)
         imgui.input_text(
             f"稀有度##{id_suffix}", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
         )
         if imgui.is_item_hovered():
             imgui.set_tooltip("由标签自动决定")
 
-    def draw_attributes_editor(self, weapon):
-        """武器属性编辑器（使用通用方法）"""
-        self._draw_attributes_editor_generic(weapon, ATTRIBUTE_GROUPS, "weapon")
+    # draw_attributes_editor 已删除，直接调用 _draw_attributes_editor_generic
 
     def _draw_bool_combo(
         self, label: str, current_value: bool, tooltip: str = ""
@@ -2579,31 +3007,31 @@ class ModGeneratorGUI:
         """显示验证错误/警告列表
 
         Args:
-            errors: 错误信息列表
+            errors: 错误信息列表（已格式化，可能包含标题行和缩进的详情）
         """
         if not errors:
             return
         self.draw_indented_separator()
         imgui.text("消息:")
         for error in errors:
-            if error.startswith("WARNING:"):
-                imgui.text_colored(f"  • {error}", 1.0, 0.5, 0.0, 1.0)  # Orange
+            # 跳过标题行（物品名称行，不以空格或 • 开头）
+            if error.endswith("):"):
+                continue
+            # 去掉缩进前缀以检查内容
+            content = error.lstrip()
+            if content.startswith("• WARNING:"):
+                imgui.text_colored(error, 1.0, 0.5, 0.0, 1.0)  # Orange
+            elif content.startswith("•"):
+                imgui.text_colored(error, 1.0, 0.0, 0.0, 1.0)  # Red
             else:
                 imgui.text_colored(f"  • {error}", 1.0, 0.0, 0.0, 1.0)  # Red
 
-    def _draw_attributes_editor_generic(
-        self,
-        item,
-        attribute_groups: Dict[str, List[str]],
-        id_suffix: str = "",
-    ):
-        """通用属性编辑器
+    def _draw_attributes_editor_generic(self, item: Item):
+        """通用属性编辑器"""
+        config = get_item_config(item)
+        attribute_groups = config["attributes_config"]
+        id_suffix = get_item_type_key(item)
 
-        Args:
-            item: 武器或装备对象（需要有 attributes 字典属性）
-            attribute_groups: 属性分组字典
-            id_suffix: ImGui ID 后缀，用于区分不同编辑器实例
-        """
         for group_name, attributes in attribute_groups.items():
             tree_id = f"{group_name}##{id_suffix}_attr" if id_suffix else group_name
             if imgui.tree_node(tree_id):
@@ -2653,17 +3081,11 @@ class ModGeneratorGUI:
 
                 imgui.tree_pop()
 
-    def draw_localization_editor(self, weapon):
-        """武器本地化编辑器（使用通用方法）"""
-        self._draw_localization_editor_generic(weapon, "weapon")
+    # draw_localization_editor 已删除，直接调用 _draw_localization_editor_generic
 
-    def _draw_localization_editor_generic(self, item, id_suffix: str = ""):
-        """通用本地化编辑器
-
-        Args:
-            item: 武器或装备对象（需要有 localization 属性）
-            id_suffix: ImGui ID 后缀，用于区分不同编辑器实例
-        """
+    def _draw_localization_editor_generic(self, item: Item):
+        """通用本地化编辑器"""
+        id_suffix = get_item_type_key(item)
         suffix = f"_{id_suffix}" if id_suffix else ""
 
         # 语言添加器
@@ -2756,75 +3178,98 @@ class ModGeneratorGUI:
         for lang in langs_to_remove:
             del item.localization.languages[lang]
 
-    def draw_textures_editor(self, weapon):
+    def _draw_item_textures_editor(self, item: Item):
+        """绘制物品贴图编辑器（武器/护甲通用）"""
+        is_weapon = isinstance(item, Weapon)
+        config = get_item_config(item)
+        type_name = config["type_name"]
+        id_suffix = get_item_type_key(item)
+        slot_labels = config["slot_labels"]
+
+        # 选择对应的贴图选择器
+        texture_selector = (
+            self.draw_texture_selector
+            if is_weapon
+            else self.draw_armor_texture_selector
+        )
+
         imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
         self.draw_indented_separator()
 
-        # 预览设置（使用通用方法）
-        self._draw_preview_settings("weapon", show_model=True)
+        # 预览设置
+        self._draw_preview_settings(id_suffix, show_model=item.needs_char_texture())
 
-        self.draw_texture_selector(
-            "手持状态贴图*", weapon.textures.character, "character", weapon
-        )
+        # 穿戴/手持状态贴图
+        if item.needs_char_texture():
+            char_label = "手持状态贴图*" if is_weapon else "穿戴状态贴图*"
+            texture_selector(char_label, item.textures.character, "character", item)
 
-        # 手持贴图偏移设置 (右手)
-        weapon.textures.offset_x, weapon.textures.offset_y = self._draw_offset_inputs(
-            label="手持贴图偏移 (右手/默认)",
-            tooltip="调整武器相对于人物手部的相对位置",
-            offset_x=weapon.textures.offset_x,
-            offset_y=weapon.textures.offset_y,
-            id_suffix="right",
-            item_type="武器",
-        )
-
-        self.draw_indented_separator()
-
-        # 左手持握贴图（仅特定单手武器显示）
-        if weapon.slot in LEFT_HAND_SLOTS:
-            self.draw_texture_selector(
-                "左手手持贴图*",
-                weapon.textures.character_left,
-                "character_left",
-                weapon,
-            )
-
-            # 左手贴图偏移设置
-            weapon.textures.offset_x_left, weapon.textures.offset_y_left = (
-                self._draw_offset_inputs(
-                    label="左手贴图偏移",
-                    tooltip="调整武器相对于人物手部的相对位置",
-                    offset_x=weapon.textures.offset_x_left,
-                    offset_y=weapon.textures.offset_y_left,
-                    id_suffix="left",
-                    item_type="武器",
-                )
+            # 偏移设置
+            offset_label = "手持贴图偏移 (右手/默认)" if is_weapon else "穿戴贴图偏移"
+            offset_tooltip = f"调整{type_name}相对于人物的相对位置"
+            item.textures.offset_x, item.textures.offset_y = self._draw_offset_inputs(
+                label=offset_label,
+                tooltip=offset_tooltip,
+                offset_x=item.textures.offset_x,
+                offset_y=item.textures.offset_y,
+                id_suffix=id_suffix,
             )
 
             self.draw_indented_separator()
 
-        # 常规贴图（使用通用方法）
-        self._draw_inventory_textures(weapon, "weapon", self.draw_texture_selector)
+            # 左手贴图
+            if item.needs_left_texture():
+                left_label = "左手手持贴图*" if is_weapon else "左手穿戴贴图*"
+                texture_selector(
+                    left_label,
+                    item.textures.character_left,
+                    "character_left",
+                    item,
+                )
+
+                # 左手偏移设置
+                item.textures.offset_x_left, item.textures.offset_y_left = (
+                    self._draw_offset_inputs(
+                        label="左手贴图偏移",
+                        tooltip=f"调整左手{type_name}相对于人物的相对位置",
+                        offset_x=item.textures.offset_x_left,
+                        offset_y=item.textures.offset_y_left,
+                        id_suffix=f"{id_suffix}_left",
+                    )
+                )
+
+                self.draw_indented_separator()
+        else:
+            slot_name = slot_labels.get(item.slot, item.slot)
+            imgui.text_colored(
+                f"提示: {slot_name} 槽位不需要穿戴状态贴图",
+                0.7,
+                0.7,
+                0.7,
+                1.0,
+            )
+            self.draw_indented_separator()
+
+        # 常规贴图
+        self._draw_inventory_textures(item, texture_selector)
 
         self.draw_indented_separator()
-        self.draw_texture_selector("战利品贴图*", weapon.textures.loot, "loot", weapon)
+        texture_selector(f"战利品贴图*##{id_suffix}", item.textures.loot, "loot", item)
 
-        # 战利品贴图动画速度设置（仅当有动画帧时显示）
-        if weapon.textures.loot_frames:
-            self._draw_loot_animation_settings(weapon.textures, "weapon")
+        # 战利品贴图动画速度设置
+        if item.textures.loot_frames:
+            self._draw_loot_animation_settings(item.textures, id_suffix)
 
-    def _draw_inventory_textures(self, item, id_suffix: str, texture_selector_method):
-        """绘制常规贴图列表
+    def _draw_inventory_textures(self, item: Item, texture_selector_method):
+        """绘制常规贴图列表"""
+        config = get_item_config(item)
+        type_name = config["type_name"]
+        id_suffix = get_item_type_key(item)
 
-        Args:
-            item: 武器或装备对象
-            id_suffix: ImGui ID 后缀
-            texture_selector_method: 贴图选择器方法
-        """
-        item_type = "装备" if id_suffix == "armor" else "武器"
         imgui.text("常规贴图（顺序越靠后耐久越低）")
         if imgui.is_item_hovered():
             imgui.set_tooltip(
-                f"排在后面的贴图代表更低耐久状态下的{item_type}\n注意：游戏内一格为 27 像素"
+                f"排在后面的贴图代表更低耐久状态下的{type_name}\n注意：游戏内一格为 27 像素"
             )
 
         for idx, texture_path in enumerate(item.textures.inventory):
@@ -2890,17 +3335,8 @@ class ModGeneratorGUI:
         offset_x: int,
         offset_y: int,
         id_suffix: str,
-        item_type: str = "物品",
     ) -> tuple:
         """绘制贴图偏移输入控件
-
-        Args:
-            label: 标签文字
-            tooltip: 提示文字
-            offset_x: 当前水平偏移值
-            offset_y: 当前垂直偏移值
-            id_suffix: ImGui ID 后缀
-            item_type: 物品类型（用于提示文字）
 
         Returns:
             (new_offset_x, new_offset_y) 元组
@@ -2912,7 +3348,7 @@ class ModGeneratorGUI:
         imgui.push_item_width(150)
         changed_x, new_offset_x = imgui.input_int(f"水平偏移##{id_suffix}", offset_x)
         if imgui.is_item_hovered():
-            imgui.set_tooltip(f"默认 0。正数使人物看起来向右（{item_type}向左）。")
+            imgui.set_tooltip("默认 0。正数使人物看起来向右。")
 
         imgui.same_line()
         imgui.dummy(10, 0)
@@ -2920,7 +3356,7 @@ class ModGeneratorGUI:
 
         changed_y, new_offset_y = imgui.input_int(f"垂直偏移##{id_suffix}", offset_y)
         if imgui.is_item_hovered():
-            imgui.set_tooltip(f"默认 0。正数使人物看起来向下（{item_type}向上）。")
+            imgui.set_tooltip("默认 0。正数使人物看起来向下。")
         imgui.pop_item_width()
 
         return new_offset_x, new_offset_y
@@ -3081,13 +3517,23 @@ class ModGeneratorGUI:
             )
         else:
             self._draw_static_texture_controls(
-                current_path, field_identifier, item, is_anim_field, frames, label_suffix
+                current_path,
+                field_identifier,
+                item,
+                is_anim_field,
+                frames,
+                label_suffix,
             )
 
         # 绘制预览
         self._draw_texture_preview(
-            current_path, field_identifier, item, is_anim_field,
-            frames, state_key, preview_method
+            current_path,
+            field_identifier,
+            item,
+            is_anim_field,
+            frames,
+            state_key,
+            preview_method,
         )
 
     def _draw_animation_texture_controls(
@@ -3766,14 +4212,12 @@ class ModGeneratorGUI:
         if directory:
             file_path = os.path.join(directory, "project.json")
             if os.path.exists(file_path):
-                if not self.project.load(file_path):
-                    self.error_message = "无法加载项目文件，文件可能已损坏"
-                    self.show_error_popup = True
-                else:
+                if self.project.load(file_path):
                     self.current_weapon_index = -1  # 重置选择
+                else:
+                    self._show_error("无法加载项目文件，文件可能已损坏")
             else:
-                self.error_message = f"在 {directory} 中未找到 project.json"
-                self.show_error_popup = True
+                self._show_error(f"在 {directory} 中未找到 project.json")
 
     def save_project_dialog(self):
         # 保留此方法以兼容旧调用，但实际上已简化
@@ -3795,48 +4239,31 @@ class ModGeneratorGUI:
             if root:
                 root.destroy()
 
+    def _show_error(self, message: str):
+        """显示错误弹窗"""
+        print(f"错误: {message.split(chr(10))[0]}")  # 只打印第一行
+        self.error_message = message
+        self.show_error_popup = True
+
     def generate_mod(self):
         """生成模组文件"""
         print("开始生成模组...")
 
-        # 检查项目和所有武器/护甲的验证
+        # 检查项目验证
         project_errors = self.project.validate()
         if project_errors:
-            print("错误: 项目验证失败")
-            self.error_message = "项目验证失败:\n" + "\n".join(
-                f"  • {err}" for err in project_errors
+            self._show_error(
+                "项目验证失败:\n" + "\n".join(f"  • {e}" for e in project_errors)
             )
-            self.show_error_popup = True
             return
 
-        weapon_errors = []
-        for i, weapon in enumerate(self.project.weapons):
-            # 传入 project 以便检查 ID 唯一性
-            errors = weapon.validate(self.project)
-            # 过滤掉 Warning，不阻止生成
-            real_errors = [e for e in errors if not e.startswith("WARNING:")]
-            if real_errors:
-                weapon_errors.append(f"武器 {weapon.name} ({weapon.id}):")
-                weapon_errors.extend(f"  • {err}" for err in real_errors)
+        # 检查所有物品验证（武器+护甲一起报告）
+        item_errors = []
+        for item in self.project.weapons + self.project.armors:
+            item_errors.extend(validate_item(item, self.project))
 
-        if weapon_errors:
-            print("错误: 武器验证失败")
-            self.error_message = "武器验证失败:\n" + "\n".join(weapon_errors)
-            self.show_error_popup = True
-            return
-
-        armor_errors = []
-        for i, armor in enumerate(self.project.armors):
-            errors = armor.validate(self.project)
-            real_errors = [e for e in errors if not e.startswith("WARNING:")]
-            if real_errors:
-                armor_errors.append(f"装备 {armor.name} ({armor.id}):")
-                armor_errors.extend(f"  • {err}" for err in real_errors)
-
-        if armor_errors:
-            print("错误: 装备验证失败")
-            self.error_message = "装备验证失败:\n" + "\n".join(armor_errors)
-            self.show_error_popup = True
+        if item_errors:
+            self._show_error("物品验证失败:\n" + "\n".join(item_errors))
             return
 
         # 如果项目未保存，弹出保存对话框
@@ -3859,9 +4286,10 @@ class ModGeneratorGUI:
             mod_dir.mkdir(exist_ok=True)
             sprites_dir.mkdir(exist_ok=True)
 
-            # 生成C#代码
+            # 生成C#代码（使用 CodeGenerator 类）
             print("生成 C# 代码...")
-            code = self.generate_csharp_code()
+            generator = CodeGenerator(self.project)
+            code = generator.generate()
             with open(mod_dir / f"{mod_name}.cs", "w", encoding="utf-8") as f:
                 f.write(code)
 
@@ -3870,196 +4298,24 @@ class ModGeneratorGUI:
             with open(mod_dir / f"{mod_name}.csproj", "w", encoding="utf-8"):
                 pass
 
-            # 复制贴图文件
+            # 复制所有物品贴图
             print("复制贴图文件...")
-            for weapon in self.project.weapons:
-                self._copy_item_textures(
-                    item_id=weapon.id,
-                    textures=weapon.textures,
+            for item in self.project.weapons + self.project.armors:
+                copy_item_textures(
+                    item_id=item.id,
+                    textures=item.textures,
                     sprites_dir=sprites_dir,
-                    copy_char=True,
-                    copy_left=bool(
-                        weapon.textures.character_left
-                        or weapon.textures.character_left_frames
-                    ),
-                )
-
-            # 复制护甲贴图
-            print("复制护甲贴图...")
-            for armor in self.project.armors:
-                self._copy_item_textures(
-                    item_id=armor.id,
-                    textures=armor.textures,
-                    sprites_dir=sprites_dir,
-                    copy_char=armor.needs_char_texture(),
-                    copy_left=armor.needs_left_texture(),
+                    copy_char=item.needs_char_texture(),
+                    copy_left=item.needs_left_texture(),
                 )
 
             print("生成成功！")
             self.show_success_popup = True
         except Exception as e:
-            print(f"生成模组时发生错误: {e}")
-            self.error_message = f"生成模组失败:\n{e}"
-            self.show_error_popup = True
+            self._show_error(f"生成模组失败:\n{e}")
 
-    def _copy_item_textures(
-        self,
-        item_id: str,
-        textures: WeaponTextures,
-        sprites_dir: Path,
-        copy_char: bool,
-        copy_left: bool,
-    ):
-        """复制物品的所有贴图文件（武器/护甲通用）
-
-        Args:
-            item_id: 物品ID
-            textures: 贴图数据对象
-            sprites_dir: 目标精灵目录
-            copy_char: 是否复制角色贴图
-            copy_left: 是否复制左手贴图
-        """
-        # 角色/手持贴图
-        if copy_char:
-            if textures.character_frames:
-                for idx, frame_path in enumerate(textures.character_frames):
-                    self.copy_texture(
-                        frame_path,
-                        sprites_dir / f"s_char_{item_id}_{idx}.png",
-                        mask_offsets=(textures.offset_x, textures.offset_y),
-                    )
-            elif textures.character:
-                self.copy_texture(
-                    textures.character,
-                    sprites_dir / f"s_char_{item_id}.png",
-                    mask_offsets=(textures.offset_x, textures.offset_y),
-                )
-
-        # 左手贴图
-        if copy_left:
-            if textures.character_left_frames:
-                for idx, frame_path in enumerate(textures.character_left_frames):
-                    self.copy_texture(
-                        frame_path,
-                        sprites_dir / f"s_charleft_{item_id}_{idx}.png",
-                        mask_offsets=(textures.offset_x_left, textures.offset_y_left),
-                    )
-            elif textures.character_left:
-                self.copy_texture(
-                    textures.character_left,
-                    sprites_dir / f"s_charleft_{item_id}.png",
-                    mask_offsets=(textures.offset_x_left, textures.offset_y_left),
-                )
-
-        # 常规/物品栏贴图
-        for idx, inv_texture in enumerate(textures.inventory):
-            self.copy_texture(inv_texture, sprites_dir / f"s_inv_{item_id}_{idx}.png")
-
-        # 战利品贴图
-        if textures.loot_frames:
-            for idx, frame_path in enumerate(textures.loot_frames):
-                self.copy_texture(
-                    frame_path, sprites_dir / f"s_loot_{item_id}_{idx}.png"
-                )
-        else:
-            self.copy_texture(textures.loot, sprites_dir / f"s_loot_{item_id}.png")
-
-    def _calculate_crop_region(
-        self, img_width: int, img_height: int, off_x: int, off_y: int
-    ):
-        """计算武器贴图的裁剪区域
-
-        Args:
-            img_width: 原图宽度
-            img_height: 原图高度
-            off_x: 用户设置的水平偏移
-            off_y: 用户设置的垂直偏移
-
-        Returns:
-            tuple: (crop_x1, crop_y1, crop_x2, crop_y2, is_valid)
-                   crop_x1, crop_y1: 裁剪区域左上角（在原图坐标系中）
-                   crop_x2, crop_y2: 裁剪区域右下角（在原图坐标系中）
-                   is_valid: 裁剪区域是否有效（非空）
-        """
-        # 有效范围相对于武器贴图左上角(0,0)
-        # 转换公式: WeaponLocal = World - (GML_ANCHOR - WeaponAnchor)
-        # WeaponLocal = World + off_x (对于 x 轴)
-        valid_local_min_x = VALID_MIN_X + off_x
-        valid_local_max_x = VALID_MAX_X + off_x
-        valid_local_min_y = VALID_MIN_Y + off_y
-        valid_local_max_y = VALID_MAX_Y + off_y
-
-        # 计算裁剪框（与原图相交的部分）
-        crop_x1 = int(max(0, valid_local_min_x))
-        crop_y1 = int(max(0, valid_local_min_y))
-        crop_x2 = int(min(img_width, valid_local_max_x))
-        crop_y2 = int(min(img_height, valid_local_max_y))
-
-        is_valid = crop_x1 < crop_x2 and crop_y1 < crop_y2
-        return crop_x1, crop_y1, crop_x2, crop_y2, is_valid
-
-    def _calculate_adjusted_offsets(self, off_x: int, off_y: int):
-        """计算真正裁剪后的调整偏移量
-
-        当贴图被真正裁剪时，如果裁剪掉了左侧或上侧的像素，
-        偏移量会被"限制"到最大有效值。
-
-        原理：
-        - crop_x1 = max(0, VALID_MIN_X + off_x)
-        - adjusted_off_x = off_x - crop_x1
-
-        当 off_x <= VIEWPORT_CHAR_OFFSET_X 时: crop_x1 = 0, adjusted = off_x
-        当 off_x > VIEWPORT_CHAR_OFFSET_X 时: adjusted = VIEWPORT_CHAR_OFFSET_X
-
-        简化为: adjusted_off = min(off, VIEWPORT_CHAR_OFFSET)
-
-        X方向最大有效偏移: VIEWPORT_CHAR_OFFSET_X = 8
-        Y方向最大有效偏移: VIEWPORT_CHAR_OFFSET_Y = 12
-
-        超过这些值后，继续增大偏移不会改变实际锚点位置，
-        因为被裁剪掉的像素数与偏移增量相同。
-        """
-        adjusted_off_x = min(off_x, VIEWPORT_CHAR_OFFSET_X)
-        adjusted_off_y = min(off_y, VIEWPORT_CHAR_OFFSET_Y)
-
-        return adjusted_off_x, adjusted_off_y
-
-    def copy_texture(self, src_path, dst_path, mask_offsets=None):
-        """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行真正的裁剪"""
-        if src_path and os.path.exists(src_path):
-            # 确保目标目录存在
-            os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-
-            if mask_offsets and Image:
-                try:
-                    off_x, off_y = mask_offsets
-                    with Image.open(src_path) as img:
-                        img = img.convert("RGBA")
-                        w, h = img.size
-
-                        crop_x1, crop_y1, crop_x2, crop_y2, is_valid = (
-                            self._calculate_crop_region(w, h, off_x, off_y)
-                        )
-
-                        if is_valid:
-                            # 真正裁剪图像（不保留原尺寸，直接裁切）
-                            cropped = img.crop((crop_x1, crop_y1, crop_x2, crop_y2))
-                            cropped.save(dst_path)
-                            return
-                        else:
-                            # 有效区域为空，创建一个 1x1 透明图像作为占位
-                            print(f"警告: 贴图 {src_path} 完全超出有效显示区域")
-                            placeholder = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-                            placeholder.save(dst_path)
-                            return
-                except Exception as e:
-                    print(f"处理贴图裁剪失败，将直接复制: {e}")
-
-            # 如果没有 offsets 或处理失败，直接复制
-            try:
-                shutil.copy2(src_path, dst_path)
-            except Exception as e:
-                print(f"复制贴图失败: {e}")
+    # _copy_item_textures, _calculate_crop_region, _calculate_adjusted_offsets, copy_texture
+    # 已提取为模块级函数
 
     def get_texture_preview(self, path):
         if not path or not os.path.exists(path) or Image is None:
@@ -4108,340 +4364,7 @@ class ModGeneratorGUI:
             glDeleteTextures(int(preview["tex_id"]))
         self.texture_preview_cache.clear()
 
-    def generate_csharp_code(self) -> str:
-        """生成C#模组代码"""
-        code_namespace = self.project.code_name.strip() or "ModNamespace"
-
-        code = f"""using ModShardLauncher;
-using ModShardLauncher.Mods;
-using UndertaleModLib;
-using UndertaleModLib.Models;
-using System.Collections.Generic;
-
-namespace {code_namespace};
-public class {code_namespace} : Mod
-{{
-    public override string Author => "{self.project.author}";
-    public override string Name => "{self.project.name}";
-    public override string Description => "{self.project.description}";
-    public override string Version => "{self.project.version}";
-    public override string TargetVersion => "{self.project.target_version}";
-
-    public override void PatchMod()
-    {{
-"""
-
-        for weapon in self.project.weapons:
-            code += f"        Add{weapon.id}();\n"
-
-        for armor in self.project.armors:
-            code += f"        AddArmor{armor.id}();\n"
-
-        code += "    }\n\n"
-
-        for weapon in self.project.weapons:
-            code += self.generate_weapon_method(weapon)
-
-        for armor in self.project.armors:
-            code += self.generate_armor_method(armor)
-
-        code += "}\n"
-        return code
-
-    def format_description(self, text: str) -> str:
-        """处理描述文本：strip -> splitlines -> join('##') -> 转移双引号"""
-        if not text:
-            return ""
-        # strip 并按行分割，过滤掉空行（如果需要保留空行可以调整）
-        lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
-        # 用 ## 连接
-        joined = "##".join(lines)
-        # 转义双引号
-        return joined.replace('"', '\\"')
-
-    def _generate_weapon_injection_code(self, weapon: Weapon) -> str:
-        """生成武器注入 C# 代码"""
-        code = "        Msl.InjectTableWeapons(\n"
-        code += f'            name: "{weapon.name}",\n'
-        code += f"            Tier: Msl.WeaponsTier.{weapon.tier},\n"
-        code += f'            id: "{weapon.id}",\n'
-        code += f"            Slot: Msl.WeaponsSlot.{weapon.slot},\n"
-        code += f"            rarity: Msl.WeaponsRarity.{weapon.rarity},\n"
-        code += f"            Mat: Msl.WeaponsMaterial.{weapon.mat},\n"
-        code += f"            tags: Msl.WeaponsTags.{weapon.tags.replace(' ', '')},\n"
-        code += f"            Price: {weapon.price},\n"
-        code += "            Markup: 1,\n"
-        code += f"            MaxDuration: {weapon.max_duration},\n"
-        code += f"            Rng: {weapon.rng}"
-
-        balance_value = SLOT_BALANCE.get(weapon.slot)
-        if balance_value is not None:
-            code += f",\n            Balance: {balance_value}"
-
-        code += f",\n            fireproof: {'true' if weapon.fireproof else 'false'}"
-        code += f",\n            NoDrop: {'true' if weapon.no_drop else 'false'}"
-
-        # 添加属性
-        for attr, value in weapon.attributes.items():
-            if value != 0:
-                # 特殊处理 typo
-                attr_name = attr
-                if attr == "Electromantic_Power":
-                    attr_name = "Electroantic_Power"
-                code += f",\n            {attr_name}: {value}"
-
-        code += "\n        );\n\n"
-        return code
-
-    def _generate_localization_code(self, weapon: Weapon) -> str:
-        """生成武器本地化 C# 代码（使用通用方法）"""
-        return self._generate_localization_code_generic(weapon)
-
-    def _generate_localization_code_generic(self, item) -> str:
-        """通用本地化 C# 代码生成
-
-        强制生成的语言条目:
-        - 主语言 (PRIMARY_LANGUAGE) - 必须存在（即使为空）
-        - 英文 - 必须存在（即使为空），除非主语言就是英文
-
-        Args:
-            item: 武器或装备对象（需要有 name 和 localization 属性）
-        """
-        code = "        Msl.InjectTableWeaponTextsLocalization(\n"
-        code += "            new LocalizationWeaponText(\n"
-        code += f'                id: "{item.name}",\n'
-        code += "                name: new Dictionary<ModLanguage, string>() {\n"
-
-        # 确定必须生成的语言
-        required_langs = {PRIMARY_LANGUAGE}
-        if PRIMARY_LANGUAGE != "English":
-            required_langs.add("English")
-
-        # 收集所有需要生成的语言（必须语言 + 已填写的语言）
-        langs_to_generate = set(required_langs)
-        for lang in item.localization.languages:
-            if lang in LANGUAGE_TO_ENUM_MAP:
-                langs_to_generate.add(lang)
-
-        # 按 LANGUAGE_LABELS 顺序生成名称
-        for lang in LANGUAGE_LABELS:
-            if lang not in langs_to_generate:
-                continue
-            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
-            if not lang_enum:
-                continue
-            name = item.localization.get_name(lang)
-            code += f'                    {{{lang_enum}, "{name}"}},\n'
-
-        code += "                },\n"
-        code += "                description: new Dictionary<ModLanguage, string>() {\n"
-
-        # 按 LANGUAGE_LABELS 顺序生成描述
-        for lang in LANGUAGE_LABELS:
-            if lang not in langs_to_generate:
-                continue
-            lang_enum = LANGUAGE_TO_ENUM_MAP.get(lang)
-            if not lang_enum:
-                continue
-            desc = item.localization.get_description(lang)
-            formatted_desc = self.format_description(desc)
-            code += f'                    {{{lang_enum}, "{formatted_desc}"}},\n'
-
-        code += "                }\n"
-        code += "            )\n"
-        code += "        );\n"
-        return code
-
-    def _generate_anchor_gml_block(
-        self, val_y: int, val_x: int, sprite_name: str
-    ) -> str:
-        """生成单个锚点的 GML 代码块"""
-        code = f"pushi.e {val_y}\n"
-        code += "conv.i.v\n"
-        code += f"pushi.e {val_x}\n"
-        code += "conv.i.v\n"
-        code += "call.i @@NewGMLArray@@(argc=2)\n"
-        code += f"pushi.e {sprite_name}\n"
-        code += "conv.i.v\n"
-        code += "pushglb.v global.customizationAnchors\n"
-        code += "call.i ds_map_add(argc=3)\n"
-        code += "popz.v\n"
-        return code
-
-    def _generate_gml_offset_code(self, weapon: Weapon) -> str:
-        """生成 GML 偏移注入代码
-
-        注意：由于贴图会被真正裁剪（而非仅透明化），如果裁剪掉了左侧或上侧的像素，
-        需要相应调整偏移量以保持正确的锚点位置。
-        """
-        gml_code_block = ""
-
-        # 处理右手/默认手持
-        if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
-            # 计算真正裁剪后的调整偏移量（已简化，无需加载图片）
-            adj_off_x, adj_off_y = self._calculate_adjusted_offsets(
-                weapon.textures.offset_x, weapon.textures.offset_y
-            )
-
-            # 只有调整后偏移不为零时才需要生成代码
-            if adj_off_x != 0 or adj_off_y != 0:
-                val_y = GML_ANCHOR_Y + adj_off_y
-                val_x = GML_ANCHOR_X + adj_off_x
-                sprite_name = f"s_char_{weapon.id}"
-                gml_code_block += self._generate_anchor_gml_block(
-                    val_y, val_x, sprite_name
-                )
-
-        # 处理左手手持
-        if weapon.textures.character_left or weapon.textures.character_left_frames:
-            if weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0:
-                # 计算真正裁剪后的调整偏移量（已简化，无需加载图片）
-                adj_off_x_left, adj_off_y_left = self._calculate_adjusted_offsets(
-                    weapon.textures.offset_x_left, weapon.textures.offset_y_left
-                )
-
-                # 只有调整后偏移不为零时才需要生成代码
-                if adj_off_x_left != 0 or adj_off_y_left != 0:
-                    val_y = GML_ANCHOR_Y + adj_off_y_left
-                    val_x = GML_ANCHOR_X + adj_off_x_left
-                    sprite_name = f"s_charleft_{weapon.id}"
-                    gml_code_block += self._generate_anchor_gml_block(
-                        val_y, val_x, sprite_name
-                    )
-
-        if not gml_code_block:
-            return ""
-
-        # 移除最后的换行符，避免多余空行
-        gml_code_block = gml_code_block.rstrip()
-
-        match_gml = """pushi.e 34
-conv.i.v
-pushi.e 29
-conv.i.v
-call.i @@NewGMLArray@@(argc=2)
-pushi.e 16635
-conv.i.v
-pushglb.v global.customizationAnchors
-call.i ds_map_add(argc=3)
-popz.v"""
-
-        code = f'        Msl.LoadAssemblyAsString("gml_GlobalScript_scr_ds_init")\n'
-        code += f'            .MatchFrom(@"{match_gml}")\n'
-        code += f'            .InsertBelow(@"{gml_code_block}")\n'
-        code += "            .Save();\n"
-        return code
-
-    def _generate_loot_sprite_animation_code(self, weapon: Weapon) -> str:
-        """生成武器战利品贴图动画设置的 C# 代码（使用通用方法）"""
-        return self._generate_loot_sprite_animation_code_generic(weapon)
-
-    def _generate_loot_sprite_animation_code_generic(self, item) -> str:
-        """通用战利品贴图动画设置 C# 代码生成
-
-        当战利品贴图为动画形式时，生成设置播放速度的代码。
-
-        Args:
-            item: 武器或装备对象（需要有 id 和 textures 属性）
-        """
-        # 只有当有多帧动画时才需要生成代码
-        if not item.textures.loot_frames or len(item.textures.loot_frames) <= 1:
-            return ""
-
-        sprite_name = f"s_loot_{item.id}"
-        fps_value = item.textures.loot_fps
-
-        # 根据速度模式选择不同的类型
-        if item.textures.loot_use_relative_speed:
-            speed_type = "AnimSpeedType.FramesPerGameFrame"
-        else:
-            speed_type = "AnimSpeedType.FramesPerSecond"
-
-        # 格式化帧率值，确保输出与显示一致（3位小数）
-        fps_formatted = f"{fps_value:.3f}"
-
-        code = f"""
-        // 设置战利品贴图动画播放速度
-        UndertaleSprite lootSprite_{item.id} = Msl.GetSprite("{sprite_name}");
-        lootSprite_{item.id}.CollisionMasks.RemoveAt(0);
-        lootSprite_{item.id}.IsSpecialType = true;
-        lootSprite_{item.id}.SVersion = 3;
-        lootSprite_{item.id}.GMS2PlaybackSpeed = {fps_formatted}f;
-        lootSprite_{item.id}.GMS2PlaybackSpeedType = {speed_type};
-
-"""
-        return code
-
-    def generate_weapon_method(self, weapon: Weapon) -> str:
-        """生成单个武器的C#方法"""
-        method_name = f"Add{weapon.id}"
-
-        code = f"    private void {method_name}()\n    {{\n"
-        code += self._generate_weapon_injection_code(weapon)
-        code += self._generate_localization_code(weapon)
-        code += self._generate_gml_offset_code(weapon)
-        code += self._generate_loot_sprite_animation_code(weapon)
-        code += "    }\n\n"
-
-        return code
-
-    def generate_armor_method(self, armor: Armor) -> str:
-        """生成单个护甲的C#方法"""
-        method_name = f"AddArmor{armor.id}"
-
-        code = f"    private void {method_name}()\n    {{\n"
-        code += self._generate_armor_injection_code(armor)
-        code += self._generate_armor_localization_code(armor)
-        code += self._generate_armor_loot_sprite_animation_code(armor)
-        code += "    }\n\n"
-
-        return code
-
-    def _generate_armor_injection_code(self, armor: Armor) -> str:
-        """生成护甲注入 C# 代码"""
-        code = "        Msl.InjectTableArmor(\n"
-        code += f"            hook: Msl.ArmorHook.{armor.hook},\n"
-        code += f'            name: "{armor.name}",\n'
-        code += f"            Tier: Msl.ArmorTier.{armor.tier},\n"
-        code += f'            id: "{armor.id}",\n'
-        code += f"            Slot: Msl.ArmorSlot.{armor.slot},\n"
-        code += f"            Class: Msl.ArmorClass.{armor.armor_class},\n"
-        code += f"            rarity: Msl.ArmorRarity.{armor.rarity},\n"
-        code += f"            Mat: Msl.ArmorMaterial.{armor.mat},\n"
-        code += f"            tags: Msl.ArmorTags.{armor.tags.replace(' ', '')},\n"
-        code += f"            MaxDuration: {armor.max_duration},\n"
-        code += f"            Price: {armor.price}"
-
-        # 添加 Markup (如果不是默认值 1.0)
-        if armor.markup != 1.0:
-            code += f",\n            Markup: {armor.markup}f"
-
-        # 布尔属性
-        code += f",\n            fireproof: {'true' if armor.fireproof else 'false'}"
-        code += f",\n            IsOpen: {'true' if armor.is_open else 'false'}"
-        code += f",\n            NoDrop: {'true' if armor.no_drop else 'false'}"
-
-        # 添加属性
-        for attr, value in armor.attributes.items():
-            if value != 0:
-                # 护甲API中无typo，直接使用属性名
-                code += f",\n            {attr}: {value}"
-
-        # 添加拆解材料
-        for frag_type, frag_value in armor.fragments.items():
-            if frag_value > 0:
-                code += f",\n            {frag_type}: {frag_value}"
-
-        code += "\n        );\n\n"
-        return code
-
-    def _generate_armor_localization_code(self, armor: Armor) -> str:
-        """生成护甲本地化 C# 代码（使用通用方法）"""
-        return self._generate_localization_code_generic(armor)
-
-    def _generate_armor_loot_sprite_animation_code(self, armor: Armor) -> str:
-        """生成护甲战利品贴图动画设置的 C# 代码（使用通用方法）"""
-        return self._generate_loot_sprite_animation_code_generic(armor)
+    # 代码生成相关方法已迁移到 CodeGenerator 类
 
 
 if __name__ == "__main__":
