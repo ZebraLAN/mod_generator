@@ -1127,9 +1127,15 @@ class ModGeneratorGUI:
             self._draw_attributes_editor(armor, ARMOR_ATTRIBUTE_GROUPS, "armor")
             imgui.tree_pop()
 
-        if imgui.tree_node("拆解材料", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_fragments_editor(armor)
-            imgui.tree_pop()
+        # 项链、戒指、盾牌不允许拆解材料
+        no_fragment_slots = ["Ring", "Amulet", "shield"]
+        if armor.slot in no_fragment_slots:
+            # 强制清空拆解材料
+            armor.fragments.clear()
+        else:
+            if imgui.tree_node("拆解材料", flags=imgui.TREE_NODE_FRAMED):
+                self._draw_fragments_editor(armor)
+                imgui.tree_pop()
 
         if imgui.tree_node("装备名称与本地化", flags=imgui.TREE_NODE_FRAMED):
             self._draw_localization_editor(armor, "armor")
