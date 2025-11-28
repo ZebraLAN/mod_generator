@@ -1633,7 +1633,9 @@ class ModGeneratorGUI:
         texture_list: 直接引用 item.textures.xxx 列表
         field_name: 字段名，如 "character", "character_left", "loot"
         """
-        imgui.text(label)
+        # 提取显示文本（去掉 ## 及其后的 ID 部分）
+        display_label = label.split("##")[0] if "##" in label else label
+        imgui.text(display_label)
         imgui.same_line()
 
         label_suffix = f"_{id_suffix}_{field_name}"
@@ -1744,7 +1746,9 @@ class ModGeneratorGUI:
         self, label, current_path, field_identifier, item, id_suffix
     ):
         """绘制单个贴图选择器（用于 inventory 等不支持动画的字段）"""
-        imgui.text(label)
+        # 提取显示文本（去掉 ## 及其后的 ID 部分）
+        display_label = label.split("##")[0] if "##" in label else label
+        imgui.text(display_label)
         imgui.same_line()
 
         label_suffix = (
