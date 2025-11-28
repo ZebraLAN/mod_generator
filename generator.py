@@ -187,7 +187,7 @@ class CodeGenerator:
 
     def _escape_multiline_string(self, text: str) -> str:
         """转义多行字符串用于 C# verbatim string (@"...")
-        
+
         在 verbatim string 中，双引号需要用两个双引号转义
         """
         if not text:
