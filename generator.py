@@ -437,7 +437,10 @@ popz.v"""
         code = f"""
         // 设置战利品贴图动画播放速度
         UndertaleSprite lootSprite_{item.id} = Msl.GetSprite("{sprite_name}");
-        lootSprite_{item.id}.CollisionMasks.RemoveAt(0);
+        if (lootSprite_{item.id}.CollisionMasks != null && lootSprite_{item.id}.CollisionMasks.Count > 0)
+        {{
+            lootSprite_{item.id}.CollisionMasks.RemoveAt(0);
+        }}
         lootSprite_{item.id}.IsSpecialType = true;
         lootSprite_{item.id}.SVersion = 3;
         lootSprite_{item.id}.GMS2PlaybackSpeed = {fps_formatted}f;
