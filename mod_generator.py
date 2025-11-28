@@ -68,10 +68,10 @@ SLOT_LABELS = {
 # ============== 通用标签定义（武器/护甲共用） ==============
 
 # 武器材料标签（利用字典有序特性，keys 即为材料列表）
-MATERIAL_LABELS = {"wood": "木", "metal": "金属", "leather": "皮"}
+WEAPON_MATERIAL_LABELS = {"wood": "木", "metal": "金属", "leather": "皮"}
 
-# 武器标签（利用字典有序特性，keys 即为标签列表）
-TAG_LABELS = {
+# 通用标签（武器/护甲共用）
+COMMON_TAG_LABELS = {
     "aldor": "奥尔多",
     "elven": "精灵",
     "fjall": "弗约",
@@ -82,6 +82,9 @@ TAG_LABELS = {
     "unique": "独特",
     "special exc": "特殊（新英雄）",
 }
+
+# 兼容性别名
+TAG_LABELS = COMMON_TAG_LABELS
 SLOT_BALANCE = {
     "twohandedaxe": 0,
     "twohandedmace": 0,
@@ -164,18 +167,8 @@ ARMOR_MATERIAL_LABELS = {
     "gem": "宝石",
 }
 
-# 护甲标签（利用字典有序特性，keys 即为标签列表）
-ARMOR_TAG_LABELS = {
-    "aldor": "奥尔多",
-    "fjall": "弗约",
-    "elven": "精灵",
-    "special": "特殊",
-    "unique": "独特",
-    "skadia": "斯卡迪亚",
-    "nistra": "尼斯特拉",
-    "magic": "魔法",
-    "special exc": "特殊（新英雄）",
-}
+# 护甲标签（复用通用标签定义）
+ARMOR_TAG_LABELS = COMMON_TAG_LABELS
 
 # 需要角色贴图预览的槽位
 ARMOR_SLOTS_WITH_CHAR_PREVIEW = ["shield", "Head", "Chest", "Arms", "Legs", "Back"]
@@ -707,7 +700,7 @@ class Armor:
 
     name: str = ""  # 系统ID
     tier: str = "Tier2"
-    hook: str = "HELMETS"  # ArmorHook
+    slot: str = "Head"  # 用户选择的槽位
     armor_class: str = "Light"  # ArmorClass
     rarity: str = "Common"
     mat: str = "leather"
@@ -738,9 +731,9 @@ class Armor:
         return self.name.lower().replace(" ", "").replace("'", "")
 
     @property
-    def slot(self) -> str:
-        """根据hook自动获取slot"""
-        return ARMOR_HOOK_TO_SLOT.get(self.hook, "Head")
+    def hook(self) -> str:
+        """根据slot自动获取hook（内部实现细节）"""
+        return ARMOR_SLOT_TO_HOOK.get(self.slot, "HELMETS")
 
     def needs_char_texture(self) -> bool:
         """判断该装备是否需要角色穿戴贴图"""
@@ -900,7 +893,7 @@ class ModProject:
             item_data["rng"] = item.rng
         # 护甲特有字段
         elif isinstance(item, Armor):
-            item_data["hook"] = item.hook
+            item_data["slot"] = item.slot  # 保存 slot，hook 由 slot 自动计算
             item_data["armor_class"] = item.armor_class
             item_data["fragments"] = item.fragments
             item_data["is_open"] = item.is_open
@@ -1051,9 +1044,15 @@ class ModProject:
                 item_data.get("textures", {}), project_dir, legacy_mode=True
             )
         else:
+            # 兼容旧格式：如果有 hook 但没有 slot，从 hook 转换
+            slot = item_data.get("slot")
+            if slot is None and "hook" in item_data:
+                slot = ARMOR_HOOK_TO_SLOT.get(item_data["hook"], "Head")
+            slot = slot or "Head"
+            
             item = Armor(
                 **common_kwargs,
-                hook=item_data.get("hook", "HELMETS"),
+                slot=slot,
                 armor_class=item_data.get("armor_class", "Light"),
                 markup=item_data.get("markup", 1.0),
                 fragments=item_data.get("fragments", {}),
@@ -2070,118 +2069,7 @@ class ModGeneratorGUI:
 
         # 基本属性
         if imgui.tree_node("基本属性##armor", flags=imgui.TREE_NODE_FRAMED):
-            changed, armor.name = imgui.input_text(
-                "装备系统ID*##armor", armor.name, 256
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "用来让游戏识别该物品的内部名称，不向玩家展示。\n请确保ID尽可能独特，以免与其他Mod冲突！"
-                )
-            imgui.same_line()
-            imgui.text(f"(ID: {armor.id})")
-
-            # 等级
-            current_tier = TIER.index(armor.tier) if armor.tier in TIER else 0
-            tier_label = TIER_LABELS.get(armor.tier, armor.tier)
-            if imgui.begin_combo("等级##armor", tier_label):
-                for i, tier in enumerate(TIER):
-                    display = TIER_LABELS.get(tier, tier)
-                    if imgui.selectable(display, i == current_tier)[0]:
-                        armor.tier = tier
-                imgui.end_combo()
-
-            # 装备钩子 (Hook) - 决定槽位
-            hook_label = ARMOR_HOOK_LABELS.get(armor.hook, armor.hook)
-            if imgui.begin_combo("装备类型", hook_label):
-                for hook in ARMOR_HOOK_LABELS:
-                    display = ARMOR_HOOK_LABELS.get(hook, hook)
-                    if imgui.selectable(display, hook == armor.hook)[0]:
-                        old_slot = armor.slot
-                        armor.hook = hook
-                        # 如果槽位变化，清理不再需要的角色贴图
-                        if not armor.needs_char_texture():
-                            armor.textures.character = ""
-                            armor.textures.character_frames = []
-                            armor.textures.offset_x = 0
-                            armor.textures.offset_y = 0
-                imgui.end_combo()
-
-            # 显示自动绑定的槽位
-            slot_label = ARMOR_SLOT_LABELS.get(armor.slot, armor.slot)
-            imgui.input_text(
-                "槽位##armor", slot_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("由装备类型自动决定")
-
-            # 护甲类别
-            class_label = ARMOR_CLASS_LABELS.get(armor.armor_class, armor.armor_class)
-            if imgui.begin_combo("护甲类别", class_label):
-                for ac in ARMOR_CLASS_LABELS:
-                    display = ARMOR_CLASS_LABELS.get(ac, ac)
-                    if imgui.selectable(display, ac == armor.armor_class)[0]:
-                        armor.armor_class = ac
-                imgui.end_combo()
-
-            # 材料
-            mat_label = ARMOR_MATERIAL_LABELS.get(armor.mat, armor.mat)
-            if imgui.begin_combo("材料##armor", mat_label):
-                for mat in ARMOR_MATERIAL_LABELS:
-                    display = ARMOR_MATERIAL_LABELS.get(mat, mat)
-                    if imgui.selectable(display, mat == armor.mat)[0]:
-                        armor.mat = mat
-                imgui.end_combo()
-
-            # 标签
-            tag_options = list(ARMOR_TAG_LABELS.keys())
-            if armor.tags not in tag_options:
-                tag_options.append(armor.tags)
-            tag_label = ARMOR_TAG_LABELS.get(armor.tags, armor.tags)
-            if imgui.begin_combo("标签##armor", tag_label):
-                for tag in tag_options:
-                    display = ARMOR_TAG_LABELS.get(tag, tag)
-                    if imgui.selectable(display, tag == armor.tags)[0]:
-                        armor.tags = tag
-                        # 自动设置稀有度
-                        if armor.tags in ["unique", "special", "special exc"]:
-                            armor.rarity = "Unique"
-                        else:
-                            armor.rarity = "Common"
-                imgui.end_combo()
-
-            # 稀有度 - 禁用直接操作，只显示
-            rarity_label = ARMOR_RARITY_LABELS.get(armor.rarity, armor.rarity)
-            imgui.input_text(
-                "稀有度##armor", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("由标签自动决定")
-
-            self.draw_indented_separator()
-
-            # 特殊属性
-            armor.fireproof = self._draw_bool_combo(
-                "防火##armor", armor.fireproof, "未被拾取时是否会被火焰摧毁"
-            )
-            armor.is_open = self._draw_bool_combo(
-                "开放式##armor", armor.is_open, "装备是否为开放式设计（如头盔的面甲）"
-            )
-            armor.no_drop = self._draw_bool_combo(
-                "不可掉落##armor", armor.no_drop, "可能无法从宝箱中获取"
-            )
-
-            self.draw_indented_separator()
-
-            changed, armor.price = imgui.input_int("价格##armor", armor.price)
-            changed, armor.markup = imgui.input_float(
-                "溢价倍率", armor.markup, step=0.1, step_fast=0.5, format="%.2f"
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("影响商店售价的倍率，默认为1.0")
-            changed, armor.max_duration = imgui.input_int(
-                "最大耐久##armor", armor.max_duration
-            )
-
+            self._draw_armor_basic_properties(armor)
             imgui.tree_pop()
 
         # 装备属性
@@ -2207,6 +2095,77 @@ class ModGeneratorGUI:
         # 验证
         errors = armor.validate(self.project)
         self._draw_validation_errors(errors)
+
+    def _draw_armor_basic_properties(self, armor):
+        """绘制装备基本属性编辑区"""
+        # 系统ID
+        self._draw_item_system_id(armor, "装备", "armor")
+
+        # 等级
+        armor.tier = self._draw_enum_combo(
+            "等级##armor", armor.tier, TIER, TIER_LABELS
+        )
+
+        # 槽位选择
+        new_slot = self._draw_armor_slot_combo(armor)
+        if new_slot != armor.slot:
+            armor.slot = new_slot
+            # 如果槽位变化，清理不再需要的角色贴图
+            if not armor.needs_char_texture():
+                armor.textures.character = ""
+                armor.textures.character_frames = []
+                armor.textures.offset_x = 0
+                armor.textures.offset_y = 0
+
+        # 护甲类别
+        armor.armor_class = self._draw_enum_combo(
+            "护甲类别", armor.armor_class, list(ARMOR_CLASS_LABELS.keys()), ARMOR_CLASS_LABELS
+        )
+
+        # 材料
+        armor.mat = self._draw_enum_combo(
+            "材料##armor", armor.mat, list(ARMOR_MATERIAL_LABELS.keys()), ARMOR_MATERIAL_LABELS
+        )
+
+        # 标签（带自动稀有度设置）
+        armor.tags = self._draw_tags_combo_with_rarity(
+            armor.tags, armor, "armor", ARMOR_TAG_LABELS
+        )
+
+        # 稀有度 - 只读显示
+        self._draw_readonly_rarity(armor.rarity, "armor", ARMOR_RARITY_LABELS)
+
+        self.draw_indented_separator()
+
+        # 特殊属性
+        armor.fireproof = self._draw_bool_combo(
+            "防火##armor", armor.fireproof, "未被拾取时是否会被火焰摧毁"
+        )
+        armor.is_open = self._draw_bool_combo(
+            "开放式##armor", armor.is_open, "装备是否为开放式设计（如头盔的面甲）"
+        )
+        armor.no_drop = self._draw_bool_combo(
+            "不可掉落##armor", armor.no_drop, "可能无法从宝箱中获取"
+        )
+
+        self.draw_indented_separator()
+
+        # 数值属性
+        changed, armor.price = imgui.input_int("价格##armor", armor.price)
+        changed, armor.markup = imgui.input_float(
+            "溢价倍率", armor.markup, step=0.1, step_fast=0.5, format="%.2f"
+        )
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("影响商店售价的倍率，默认为1.0")
+        changed, armor.max_duration = imgui.input_int(
+            "最大耐久##armor", armor.max_duration
+        )
+
+    def _draw_armor_slot_combo(self, armor) -> str:
+        """绘制装备槽位选择器"""
+        return self._draw_enum_combo(
+            "槽位##armor", armor.slot, list(ARMOR_SLOT_LABELS.keys()), ARMOR_SLOT_LABELS
+        )
 
     def draw_armor_attributes_editor(self, armor):
         """装备属性编辑器（使用通用方法）"""
@@ -2351,110 +2310,7 @@ class ModGeneratorGUI:
 
         # 基本属性
         if imgui.tree_node("基本属性", flags=imgui.TREE_NODE_FRAMED):
-            changed, weapon.name = imgui.input_text("武器系统ID*", weapon.name, 256)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "用来让游戏识别该物品的内部名称，不向玩家展示。\n请确保ID尽可能独特，以免与其他Mod冲突！"
-                )
-            imgui.same_line()
-            imgui.text(f"(ID: {weapon.id})")
-
-            # 枚举选择
-            current_tier = TIER.index(weapon.tier) if weapon.tier in TIER else 0
-            tier_label = TIER_LABELS.get(weapon.tier, weapon.tier)
-            if imgui.begin_combo("等级", tier_label):
-                for i, tier in enumerate(TIER):
-                    display = TIER_LABELS.get(tier, tier)
-                    if imgui.selectable(display, i == current_tier)[0]:
-                        weapon.tier = tier
-                imgui.end_combo()
-
-            slot_options = list(SLOT_LABELS.keys())
-            if weapon.slot not in slot_options:
-                slot_options.append(weapon.slot)
-            slot_label = SLOT_LABELS.get(weapon.slot, weapon.slot)
-            if imgui.begin_combo("槽位", slot_label):
-                for slot in slot_options:
-                    display = SLOT_LABELS.get(slot, slot)
-                    if imgui.selectable(display, slot == weapon.slot)[0]:
-                        weapon.slot = slot
-
-                        # 切换槽位时清理无效的左手贴图数据
-                        if weapon.slot not in LEFT_HAND_SLOTS:
-                            weapon.textures.character_left = ""
-                            weapon.textures.character_left_frames = []
-                            weapon.textures.offset_x_left = 0
-                            weapon.textures.offset_y_left = 0
-
-                imgui.end_combo()
-
-            mat_keys = list(MATERIAL_LABELS.keys())
-            current_mat = mat_keys.index(weapon.mat) if weapon.mat in mat_keys else 0
-            material_label = MATERIAL_LABELS.get(weapon.mat, weapon.mat)
-            if imgui.begin_combo("材料", material_label):
-                for i, mat in enumerate(mat_keys):
-                    display = MATERIAL_LABELS.get(mat, mat)
-                    if imgui.selectable(display, i == current_mat)[0]:
-                        weapon.mat = mat
-                imgui.end_combo()
-
-            tag_options = list(TAG_LABELS.keys())
-            if weapon.tags not in tag_options:
-                tag_options.append(weapon.tags)
-            tag_label = TAG_LABELS.get(weapon.tags, weapon.tags)
-            if imgui.begin_combo("标签", tag_label):
-                for tag in tag_options:
-                    display = TAG_LABELS.get(tag, tag)
-                    if imgui.selectable(display, tag == weapon.tags)[0]:
-                        weapon.tags = tag
-                        # 自动设置稀有度
-                        if weapon.tags in ["unique", "special", "special exc"]:
-                            weapon.rarity = "Unique"
-                        else:
-                            weapon.rarity = "Common"
-                imgui.end_combo()
-
-            # 稀有度 - 禁用直接操作，只显示
-            rarity_label = RARITY_LABELS.get(weapon.rarity, weapon.rarity)
-            imgui.input_text(
-                "稀有度", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("由标签自动决定")
-
-            # 特殊属性
-            weapon.fireproof = self._draw_bool_combo(
-                "防火##weapon", weapon.fireproof, "未被拾取时是否会被火焰摧毁"
-            )
-            weapon.no_drop = self._draw_bool_combo(
-                "不可掉落##weapon", weapon.no_drop, "可能无法从宝箱中获取"
-            )
-
-            self.draw_indented_separator()
-            changed, weapon.price = imgui.input_int("价格", weapon.price)
-            changed, weapon.max_duration = imgui.input_int(
-                "最大耐久", weapon.max_duration
-            )
-
-            # Rng 锁定逻辑: 仅弓弩可调，其他锁定为 1
-            if weapon.slot in ["bow", "crossbow"]:
-                changed, weapon.rng = imgui.input_int("距离", weapon.rng)
-                if changed:
-                    if weapon.rng < 0:
-                        weapon.rng = 0
-                    if weapon.rng > 255:
-                        weapon.rng = 255
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "决定武器的基础攻击距离（游戏内部字段）\n类型: byte (0-255)"
-                    )
-            else:
-                weapon.rng = 1
-                # 使用只读模式显示
-                imgui.input_int("距离", weapon.rng, flags=imgui.INPUT_TEXT_READ_ONLY)
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("除弓弩外，武器距离固定为 1")
-
+            self._draw_weapon_basic_properties(weapon)
             imgui.tree_pop()
 
         # 属性编辑
@@ -2475,6 +2331,156 @@ class ModGeneratorGUI:
         # 验证
         errors = weapon.validate(self.project)
         self._draw_validation_errors(errors)
+
+    def _draw_weapon_basic_properties(self, weapon):
+        """绘制武器基本属性编辑区"""
+        # 系统ID
+        self._draw_item_system_id(weapon, "武器", "weapon")
+
+        # 等级
+        weapon.tier = self._draw_enum_combo(
+            "等级", weapon.tier, TIER, TIER_LABELS
+        )
+
+        # 槽位（需要特殊处理：槽位变化时清理左手贴图）
+        new_slot = self._draw_weapon_slot_combo(weapon)
+        if new_slot != weapon.slot:
+            weapon.slot = new_slot
+            # 切换槽位时清理无效的左手贴图数据
+            if weapon.slot not in LEFT_HAND_SLOTS:
+                weapon.textures.character_left = ""
+                weapon.textures.character_left_frames = []
+                weapon.textures.offset_x_left = 0
+                weapon.textures.offset_y_left = 0
+
+        # 材料
+        weapon.mat = self._draw_enum_combo(
+            "材料", weapon.mat, list(WEAPON_MATERIAL_LABELS.keys()), WEAPON_MATERIAL_LABELS
+        )
+
+        # 标签（带自动稀有度设置）
+        weapon.tags = self._draw_tags_combo_with_rarity(
+            weapon.tags, weapon, "weapon", TAG_LABELS
+        )
+
+        # 稀有度 - 只读显示
+        self._draw_readonly_rarity(weapon.rarity, "weapon", RARITY_LABELS)
+
+        # 特殊属性
+        weapon.fireproof = self._draw_bool_combo(
+            "防火##weapon", weapon.fireproof, "未被拾取时是否会被火焰摧毁"
+        )
+        weapon.no_drop = self._draw_bool_combo(
+            "不可掉落##weapon", weapon.no_drop, "可能无法从宝箱中获取"
+        )
+
+        self.draw_indented_separator()
+
+        # 数值属性
+        changed, weapon.price = imgui.input_int("价格", weapon.price)
+        changed, weapon.max_duration = imgui.input_int(
+            "最大耐久", weapon.max_duration
+        )
+
+        # Rng 锁定逻辑: 仅弓弩可调，其他锁定为 1
+        self._draw_weapon_range_input(weapon)
+
+    def _draw_weapon_slot_combo(self, weapon) -> str:
+        """绘制武器槽位选择器"""
+        slot_options = list(SLOT_LABELS.keys())
+        if weapon.slot not in slot_options:
+            slot_options.append(weapon.slot)
+        slot_label = SLOT_LABELS.get(weapon.slot, weapon.slot)
+        new_slot = weapon.slot
+        if imgui.begin_combo("槽位", slot_label):
+            for slot in slot_options:
+                display = SLOT_LABELS.get(slot, slot)
+                if imgui.selectable(display, slot == weapon.slot)[0]:
+                    new_slot = slot
+            imgui.end_combo()
+        return new_slot
+
+    def _draw_weapon_range_input(self, weapon):
+        """绘制武器距离输入"""
+        if weapon.slot in ["bow", "crossbow"]:
+            changed, weapon.rng = imgui.input_int("距离", weapon.rng)
+            if changed:
+                weapon.rng = max(0, min(255, weapon.rng))
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "决定武器的基础攻击距离（游戏内部字段）\n类型: byte (0-255)"
+                )
+        else:
+            weapon.rng = 1
+            imgui.input_int("距离", weapon.rng, flags=imgui.INPUT_TEXT_READ_ONLY)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("除弓弩外，武器距离固定为 1")
+
+    # ========== 通用编辑器辅助方法 ==========
+
+    def _draw_item_system_id(self, item, item_type: str, id_suffix: str):
+        """绘制物品系统ID输入框
+
+        Args:
+            item: 武器或装备对象
+            item_type: 物品类型名称（如"武器"或"装备"）
+            id_suffix: ImGui ID 后缀
+        """
+        label = f"{item_type}系统ID*##{id_suffix}"
+        changed, item.name = imgui.input_text(label, item.name, 256)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "用来让游戏识别该物品的内部名称，不向玩家展示。\n"
+                "请确保ID尽可能独特，以免与其他Mod冲突！"
+            )
+        imgui.same_line()
+        imgui.text(f"(ID: {item.id})")
+
+    def _draw_tags_combo_with_rarity(
+        self,
+        current_tags: str,
+        item,
+        id_suffix: str,
+        tag_labels: dict,
+    ) -> str:
+        """绘制标签选择器并自动设置稀有度
+
+        Args:
+            current_tags: 当前标签值
+            item: 武器或装备对象
+            id_suffix: ImGui ID 后缀
+            tag_labels: 标签显示名称字典
+
+        Returns:
+            新的标签值
+        """
+        new_tags = self._draw_enum_combo_with_custom(
+            f"标签##{id_suffix}", current_tags, list(tag_labels.keys()), tag_labels
+        )
+
+        # 自动设置稀有度
+        if new_tags != current_tags:
+            if new_tags in ["unique", "special", "special exc"]:
+                item.rarity = "Unique"
+            else:
+                item.rarity = "Common"
+
+        return new_tags
+
+    def _draw_readonly_rarity(self, rarity: str, id_suffix: str, rarity_labels: dict):
+        """绘制只读的稀有度显示
+
+        Args:
+            rarity: 当前稀有度值
+            id_suffix: ImGui ID 后缀
+            rarity_labels: 稀有度显示名称字典
+        """
+        rarity_label = rarity_labels.get(rarity, rarity)
+        imgui.input_text(
+            f"稀有度##{id_suffix}", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
+        )
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("由标签自动决定")
 
     def draw_attributes_editor(self, weapon):
         """武器属性编辑器（使用通用方法）"""
@@ -2504,6 +2510,70 @@ class ModGeneratorGUI:
         if tooltip and imgui.is_item_hovered():
             imgui.set_tooltip(tooltip)
         return new_value
+
+    def _draw_enum_combo(
+        self,
+        label: str,
+        current_value: str,
+        options: list,
+        labels: dict,
+        tooltip: str = "",
+    ) -> str:
+        """通用枚举下拉选择框
+
+        Args:
+            label: 控件标签
+            current_value: 当前选中值
+            options: 可选项列表
+            labels: 值到显示标签的映射字典
+            tooltip: 悬停提示文字
+
+        Returns:
+            新选中的值
+        """
+        current_label = labels.get(current_value, current_value)
+        new_value = current_value
+
+        if imgui.begin_combo(label, current_label):
+            for opt in options:
+                display = labels.get(opt, opt)
+                if imgui.selectable(display, opt == current_value)[0]:
+                    new_value = opt
+            imgui.end_combo()
+
+        if tooltip and imgui.is_item_hovered():
+            imgui.set_tooltip(tooltip)
+
+        return new_value
+
+    def _draw_enum_combo_with_custom(
+        self,
+        label: str,
+        current_value: str,
+        options: list,
+        labels: dict,
+        tooltip: str = "",
+    ) -> str:
+        """通用枚举下拉选择框（自动添加不在列表中的当前值）
+
+        Args:
+            label: 控件标签
+            current_value: 当前选中值
+            options: 可选项列表（会自动添加不存在的当前值）
+            labels: 值到显示标签的映射字典
+            tooltip: 悬停提示文字
+
+        Returns:
+            新选中的值
+        """
+        # 如果当前值不在选项中，添加到列表
+        effective_options = list(options)
+        if current_value not in effective_options:
+            effective_options.append(current_value)
+
+        return self._draw_enum_combo(
+            label, current_value, effective_options, labels, tooltip
+        )
 
     def _draw_validation_errors(self, errors: List[str]):
         """显示验证错误/警告列表
@@ -3004,17 +3074,247 @@ class ModGeneratorGUI:
             label_suffix = f"_{id_prefix}_{field_identifier[0]}_{field_identifier[1]}"
         state_key = f"{id_prefix}_{field_identifier}"
 
-        # 如果是动画模式且有帧数据，显示动画管理界面
+        # 绘制选择器 UI
         if is_anim_field and frames:
-            imgui.text(f"动画模式 (共 {len(frames)} 张图片)")
+            self._draw_animation_texture_controls(
+                frames, field_identifier, item, label_suffix, state_key
+            )
+        else:
+            self._draw_static_texture_controls(
+                current_path, field_identifier, item, is_anim_field, frames, label_suffix
+            )
+
+        # 绘制预览
+        self._draw_texture_preview(
+            current_path, field_identifier, item, is_anim_field,
+            frames, state_key, preview_method
+        )
+
+    def _draw_animation_texture_controls(
+        self,
+        frames: list,
+        field_identifier,
+        item,
+        label_suffix: str,
+        state_key: str,
+    ):
+        """绘制动画贴图控制界面
+
+        Args:
+            frames: 动画帧列表
+            field_identifier: 字段标识符
+            item: 武器或装备对象
+            label_suffix: 标签后缀
+            state_key: 状态键
+        """
+        imgui.text(f"动画模式 (共 {len(frames)} 张图片)")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                f"当前动画包含 {len(frames)} 张图片。\n"
+                f"预览播放速度: {PREVIEW_ANIMATION_FPS} fps\n"
+                f"(游戏中手持贴图默认以此速度播放)"
+            )
+
+        # 添加帧按钮
+        if imgui.button(f"添加帧##{label_suffix}"):
+            self.current_texture_field = field_identifier
+            paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
+            if paths:
+                if not isinstance(paths, list):
+                    paths = [paths]
+                for path in paths:
+                    final_path = self._import_and_resolve_texture(path)
+                    frames.append(final_path)
+                if len(frames) >= 1:
+                    setattr(item.textures, field_identifier, frames[0])
+
+        imgui.same_line()
+        if imgui.button(f"清空/转为静态##{label_suffix}"):
+            frames.clear()
+
+        # 预览控制
+        self._draw_animation_playback_controls(frames, label_suffix, state_key)
+
+        # 显示帧列表
+        self._draw_frame_list(frames, field_identifier, item, label_suffix)
+
+    def _draw_animation_playback_controls(
+        self,
+        frames: list,
+        label_suffix: str,
+        state_key: str,
+    ):
+        """绘制动画播放控制（暂停/帧导航）
+
+        Args:
+            frames: 动画帧列表
+            label_suffix: 标签后缀
+            state_key: 状态键
+        """
+        state = self.preview_states.get(
+            state_key, {"paused": False, "current_frame": 0}
+        )
+        imgui.same_line()
+        if imgui.checkbox(f"暂停##{label_suffix}", state["paused"])[0]:
+            state["paused"] = not state["paused"]
+
+        if state["paused"] and len(frames) > 0:
+            max_frame = max(0, len(frames) - 1)
+            if state["current_frame"] > max_frame:
+                state["current_frame"] = 0
+
+            imgui.same_line()
+            if imgui.arrow_button(f"##prev_{label_suffix}", imgui.DIRECTION_LEFT):
+                state["current_frame"] -= 1
+                if state["current_frame"] < 0:
+                    state["current_frame"] = max_frame
+
+            imgui.same_line()
+            imgui.push_item_width(100)
+            current_frame_1based = state["current_frame"] + 1
+            changed, current_frame_1based = imgui.slider_int(
+                f"##frame_slider_{label_suffix}",
+                current_frame_1based,
+                1,
+                max_frame + 1,
+                format="%d",
+            )
+            if changed:
+                state["current_frame"] = current_frame_1based - 1
+            imgui.pop_item_width()
+
+            imgui.same_line()
+            if imgui.arrow_button(f"##next_{label_suffix}", imgui.DIRECTION_RIGHT):
+                state["current_frame"] += 1
+                if state["current_frame"] > max_frame:
+                    state["current_frame"] = 0
+
+            imgui.same_line()
+            imgui.text(f"帧: {state['current_frame'] + 1} / {max_frame + 1}")
+
+        self.preview_states[state_key] = state
+
+    def _draw_frame_list(
+        self,
+        frames: list,
+        field_identifier,
+        item,
+        label_suffix: str,
+    ):
+        """绘制帧列表管理界面
+
+        Args:
+            frames: 动画帧列表
+            field_identifier: 字段标识符
+            item: 武器或装备对象
+            label_suffix: 标签后缀
+        """
+        if not imgui.tree_node(f"帧列表##{label_suffix}"):
+            return
+
+        frames_to_remove = []
+        frames_to_move_up = []
+        frames_to_move_down = []
+
+        for i, frame_path in enumerate(frames):
+            imgui.push_id(f"frame_{label_suffix}_{i}")
+            imgui.text(f"帧 {i+1}: {os.path.basename(frame_path)}")
+
+            imgui.same_line()
+            if imgui.arrow_button("##up", imgui.DIRECTION_UP):
+                frames_to_move_up.append(i)
             if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    f"当前动画包含 {len(frames)} 张图片。\n"
-                    f"预览播放速度: {PREVIEW_ANIMATION_FPS} fps\n"
-                    f"(游戏中手持贴图默认以此速度播放)"
+                imgui.set_tooltip("上移")
+
+            imgui.same_line()
+            if imgui.arrow_button("##down", imgui.DIRECTION_DOWN):
+                frames_to_move_down.append(i)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("下移")
+
+            imgui.same_line()
+            if imgui.small_button("X"):
+                frames_to_remove.append(i)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("删除此帧")
+
+            imgui.pop_id()
+
+        # 应用移动操作
+        for i in frames_to_move_up:
+            if i > 0:
+                frames[i], frames[i - 1] = frames[i - 1], frames[i]
+
+        for i in frames_to_move_down:
+            if i < len(frames) - 1:
+                frames[i], frames[i + 1] = frames[i + 1], frames[i]
+
+        # 应用删除操作
+        for i in sorted(frames_to_remove, reverse=True):
+            frames.pop(i)
+
+        # 更新主贴图引用
+        if not frames:
+            setattr(item.textures, field_identifier, "")
+        elif frames:
+            setattr(item.textures, field_identifier, frames[0])
+
+        imgui.tree_pop()
+
+    def _draw_static_texture_controls(
+        self,
+        current_path: str,
+        field_identifier,
+        item,
+        is_anim_field: bool,
+        frames: list,
+        label_suffix: str,
+    ):
+        """绘制静态贴图选择控制
+
+        Args:
+            current_path: 当前贴图路径
+            field_identifier: 字段标识符
+            item: 武器或装备对象
+            is_anim_field: 是否为支持动画的字段
+            frames: 动画帧列表（如果是动画字段）
+            label_suffix: 标签后缀
+        """
+        button_id = f"选择文件##{label_suffix}"
+        if imgui.button(button_id):
+            self.current_texture_field = field_identifier
+            paths = self.file_dialog([("PNG文件", "*.png")], multiple=is_anim_field)
+
+            if paths:
+                if not isinstance(paths, list):
+                    paths = [paths]
+
+                first_path = paths[0]
+                final_path_0 = self._import_and_resolve_texture(first_path)
+                self._apply_texture_selection_generic(
+                    final_path_0, field_identifier, item
                 )
 
-            if imgui.button(f"添加帧##{label_suffix}"):
+                if is_anim_field:
+                    frames.clear()
+                    for path in paths:
+                        final_path = self._import_and_resolve_texture(path)
+                        frames.append(final_path)
+
+        imgui.same_line()
+        display_path = os.path.basename(current_path) if current_path else "未选择"
+        imgui.text(display_path)
+
+        if current_path and imgui.is_item_hovered():
+            imgui.set_tooltip(current_path)
+
+        # 添加更多帧按钮（仅动画字段有静态图时显示）
+        if is_anim_field and current_path:
+            imgui.same_line()
+            if imgui.button(f"添加更多帧##{label_suffix}"):
+                if not frames:
+                    frames.append(current_path)
+
                 self.current_texture_field = field_identifier
                 paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
                 if paths:
@@ -3023,152 +3323,29 @@ class ModGeneratorGUI:
                     for path in paths:
                         final_path = self._import_and_resolve_texture(path)
                         frames.append(final_path)
-                    if len(frames) >= 1:
-                        setattr(item.textures, field_identifier, frames[0])
 
-            imgui.same_line()
-            if imgui.button(f"清空/转为静态##{label_suffix}"):
-                frames.clear()
+    def _draw_texture_preview(
+        self,
+        current_path: str,
+        field_identifier,
+        item,
+        is_anim_field: bool,
+        frames: list,
+        state_key: str,
+        preview_method,
+    ):
+        """绘制贴图预览
 
-            # 预览控制
-            state = self.preview_states.get(
-                state_key, {"paused": False, "current_frame": 0}
-            )
-            imgui.same_line()
-            if imgui.checkbox(f"暂停##{label_suffix}", state["paused"])[0]:
-                state["paused"] = not state["paused"]
-
-            if state["paused"] and len(frames) > 0:
-                max_frame = max(0, len(frames) - 1)
-                if state["current_frame"] > max_frame:
-                    state["current_frame"] = 0
-
-                imgui.same_line()
-                if imgui.arrow_button(f"##prev_{label_suffix}", imgui.DIRECTION_LEFT):
-                    state["current_frame"] -= 1
-                    if state["current_frame"] < 0:
-                        state["current_frame"] = max_frame
-
-                imgui.same_line()
-                imgui.push_item_width(100)
-                current_frame_1based = state["current_frame"] + 1
-                changed, current_frame_1based = imgui.slider_int(
-                    f"##frame_slider_{label_suffix}",
-                    current_frame_1based,
-                    1,
-                    max_frame + 1,
-                    format="%d",
-                )
-                if changed:
-                    state["current_frame"] = current_frame_1based - 1
-                imgui.pop_item_width()
-
-                imgui.same_line()
-                if imgui.arrow_button(f"##next_{label_suffix}", imgui.DIRECTION_RIGHT):
-                    state["current_frame"] += 1
-                    if state["current_frame"] > max_frame:
-                        state["current_frame"] = 0
-
-                imgui.same_line()
-                imgui.text(f"帧: {state['current_frame'] + 1} / {max_frame + 1}")
-
-            self.preview_states[state_key] = state
-
-            # 显示帧列表
-            if imgui.tree_node(f"帧列表##{label_suffix}"):
-                frames_to_remove = []
-                frames_to_move_up = []
-                frames_to_move_down = []
-
-                for i, frame_path in enumerate(frames):
-                    imgui.push_id(f"frame_{label_suffix}_{i}")
-                    imgui.text(f"帧 {i+1}: {os.path.basename(frame_path)}")
-
-                    imgui.same_line()
-                    if imgui.arrow_button("##up", imgui.DIRECTION_UP):
-                        frames_to_move_up.append(i)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("上移")
-
-                    imgui.same_line()
-                    if imgui.arrow_button("##down", imgui.DIRECTION_DOWN):
-                        frames_to_move_down.append(i)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("下移")
-
-                    imgui.same_line()
-                    if imgui.small_button("X"):
-                        frames_to_remove.append(i)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("删除此帧")
-
-                    imgui.pop_id()
-
-                for i in frames_to_move_up:
-                    if i > 0:
-                        frames[i], frames[i - 1] = frames[i - 1], frames[i]
-
-                for i in frames_to_move_down:
-                    if i < len(frames) - 1:
-                        frames[i], frames[i + 1] = frames[i + 1], frames[i]
-
-                for i in sorted(frames_to_remove, reverse=True):
-                    frames.pop(i)
-
-                if not frames:
-                    setattr(item.textures, field_identifier, "")
-
-                if frames:
-                    setattr(item.textures, field_identifier, frames[0])
-
-                imgui.tree_pop()
-
-        else:
-            # 常规单图选择模式
-            button_id = f"选择文件##{label_suffix}"
-            if imgui.button(button_id):
-                self.current_texture_field = field_identifier
-                paths = self.file_dialog([("PNG文件", "*.png")], multiple=is_anim_field)
-
-                if paths:
-                    if not isinstance(paths, list):
-                        paths = [paths]
-
-                    first_path = paths[0]
-                    final_path_0 = self._import_and_resolve_texture(first_path)
-                    self._apply_texture_selection_generic(
-                        final_path_0, field_identifier, item
-                    )
-
-                    if is_anim_field:
-                        frames.clear()
-                        for path in paths:
-                            final_path = self._import_and_resolve_texture(path)
-                            frames.append(final_path)
-
-            imgui.same_line()
-            display_path = os.path.basename(current_path) if current_path else "未选择"
-            imgui.text(display_path)
-
-            if current_path and imgui.is_item_hovered():
-                imgui.set_tooltip(current_path)
-
-            if is_anim_field and current_path:
-                imgui.same_line()
-                if imgui.button(f"添加更多帧##{label_suffix}"):
-                    if not frames:
-                        frames.append(current_path)
-
-                    self.current_texture_field = field_identifier
-                    paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
-                    if paths:
-                        if not isinstance(paths, list):
-                            paths = [paths]
-                        for path in paths:
-                            final_path = self._import_and_resolve_texture(path)
-                            frames.append(final_path)
-
-        # 预览逻辑
+        Args:
+            current_path: 当前贴图路径
+            field_identifier: 字段标识符
+            item: 武器或装备对象
+            is_anim_field: 是否为动画字段
+            frames: 动画帧列表
+            state_key: 状态键
+            preview_method: 预览绘制方法
+        """
+        # 确定预览路径
         preview_path = current_path
         if is_anim_field and frames:
             fps = PREVIEW_ANIMATION_FPS
@@ -3191,7 +3368,7 @@ class ModGeneratorGUI:
                 frame_idx = 0
             preview_path = frames[frame_idx]
 
-        # 计算最大尺寸
+        # 计算动画最大尺寸（用于固定预览框大小）
         override_size = None
         if is_anim_field and frames:
             max_w = 0
@@ -3204,6 +3381,7 @@ class ModGeneratorGUI:
             if max_w > 0 and max_h > 0:
                 override_size = (max_w, max_h)
 
+        # 绘制预览
         preview = self.get_texture_preview(preview_path)
         if preview:
             imgui.same_line()
