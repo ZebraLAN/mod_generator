@@ -185,6 +185,16 @@ class CodeGenerator:
     def __init__(self, project: ModProject):
         self.project = project
 
+    def _escape_multiline_string(self, text: str) -> str:
+        """转义多行字符串用于 C# verbatim string (@"...")
+        
+        在 verbatim string 中，双引号需要用两个双引号转义
+        """
+        if not text:
+            return ""
+        # 在 C# verbatim string 中，" 需要转义为 ""
+        return text.replace('"', '""')
+
     def generate(self) -> str:
         """生成完整的 C# 模组代码"""
         code_namespace = self.project.code_name.strip() or "ModNamespace"
@@ -200,7 +210,7 @@ public class {code_namespace} : Mod
 {{
     public override string Author => "{self.project.author}";
     public override string Name => "{self.project.name}";
-    public override string Description => "{self.project.description}";
+    public override string Description => @"{self._escape_multiline_string(self.project.description)}";
     public override string Version => "{self.project.version}";
     public override string TargetVersion => "{self.project.target_version}";
 

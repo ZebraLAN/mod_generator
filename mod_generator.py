@@ -70,8 +70,6 @@ from constants import (
 from generator import CodeGenerator, copy_item_textures
 from models import (
     Armor,
-    ItemLocalization,
-    ItemTextures,
     ModProject,
     Weapon,
     validate_item,
@@ -185,11 +183,199 @@ class ModGeneratorGUI:
             print(f"保存配置失败: {e}")
 
     def apply_theme(self):
-        """应用颜色主题"""
+        """应用颜色主题 - 基于 Design for Non-Designers 四原则优化"""
+        style = imgui.get_style()
+        
+        # === 间距与布局 (亲密性 Proximity) ===
+        style.window_padding = (12, 12)
+        style.frame_padding = (8, 4)
+        style.item_spacing = (8, 6)
+        style.item_inner_spacing = (6, 4)
+        style.indent_spacing = 20
+        style.scrollbar_size = 14
+        style.grab_min_size = 12
+        
+        # === 圆角 (重复 Repetition - 统一的视觉语言) ===
+        style.window_rounding = 6
+        style.frame_rounding = 4
+        style.popup_rounding = 4
+        style.scrollbar_rounding = 6
+        style.grab_rounding = 3
+        style.tab_rounding = 4
+        
+        # === 边框 ===
+        style.window_border_size = 1
+        style.frame_border_size = 0
+        style.popup_border_size = 1
+        
         if self.is_dark_theme:
-            imgui.style_colors_dark()
+            self._apply_dark_theme(style)
         else:
-            imgui.style_colors_light()
+            self._apply_light_theme(style)
+    
+    def _apply_dark_theme(self, style):
+        """暗色主题 - 高对比、护眼、专业"""
+        # 基础色板 (对比 Contrast)
+        bg_dark = (0.08, 0.08, 0.10, 1.0)       # 最深背景
+        bg_mid = (0.12, 0.12, 0.14, 1.0)        # 中间背景
+        bg_light = (0.18, 0.18, 0.21, 1.0)      # 浅背景/悬停
+        
+        accent = (0.40, 0.65, 0.80, 1.0)        # 主强调色 - 冷蓝
+        accent_hover = (0.50, 0.75, 0.90, 1.0)
+        accent_active = (0.35, 0.55, 0.70, 1.0)
+        
+        text_primary = (0.95, 0.95, 0.95, 1.0)  # 主文字
+        text_secondary = (0.60, 0.60, 0.65, 1.0) # 次要文字
+        text_disabled = (0.40, 0.40, 0.45, 1.0)
+        
+        border = (0.25, 0.25, 0.28, 1.0)
+        
+        success = (0.30, 0.70, 0.45, 1.0)       # 成功/确认
+        warning = (0.90, 0.70, 0.25, 1.0)       # 警告
+        error = (0.90, 0.35, 0.35, 1.0)         # 错误
+        
+        c = style.colors
+        c[imgui.COLOR_TEXT] = text_primary
+        c[imgui.COLOR_TEXT_DISABLED] = text_disabled
+        c[imgui.COLOR_WINDOW_BACKGROUND] = bg_dark
+        c[imgui.COLOR_CHILD_BACKGROUND] = (0, 0, 0, 0)
+        c[imgui.COLOR_POPUP_BACKGROUND] = (0.10, 0.10, 0.12, 0.98)
+        c[imgui.COLOR_BORDER] = border
+        c[imgui.COLOR_BORDER_SHADOW] = (0, 0, 0, 0)
+        c[imgui.COLOR_FRAME_BACKGROUND] = bg_mid
+        c[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = bg_light
+        c[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.22, 0.22, 0.25, 1.0)
+        c[imgui.COLOR_TITLE_BACKGROUND] = bg_dark
+        c[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = bg_mid
+        c[imgui.COLOR_TITLE_BACKGROUND_COLLAPSED] = bg_dark
+        c[imgui.COLOR_MENUBAR_BACKGROUND] = bg_dark
+        c[imgui.COLOR_SCROLLBAR_BACKGROUND] = bg_dark
+        c[imgui.COLOR_SCROLLBAR_GRAB] = (0.30, 0.30, 0.33, 1.0)
+        c[imgui.COLOR_SCROLLBAR_GRAB_HOVERED] = (0.40, 0.40, 0.43, 1.0)
+        c[imgui.COLOR_SCROLLBAR_GRAB_ACTIVE] = accent
+        c[imgui.COLOR_CHECK_MARK] = accent
+        c[imgui.COLOR_SLIDER_GRAB] = accent
+        c[imgui.COLOR_SLIDER_GRAB_ACTIVE] = accent_hover
+        c[imgui.COLOR_BUTTON] = (0.20, 0.20, 0.23, 1.0)
+        c[imgui.COLOR_BUTTON_HOVERED] = accent
+        c[imgui.COLOR_BUTTON_ACTIVE] = accent_active
+        c[imgui.COLOR_HEADER] = (0.20, 0.20, 0.23, 1.0)
+        c[imgui.COLOR_HEADER_HOVERED] = accent
+        c[imgui.COLOR_HEADER_ACTIVE] = accent_active
+        c[imgui.COLOR_SEPARATOR] = border
+        c[imgui.COLOR_SEPARATOR_HOVERED] = accent
+        c[imgui.COLOR_SEPARATOR_ACTIVE] = accent
+        c[imgui.COLOR_RESIZE_GRIP] = (0.25, 0.25, 0.28, 0.5)
+        c[imgui.COLOR_RESIZE_GRIP_HOVERED] = accent
+        c[imgui.COLOR_RESIZE_GRIP_ACTIVE] = accent_active
+        c[imgui.COLOR_TAB] = bg_mid
+        c[imgui.COLOR_TAB_HOVERED] = accent
+        c[imgui.COLOR_TAB_ACTIVE] = accent_active
+        c[imgui.COLOR_TAB_UNFOCUSED] = bg_mid
+        c[imgui.COLOR_TAB_UNFOCUSED_ACTIVE] = bg_light
+        c[imgui.COLOR_PLOT_LINES] = accent
+        c[imgui.COLOR_PLOT_LINES_HOVERED] = accent_hover
+        c[imgui.COLOR_PLOT_HISTOGRAM] = accent
+        c[imgui.COLOR_PLOT_HISTOGRAM_HOVERED] = accent_hover
+        c[imgui.COLOR_TEXT_SELECTED_BACKGROUND] = (*accent[:3], 0.35)
+        c[imgui.COLOR_DRAG_DROP_TARGET] = accent
+        c[imgui.COLOR_NAV_HIGHLIGHT] = accent
+        c[imgui.COLOR_NAV_WINDOWING_HIGHLIGHT] = (1, 1, 1, 0.7)
+        c[imgui.COLOR_NAV_WINDOWING_DIM_BACKGROUND] = (0.8, 0.8, 0.8, 0.2)
+        c[imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND] = (0, 0, 0, 0.6)
+        
+        # 保存主题色供其他地方使用
+        self.theme_colors = {
+            "text_secondary": text_secondary,
+            "success": success,
+            "warning": warning,
+            "error": error,
+            "accent": accent,
+        }
+    
+    def _apply_light_theme(self, style):
+        """亮色主题 - 清爽、高可读性"""
+        bg_white = (0.98, 0.98, 0.98, 1.0)
+        bg_light = (0.94, 0.94, 0.95, 1.0)
+        bg_mid = (0.88, 0.88, 0.90, 1.0)
+        
+        accent = (0.20, 0.50, 0.70, 1.0)
+        accent_hover = (0.25, 0.55, 0.75, 1.0)
+        accent_active = (0.15, 0.45, 0.65, 1.0)
+        
+        text_primary = (0.10, 0.10, 0.12, 1.0)
+        text_secondary = (0.45, 0.45, 0.50, 1.0)
+        text_disabled = (0.60, 0.60, 0.65, 1.0)
+        
+        border = (0.75, 0.75, 0.78, 1.0)
+        
+        c = style.colors
+        c[imgui.COLOR_TEXT] = text_primary
+        c[imgui.COLOR_TEXT_DISABLED] = text_disabled
+        c[imgui.COLOR_WINDOW_BACKGROUND] = bg_white
+        c[imgui.COLOR_CHILD_BACKGROUND] = (0, 0, 0, 0)
+        c[imgui.COLOR_POPUP_BACKGROUND] = (1, 1, 1, 0.98)
+        c[imgui.COLOR_BORDER] = border
+        c[imgui.COLOR_FRAME_BACKGROUND] = bg_light
+        c[imgui.COLOR_FRAME_BACKGROUND_HOVERED] = bg_mid
+        c[imgui.COLOR_FRAME_BACKGROUND_ACTIVE] = (0.82, 0.82, 0.85, 1.0)
+        c[imgui.COLOR_TITLE_BACKGROUND] = bg_light
+        c[imgui.COLOR_TITLE_BACKGROUND_ACTIVE] = bg_mid
+        c[imgui.COLOR_MENUBAR_BACKGROUND] = bg_light
+        c[imgui.COLOR_SCROLLBAR_BACKGROUND] = bg_light
+        c[imgui.COLOR_SCROLLBAR_GRAB] = (0.70, 0.70, 0.73, 1.0)
+        c[imgui.COLOR_SCROLLBAR_GRAB_HOVERED] = (0.60, 0.60, 0.63, 1.0)
+        c[imgui.COLOR_SCROLLBAR_GRAB_ACTIVE] = accent
+        c[imgui.COLOR_CHECK_MARK] = accent
+        c[imgui.COLOR_SLIDER_GRAB] = accent
+        c[imgui.COLOR_SLIDER_GRAB_ACTIVE] = accent_hover
+        c[imgui.COLOR_BUTTON] = bg_mid
+        c[imgui.COLOR_BUTTON_HOVERED] = accent
+        c[imgui.COLOR_BUTTON_ACTIVE] = accent_active
+        c[imgui.COLOR_HEADER] = bg_mid
+        c[imgui.COLOR_HEADER_HOVERED] = accent
+        c[imgui.COLOR_HEADER_ACTIVE] = accent_active
+        c[imgui.COLOR_SEPARATOR] = border
+        c[imgui.COLOR_TAB] = bg_light
+        c[imgui.COLOR_TAB_HOVERED] = accent
+        c[imgui.COLOR_TAB_ACTIVE] = accent_active
+        c[imgui.COLOR_TEXT_SELECTED_BACKGROUND] = (*accent[:3], 0.35)
+        c[imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND] = (0, 0, 0, 0.4)
+        
+        self.theme_colors = {
+            "text_secondary": text_secondary,
+            "success": (0.20, 0.60, 0.35, 1.0),
+            "warning": (0.85, 0.60, 0.10, 1.0),
+            "error": (0.85, 0.25, 0.25, 1.0),
+            "accent": accent,
+        }
+
+    # ==================== 主题颜色辅助方法 ====================
+    
+    def text_secondary(self, text: str):
+        """绘制次要文字（灰色）"""
+        color = getattr(self, 'theme_colors', {}).get('text_secondary', (0.6, 0.6, 0.65, 1.0))
+        imgui.text_colored(text, *color)
+    
+    def text_success(self, text: str):
+        """绘制成功文字（绿色）"""
+        color = getattr(self, 'theme_colors', {}).get('success', (0.3, 0.7, 0.45, 1.0))
+        imgui.text_colored(text, *color)
+    
+    def text_warning(self, text: str):
+        """绘制警告文字（橙色）"""
+        color = getattr(self, 'theme_colors', {}).get('warning', (0.9, 0.7, 0.25, 1.0))
+        imgui.text_colored(text, *color)
+    
+    def text_error(self, text: str):
+        """绘制错误文字（红色）"""
+        color = getattr(self, 'theme_colors', {}).get('error', (0.9, 0.35, 0.35, 1.0))
+        imgui.text_colored(text, *color)
+    
+    def text_accent(self, text: str):
+        """绘制强调文字（主题色）"""
+        color = getattr(self, 'theme_colors', {}).get('accent', (0.4, 0.65, 0.8, 1.0))
+        imgui.text_colored(text, *color)
 
     # ==================== 字体管理 ====================
 
@@ -312,8 +498,8 @@ class ModGeneratorGUI:
             self.show_success_popup = False
 
         # 生成成功弹窗
-        imgui.set_next_window_size(600, 300, imgui.ONCE)
-        if imgui.begin_popup_modal("生成成功")[0]:
+        imgui.set_next_window_size(450, 180, imgui.ONCE)
+        if imgui.begin_popup_modal("生成成功", flags=imgui.WINDOW_NO_RESIZE)[0]:
             base_dir = (
                 os.path.dirname(self.project.file_path)
                 if self.project.file_path
@@ -323,42 +509,64 @@ class ModGeneratorGUI:
                 os.path.join(base_dir, self.project.code_name.strip() or "ModProject")
             )
 
-            imgui.text("模组生成成功！")
-            imgui.text_wrapped(f"输出目录:\n{mod_dir}")
-
-            if imgui.button("打开目录"):
+            imgui.dummy(0, 8)
+            self.text_success("[OK] 模组生成成功！")
+            imgui.dummy(0, 8)
+            
+            self.text_secondary("输出目录:")
+            imgui.text_wrapped(mod_dir)
+            
+            imgui.dummy(0, 16)
+            
+            # 按钮右对齐
+            button_width = 100
+            imgui.set_cursor_pos_x(imgui.get_window_width() - button_width * 2 - 24)
+            if imgui.button("打开目录", width=button_width):
                 try:
                     os.startfile(mod_dir)
                 except Exception:
                     pass
 
             imgui.same_line()
-            if imgui.button("确定"):
+            if imgui.button("确定", width=button_width):
                 imgui.close_current_popup()
             imgui.end_popup()
 
         # 错误弹窗
-        imgui.set_next_window_size(400, 300, imgui.ONCE)
-        if imgui.begin_popup_modal("错误")[0]:
+        imgui.set_next_window_size(450, 0, imgui.ONCE)  # 高度自适应
+        if imgui.begin_popup_modal("错误", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)[0]:
+            imgui.dummy(0, 4)
+            self.text_error("[X] 发生错误")
+            imgui.dummy(0, 8)
             imgui.text_wrapped(getattr(self, "error_message", "发生未知错误"))
-            if imgui.button("确定"):
+            imgui.dummy(0, 12)
+            
+            button_width = 80
+            imgui.set_cursor_pos_x(imgui.get_window_width() - button_width - 12)
+            if imgui.button("确定", width=button_width):
                 imgui.close_current_popup()
             imgui.end_popup()
 
         # 保存项目弹窗
-        imgui.set_next_window_size(300, 150, imgui.ONCE)
-        if imgui.begin_popup_modal("保存项目")[0]:
+        imgui.set_next_window_size(350, 0, imgui.ONCE)
+        if imgui.begin_popup_modal("保存项目", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)[0]:
+            imgui.dummy(0, 4)
+            self.text_warning("[!] 需要保存项目")
+            imgui.dummy(0, 8)
             imgui.text("生成模组前需要先保存项目。")
             imgui.text("是否现在保存？")
+            imgui.dummy(0, 12)
 
-            if imgui.button("保存"):
+            button_width = 80
+            imgui.set_cursor_pos_x(imgui.get_window_width() - button_width * 2 - 20)
+            if imgui.button("保存", width=button_width):
                 imgui.close_current_popup()
                 self.save_project_dialog()
                 if self.project.file_path:
                     self._execute_generation()
 
             imgui.same_line()
-            if imgui.button("取消"):
+            if imgui.button("取消", width=button_width):
                 imgui.close_current_popup()
 
             imgui.end_popup()
@@ -462,7 +670,7 @@ class ModGeneratorGUI:
             current_path = getattr(self, attr_name)
             bundled_fonts = self.get_bundled_fonts(font_type)
             if bundled_fonts:
-                imgui.text_colored("内置字体:", 0.7, 0.7, 0.7, 1.0)
+                self.text_secondary("内置字体:")
                 for font_file in bundled_fonts:
                     if imgui.menu_item(font_file, selected=(current_path == font_file))[
                         0
@@ -472,7 +680,7 @@ class ModGeneratorGUI:
                         self.should_reload_fonts = True
                 imgui.separator()
 
-            imgui.text_colored(system_label, 0.7, 0.7, 0.7, 1.0)
+            self.text_secondary(system_label)
             for label, path in system_fonts:
                 if os.path.exists(path):
                     if imgui.menu_item(label, selected=(current_path == path))[0]:
@@ -507,27 +715,8 @@ class ModGeneratorGUI:
         )
 
         if not self.project.file_path:
-            # 显示欢迎/提示信息
-            window_width = imgui.get_window_width()
-            window_height = imgui.get_window_height()
-            text = "请新建或打开一个项目以开始"
-            text_width = imgui.calc_text_size(text).x
-
-            imgui.set_cursor_pos(
-                ((window_width - text_width) / 2, window_height / 2 - 20)
-            )
-            imgui.text(text)
-
-            button_width = 120
-            imgui.set_cursor_pos(
-                (window_width / 2 - button_width - 10, window_height / 2 + 20)
-            )
-            if imgui.button("新建项目", width=button_width):
-                self.new_project_dialog()
-
-            imgui.set_cursor_pos((window_width / 2 + 10, window_height / 2 + 20))
-            if imgui.button("打开项目", width=button_width):
-                self.open_project_dialog()
+            # 显示欢迎界面 - 居中布局
+            self._draw_welcome_screen()
         else:
             # 项目信息
             if imgui.tree_node("项目信息", flags=imgui.TREE_NODE_FRAMED):
@@ -536,7 +725,8 @@ class ModGeneratorGUI:
 
             # 物品标签页
             if imgui.begin_tab_bar("ItemTabBar"):
-                weapon_tab_label = f"武器 ({len(self.project.weapons)})"
+                # Tab ID 必须固定，否则动态内容（数量）变化会导致 tab 跳转
+                weapon_tab_label = f"武器 ({len(self.project.weapons)})###WeaponTab"
                 if imgui.begin_tab_item(weapon_tab_label)[0]:
                     self.active_item_tab = 0
                     self.draw_item_panel(
@@ -549,7 +739,7 @@ class ModGeneratorGUI:
                     )
                     imgui.end_tab_item()
 
-                armor_tab_label = f"装备 ({len(self.project.armors)})"
+                armor_tab_label = f"装备 ({len(self.project.armors)})###ArmorTab"
                 if imgui.begin_tab_item(armor_tab_label)[0]:
                     self.active_item_tab = 1
                     self.draw_item_panel(
@@ -566,45 +756,124 @@ class ModGeneratorGUI:
 
         imgui.end()
 
+    def _draw_welcome_screen(self):
+        """绘制欢迎界面 - 带品牌感的居中布局"""
+        window_width = imgui.get_window_width()
+        window_height = imgui.get_window_height()
+        
+        # 计算居中位置
+        content_height = 180  # 内容高度
+        start_y = (window_height - content_height) / 2
+        
+        # 装饰性顶部线条（使用 ASCII 兼容字符，长度与标题匹配）
+        decorator = "- - - - - - - - - - - - - - - - - -"
+        dec_size = imgui.calc_text_size(decorator)
+        imgui.set_cursor_pos(((window_width - dec_size.x) / 2, start_y))
+        self.text_secondary(decorator)
+        
+        # 标题
+        title = "Stoneshard 装备模组编辑器"
+        title_size = imgui.calc_text_size(title)
+        imgui.set_cursor_pos(((window_width - title_size.x) / 2, start_y + 25))
+        self.text_accent(title)
+        
+        # 装饰性底部线条
+        imgui.set_cursor_pos(((window_width - dec_size.x) / 2, start_y + 50))
+        self.text_secondary(decorator)
+        
+        # 副标题
+        subtitle = "创建武器和装备模组的可视化工具"
+        subtitle_size = imgui.calc_text_size(subtitle)
+        imgui.set_cursor_pos(((window_width - subtitle_size.x) / 2, start_y + 75))
+        self.text_secondary(subtitle)
+        
+        # 按钮区域
+        button_width = 140
+        button_spacing = 20
+        total_buttons_width = button_width * 2 + button_spacing
+        buttons_start_x = (window_width - total_buttons_width) / 2
+        
+        imgui.set_cursor_pos((buttons_start_x, start_y + 110))
+        if imgui.button("新建项目", width=button_width, height=32):
+            self.new_project_dialog()
+        
+        imgui.set_cursor_pos((buttons_start_x + button_width + button_spacing, start_y + 110))
+        if imgui.button("打开项目", width=button_width, height=32):
+            self.open_project_dialog()
+        
+        # 底部提示
+        hint = "提示: 项目将保存为文件夹结构，包含 project.json 和 assets 目录"
+        hint_size = imgui.calc_text_size(hint)
+        imgui.set_cursor_pos(((window_width - hint_size.x) / 2, start_y + 160))
+        self.text_secondary(hint)
+
     def draw_project_info(self):
         """绘制项目信息"""
-        changed, self.project.name = imgui.input_text(
-            "模组名称", self.project.name, 256
-        )
+        # 使用两列布局：左边是基本信息，右边是描述
+        imgui.columns(2, "project_info_cols", border=False)
+        imgui.set_column_width(0, imgui.get_window_width() * 0.5)
+        
+        # 记录左列起始位置
+        left_start_y = imgui.get_cursor_pos().y
+        
+        # 左列：基本信息
+        imgui.push_item_width(-1)
+        imgui.text("模组名称")
+        changed, self.project.name = imgui.input_text("##name", self.project.name, 256)
         if imgui.is_item_hovered():
             imgui.set_tooltip("用于展示的名称，可包含中文等字符")
-
-        changed, self.project.code_name = imgui.input_text(
-            "模组代号", self.project.code_name, 256
-        )
+        
+        imgui.text("模组代号")
+        changed, self.project.code_name = imgui.input_text("##code_name", self.project.code_name, 256)
         if imgui.is_item_hovered():
             imgui.set_tooltip("仅用于内部生成代码，必须是以字母开头的字母/数字组合")
 
-        changed, self.project.author = imgui.input_text(
-            "作者", self.project.author, 256
+        imgui.text("作者")
+        changed, self.project.author = imgui.input_text("##author", self.project.author, 256)
+        
+        # 版本信息：与其它字段一致，标签一行，输入框一行
+        imgui.text("版本")
+        changed, self.project.version = imgui.input_text("##version", self.project.version, 32)
+        
+        imgui.text("目标游戏版本")
+        changed, self.project.target_version = imgui.input_text("##target_ver", self.project.target_version, 32)
+        imgui.pop_item_width()
+        
+        # 记录左列结束位置
+        left_end_y = imgui.get_cursor_pos().y
+        left_height = left_end_y - left_start_y
+        
+        # 右列：描述（多行），高度与左列对齐
+        imgui.next_column()
+        imgui.push_item_width(-1)
+        
+        imgui.text("描述")
+        # 计算描述框高度：与左列内容高度对齐
+        # 减去"描述"标签高度，再减去少量边距补偿
+        label_height = imgui.get_text_line_height_with_spacing()
+        desc_height = left_height - label_height - 6
+        desc_height = max(60, desc_height)  # 最小高度 60
+        changed, self.project.description = imgui.input_text_multiline(
+            "##desc", self.project.description, 1024, height=desc_height
         )
-        changed, self.project.description = imgui.input_text(
-            "描述", self.project.description, 512
-        )
-        changed, self.project.version = imgui.input_text(
-            "版本", self.project.version, 32
-        )
-        changed, self.project.target_version = imgui.input_text(
-            "目标版本", self.project.target_version, 32
-        )
+        imgui.pop_item_width()
+        
+        imgui.columns(1)
+        
+        # 项目路径（可能很长，单独一行）
+        imgui.dummy(0, 4)
+        project_dir = os.path.dirname(self.project.file_path) if self.project.file_path else "未保存"
+        self.text_secondary(f"路径: {project_dir}")
+        if self.project.file_path and imgui.is_item_hovered():
+            imgui.set_tooltip(project_dir)
 
-        imgui.text(
-            f"项目路径: {os.path.dirname(self.project.file_path) if self.project.file_path else '未保存'}"
-        )
-        imgui.text(f"武器数量: {len(self.project.weapons)}")
-        imgui.text(f"装备数量: {len(self.project.armors)}")
-
+        # 验证错误
         errors = self.project.validate()
         if errors:
             self.draw_indented_separator()
-            imgui.text_colored("错误:", 1.0, 0.0, 0.0)
+            self.text_error("错误:")
             for err in errors:
-                imgui.text_colored(f"  • {err}", 1.0, 0.0, 0.0)
+                self.text_error(f"  • {err}")
 
     # ==================== 物品面板 ====================
 
@@ -620,9 +889,14 @@ class ModGeneratorGUI:
         """绘制物品面板（列表 + 编辑器）"""
         available_width = imgui.get_content_region_available_width()
         available_height = imgui.get_content_region_available().y
-
-        list_width = min(300, available_width * 0.3)
-        editor_width = available_width - list_width - 10
+        
+        # 列表宽度：根据窗口大小自适应，但有合理的最小/最大值
+        min_list_width = 180
+        max_list_width = 280
+        list_width = max(min_list_width, min(max_list_width, available_width * 0.22))
+        editor_width = available_width - list_width - 8
+        
+        spacing = 4
 
         # 左侧: 列表
         imgui.begin_child(
@@ -634,7 +908,7 @@ class ModGeneratorGUI:
         draw_list_func()
         imgui.end_child()
 
-        imgui.same_line()
+        imgui.same_line(spacing=spacing)
 
         # 右侧: 编辑器
         imgui.begin_child(
@@ -647,7 +921,11 @@ class ModGeneratorGUI:
         if 0 <= current_index < len(items):
             draw_editor_func()
         else:
-            imgui.text_colored(empty_hint, 0.7, 0.7, 0.7, 1.0)
+            # 居中显示提示
+            region = imgui.get_content_region_available()
+            hint_size = imgui.calc_text_size(empty_hint)
+            imgui.set_cursor_pos(((region.x - hint_size.x) / 2, region.y / 2))
+            self.text_secondary(empty_hint)
         imgui.end_child()
 
     # ==================== 物品列表 ====================
@@ -691,27 +969,41 @@ class ModGeneratorGUI:
     ):
         """通用物品列表绘制"""
         current_index = getattr(self, current_index_attr)
-
+        available_width = imgui.get_content_region_available_width()
+        
+        # 工具栏：使用文字按钮
         # 添加按钮
-        if imgui.button(f"添加{item_type_label}"):
+        if imgui.button(f"+##{item_type_label}_add"):
             new_item = item_class()
             new_item.name = self._generate_unique_name(items, default_id_base)
             new_item.localization.set_name(PRIMARY_LANGUAGE, default_name)
             new_item.localization.set_description(PRIMARY_LANGUAGE, default_desc)
             items.append(new_item)
             setattr(self, current_index_attr, len(items) - 1)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(f"添加{item_type_label}")
 
         imgui.same_line()
 
         # 删除按钮
-        if imgui.button(f"删除选中{item_type_label}") and current_index >= 0:
+        can_delete = current_index >= 0
+        if not can_delete:
+            imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+        if imgui.button(f"-##{item_type_label}_del") and can_delete:
             del items[current_index]
             setattr(self, current_index_attr, min(current_index, len(items) - 1))
+        if not can_delete:
+            imgui.pop_style_var()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(f"删除选中的{item_type_label}")
 
         imgui.same_line()
 
         # 复制按钮
-        if imgui.button(f"复制选中{item_type_label}") and current_index >= 0:
+        can_copy = current_index >= 0
+        if not can_copy:
+            imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+        if imgui.button(f"=##{item_type_label}_copy") and can_copy:
             source_item = items[current_index]
             new_item = copy.deepcopy(source_item)
 
@@ -732,25 +1024,33 @@ class ModGeneratorGUI:
 
             items.append(new_item)
             setattr(self, current_index_attr, len(items) - 1)
-
+        if not can_copy:
+            imgui.pop_style_var()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(f"复制选中的{item_type_label}")
+        
+        imgui.separator()
         current_index = getattr(self, current_index_attr)
 
-        # 列表项
+        # 列表项 - 使用 Selectable 替代 TreeNode，更适合列表
         for i, item in enumerate(items):
-            flags = imgui.TREE_NODE_LEAF
-            if i == current_index:
-                flags |= imgui.TREE_NODE_SELECTED
-
-            display_name_text = item.localization.get_display_name()
+            display_name = item.localization.get_display_name()
             suffix = get_display_suffix(item) if get_display_suffix else ""
-            display_name = f"{display_name_text} ({item.name}){suffix}"
-
-            opened = imgui.tree_node(display_name, flags=flags)
-            if imgui.is_item_clicked():
+            
+            # 主显示名 + 系统ID（较小）
+            is_selected = (i == current_index)
+            
+            # 选中项添加前缀标记，增强视觉对比
+            # 使用 > 符号替代图标字体，避免不同字体大小导致的对齐问题
+            prefix = "> " if is_selected else "  "
+            
+            # 使用 selectable，宽度填满容器
+            if imgui.selectable(f"{prefix}{display_name}##{i}", is_selected)[0]:
                 setattr(self, current_index_attr, i)
-
-            if opened:
-                imgui.tree_pop()
+            
+            # 显示系统ID和槽位后缀
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(f"系统ID: {item.name}\nID: {item.id}{suffix}")
 
     def _generate_unique_name(self, items, base_name):
         """生成唯一的默认名称"""
@@ -829,26 +1129,32 @@ class ModGeneratorGUI:
     def _draw_basic_properties(self, item, id_suffix, slot_labels, material_labels):
         """绘制物品基本属性"""
         type_name = "武器" if id_suffix == "weapon" else "装备"
-
-        # 系统ID
-        changed, item.name = imgui.input_text(
-            f"{type_name}系统ID*##{id_suffix}", item.name, 256
-        )
+        
+        # 系统ID - 占满宽度
+        imgui.text(f"{type_name}系统ID")
+        imgui.same_line()
+        self.text_secondary(f"(生成ID: {item.id})")
+        imgui.push_item_width(-1)
+        changed, item.name = imgui.input_text(f"##{id_suffix}_sysid", item.name, 256)
+        imgui.pop_item_width()
         if imgui.is_item_hovered():
             imgui.set_tooltip(
                 "用来让游戏识别该物品的内部名称，不向玩家展示。\n请确保ID尽可能独特，以免与其他Mod冲突！"
             )
-        imgui.same_line()
-        imgui.text(f"(ID: {item.id})")
-
-        # 等级
-        item.tier = self._draw_enum_combo(
-            f"等级##{id_suffix}", item.tier, TIER, TIER_LABELS
-        )
-
-        # 槽位
+        
+        imgui.dummy(0, 4)
+        
+        # 使用两列布局
+        col_width = imgui.get_content_region_available_width() / 2 - 8
+        
+        imgui.columns(2, f"basic_props_{id_suffix}", border=False)
+        imgui.set_column_width(0, col_width)
+        
+        # 左列
+        imgui.push_item_width(-1)
+        imgui.text("槽位")
         new_slot = self._draw_enum_combo(
-            f"槽位##{id_suffix}", item.slot, list(slot_labels.keys()), slot_labels
+            f"##slot_{id_suffix}", item.slot, list(slot_labels.keys()), slot_labels
         )
         if new_slot != item.slot:
             item.slot = new_slot
@@ -856,83 +1162,82 @@ class ModGeneratorGUI:
                 item.textures.clear_char()
             if not item.needs_left_texture():
                 item.textures.clear_left()
-
-        # 护甲类别（仅护甲）
-        if isinstance(item, Armor):
-            item.armor_class = self._draw_enum_combo(
-                "护甲类别",
-                item.armor_class,
-                list(ARMOR_CLASS_LABELS.keys()),
-                ARMOR_CLASS_LABELS,
-            )
-
-        # 材料
+        
+        imgui.text("等级")
+        item.tier = self._draw_enum_combo(f"##tier_{id_suffix}", item.tier, TIER, TIER_LABELS)
+        
+        imgui.text("材料")
         item.mat = self._draw_enum_combo(
-            f"材料##{id_suffix}",
-            item.mat,
-            list(material_labels.keys()),
-            material_labels,
+            f"##mat_{id_suffix}", item.mat, list(material_labels.keys()), material_labels
         )
-
-        # 标签（带自动稀有度）
+        
+        if isinstance(item, Armor):
+            imgui.text("护甲类别")
+            item.armor_class = self._draw_enum_combo(
+                f"##class_{id_suffix}", item.armor_class,
+                list(ARMOR_CLASS_LABELS.keys()), ARMOR_CLASS_LABELS
+            )
+        imgui.pop_item_width()
+        
+        # 右列
+        imgui.next_column()
+        imgui.push_item_width(-1)
+        
+        imgui.text("标签")
+        # 使用 item.name 作为唯一标识，避免武器/装备间的 combo 状态冲突
         new_tags = self._draw_enum_combo(
-            f"标签##{id_suffix}", item.tags, list(TAG_LABELS.keys()), TAG_LABELS
+            f"##tags_{id_suffix}_{item.name}", item.tags, list(TAG_LABELS.keys()), TAG_LABELS
         )
         if new_tags != item.tags:
             item.tags = new_tags
-            if new_tags in ["unique", "special", "special exc"]:
-                item.rarity = "Unique"
-            else:
-                item.rarity = "Common"
-
-        # 稀有度（只读）
+            item.rarity = "Unique" if new_tags in ["unique", "special", "special exc"] else "Common"
+        
+        imgui.text("稀有度")
         rarity_label = RARITY_LABELS.get(item.rarity, item.rarity)
-        imgui.input_text(
-            f"稀有度##{id_suffix}", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY
-        )
+        imgui.input_text(f"##rarity_{id_suffix}", rarity_label, 256, flags=imgui.INPUT_TEXT_READ_ONLY)
         if imgui.is_item_hovered():
             imgui.set_tooltip("由标签自动决定")
-
-        self.draw_indented_separator()
-
-        # 布尔属性
-        item.fireproof = self._draw_bool_combo(
-            f"防火##{id_suffix}", item.fireproof, "未被拾取时是否会被火焰摧毁"
-        )
-        if isinstance(item, Armor):
-            item.is_open = self._draw_bool_combo(
-                f"开放式##{id_suffix}",
-                item.is_open,
-                "装备是否为开放式设计（如头盔的面甲）",
-            )
-        item.no_drop = self._draw_bool_combo(
-            f"不可掉落##{id_suffix}", item.no_drop, "可能无法从宝箱中获取"
-        )
-
-        self.draw_indented_separator()
-
-        # 数值属性
-        changed, item.price = imgui.input_int(f"价格##{id_suffix}", item.price)
-        item.markup = 1
-        changed, item.max_duration = imgui.input_int(
-            f"最大耐久##{id_suffix}", item.max_duration
-        )
-
-        # 武器距离（仅武器）
+        
+        imgui.text("价格")
+        changed, item.price = imgui.input_int(f"##price_{id_suffix}", item.price)
+        
+        imgui.text("最大耐久")
+        changed, item.max_duration = imgui.input_int(f"##dur_{id_suffix}", item.max_duration)
+        imgui.pop_item_width()
+        
+        imgui.columns(1)
+        
+        # 武器距离（仅武器，弓弩专用）
         if isinstance(item, Weapon):
             if item.slot in ["bow", "crossbow"]:
-                changed, item.rng = imgui.input_int("距离", item.rng)
+                imgui.push_item_width(120)
+                imgui.text("攻击距离")
+                changed, item.rng = imgui.input_int(f"##rng_{id_suffix}", item.rng)
                 if changed:
                     item.rng = max(0, min(255, item.rng))
+                imgui.pop_item_width()
                 if imgui.is_item_hovered():
-                    imgui.set_tooltip(
-                        "决定武器的基础攻击距离（游戏内部字段）\n类型: byte (0-255)"
-                    )
+                    imgui.set_tooltip("决定武器的基础攻击距离（游戏内部字段）\n类型: byte (0-255)")
             else:
                 item.rng = 1
-                imgui.input_int("距离", item.rng, flags=imgui.INPUT_TEXT_READ_ONLY)
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("除弓弩外，武器距离固定为 1")
+
+        self.draw_indented_separator()
+        
+        # 布尔属性 - 横向排列
+        imgui.text("特殊属性")
+        item.fireproof = self._draw_inline_checkbox(f"防火##{id_suffix}", item.fireproof, "未被拾取时是否会被火焰摧毁")
+        imgui.same_line(spacing=20)
+        item.no_drop = self._draw_inline_checkbox(f"不可掉落##{id_suffix}", item.no_drop, "可能无法从宝箱中获取")
+        if isinstance(item, Armor):
+            imgui.same_line(spacing=20)
+            item.is_open = self._draw_inline_checkbox(f"开放式##{id_suffix}", item.is_open, "装备是否为开放式设计（如头盔的面甲）")
+    
+    def _draw_inline_checkbox(self, label, value, tooltip=""):
+        """绘制内联复选框"""
+        changed, new_value = imgui.checkbox(label, value)
+        if tooltip and imgui.is_item_hovered():
+            imgui.set_tooltip(tooltip)
+        return new_value if changed else value
 
     def _draw_attributes_editor(self, item, attribute_groups, id_suffix):
         """绘制属性编辑器"""
@@ -965,10 +1270,35 @@ class ModGeneratorGUI:
                     if changed:
                         item.attributes[attr] = new_val
 
+                    # 负面属性列表（这些属性越低越好）
+                    NEGATIVE_ATTRIBUTES = {
+                        "FMB", "Cooldown_Reduction", "Abilities_Energy_Cost", 
+                        "Skills_Energy_Cost", "Spells_Energy_Cost", 
+                        "Miscast_Chance", "Fatigue_Gain", "Damage_Received"
+                    }
+                    
+                    # 属性值颜色反馈：
+                    # 普通属性：正数绿色(增益)，负数红色(减益)
+                    # 负面属性：正数红色(减益)，负数绿色(增益)
+                    imgui.same_line()
+                    is_negative_attr = attr in NEGATIVE_ATTRIBUTES
+                    if new_val > 0:
+                        if is_negative_attr:
+                            self.text_error(f"+{new_val}")
+                        else:
+                            self.text_success(f"+{new_val}")
+                    elif new_val < 0:
+                        if is_negative_attr:
+                            self.text_success(f"{new_val}")
+                        else:
+                            self.text_error(f"{new_val}")
+                    else:
+                        self.text_secondary("0")
+
                     imgui.same_line()
                     imgui.text(f"{attr}")
                     imgui.same_line()
-                    imgui.text_colored(f"({desc_name})", 0.7, 0.7, 0.7, 1.0)
+                    self.text_secondary(f"({desc_name})")
 
                     if imgui.is_item_hovered():
                         tooltip_text = desc_detail
@@ -1045,6 +1375,7 @@ class ModGeneratorGUI:
 
         primary_data = item.localization.languages[PRIMARY_LANGUAGE]
 
+        imgui.text("名称")
         imgui.push_item_width(-1)
         changed, val = imgui.input_text(
             f"##{PRIMARY_LANGUAGE}_name{suffix}", primary_data["name"], 256
@@ -1055,12 +1386,15 @@ class ModGeneratorGUI:
             imgui.set_tooltip("主语言名称（建议填写）")
         imgui.pop_item_width()
 
+        imgui.text("描述")
         imgui.push_item_width(-1)
+        # 描述框高度随字体缩放
+        desc_height = 50 + (self.font_size - 14) * 3
         changed, val = imgui.input_text_multiline(
             f"##{PRIMARY_LANGUAGE}_desc{suffix}",
             primary_data["description"],
             1024,
-            height=60,
+            height=desc_height,
         )
         if changed:
             primary_data["description"] = val
@@ -1093,8 +1427,10 @@ class ModGeneratorGUI:
 
             imgui.text("描述")
             imgui.push_item_width(-1)
+            # 描述框高度随字体缩放
+            desc_height = 50 + (self.font_size - 14) * 3
             changed, val = imgui.input_text_multiline(
-                f"##{lang}_desc{suffix}", data["description"], 1024, height=60
+                f"##{lang}_desc{suffix}", data["description"], 1024, height=desc_height
             )
             if changed:
                 data["description"] = val
@@ -1110,40 +1446,38 @@ class ModGeneratorGUI:
         """绘制贴图编辑器"""
         type_name = "武器" if id_suffix == "weapon" else "装备"
 
-        imgui.text_colored("注意: 所有贴图仅支持 PNG 格式", 0.8, 0.8, 0.8, 1.0)
+        self.text_secondary("注意: 所有贴图仅支持 PNG 格式")
         self.draw_indented_separator()
 
-        # 预览设置
-        imgui.text("预览设置")
+        # 预览设置 - 紧凑横向布局
+        imgui.text("预览:")
         imgui.same_line()
-        imgui.push_item_width(100)
+        imgui.push_item_width(120)
         changed, self.texture_scale = imgui.input_float(
-            f"倍率##texture_scale_{id_suffix}",
-            self.texture_scale,
-            step=0.5,
-            step_fast=1.0,
-            format="%.1f",
+            f"##scale_{id_suffix}", self.texture_scale,
+            step=0.5, step_fast=1.0, format="%.1fx"
         )
         imgui.pop_item_width()
         if changed:
-            if self.texture_scale < 0.1:
-                self.texture_scale = 0.1
+            self.texture_scale = max(0.5, min(8.0, self.texture_scale))
             self.save_config()
         if imgui.is_item_hovered():
             imgui.set_tooltip("设置预览图的显示倍率 (默认 4.0)")
 
         if item.needs_char_texture():
-            imgui.text("预览模特")
-            current_model_label = CHARACTER_MODEL_LABELS.get(
-                self.selected_model, self.selected_model
-            )
-            if imgui.begin_combo(f"##character_model_{id_suffix}", current_model_label):
+            imgui.same_line(spacing=16)
+            imgui.text("模特:")
+            imgui.same_line()
+            # 模特选择宽度随字体缩放
+            model_combo_width = 100 + (self.font_size - 14) * 4
+            imgui.push_item_width(model_combo_width)
+            current_model_label = CHARACTER_MODEL_LABELS.get(self.selected_model, self.selected_model)
+            if imgui.begin_combo(f"##model_{id_suffix}", current_model_label):
                 for model_key, model_label in CHARACTER_MODEL_LABELS.items():
-                    if imgui.selectable(model_label, model_key == self.selected_model)[
-                        0
-                    ]:
+                    if imgui.selectable(model_label, model_key == self.selected_model)[0]:
                         self.selected_model = model_key
                 imgui.end_combo()
+            imgui.pop_item_width()
 
         self.draw_indented_separator()
 
@@ -1193,9 +1527,7 @@ class ModGeneratorGUI:
                 self.draw_indented_separator()
         else:
             slot_name = slot_labels.get(item.slot, item.slot)
-            imgui.text_colored(
-                f"提示: {slot_name} 槽位不需要穿戴状态贴图", 0.7, 0.7, 0.7, 1.0
-            )
+            self.text_secondary(f"提示: {slot_name} 槽位不需要穿戴状态贴图")
             self.draw_indented_separator()
 
         # 常规贴图
@@ -1254,9 +1586,16 @@ class ModGeneratorGUI:
             # 动画模式
             imgui.text(f"动画模式 (共 {len(texture_list)} 帧)")
             if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    f"当前动画包含 {len(texture_list)} 帧\n预览播放速度: {PREVIEW_ANIMATION_FPS} fps"
-                )
+                # 战利品贴图速度可变，其他使用预览默认速度
+                if field_name == "loot" and item:
+                    if item.textures.loot_use_relative_speed:
+                        actual_fps = GAME_FPS * item.textures.loot_fps
+                    else:
+                        actual_fps = item.textures.loot_fps
+                    fps_hint = f"预览播放速度: {actual_fps:.1f} fps (可在下方调整)"
+                else:
+                    fps_hint = f"预览播放速度: {PREVIEW_ANIMATION_FPS} fps"
+                imgui.set_tooltip(f"当前动画包含 {len(texture_list)} 帧\n{fps_hint}")
 
             if imgui.button(f"添加帧##{label_suffix}"):
                 paths = self.file_dialog([("PNG文件", "*.png")], multiple=True)
@@ -1372,9 +1711,7 @@ class ModGeneratorGUI:
         preview = self.get_texture_preview(current_path)
         if preview:
             imgui.same_line()
-            imgui.text_colored(
-                f"({preview['width']}x{preview['height']})", 0.7, 0.7, 0.7, 1.0
-            )
+            self.text_secondary(f"({preview['width']}x{preview['height']})")
             imgui.new_line()
             self._draw_texture_preview(preview, field_identifier, item, None)
 
@@ -1447,7 +1784,7 @@ class ModGeneratorGUI:
         if preview:
             imgui.same_line()
             dims = override_size or (preview["width"], preview["height"])
-            imgui.text_colored(f"({dims[0]}x{dims[1]})", 0.7, 0.7, 0.7, 1.0)
+            self.text_secondary(f"({dims[0]}x{dims[1]})")
             imgui.new_line()
             self._draw_texture_preview(preview, field_name, item, override_size)
 
@@ -1539,13 +1876,7 @@ class ModGeneratorGUI:
                 )
 
             actual_fps = GAME_FPS * textures.loot_fps
-            imgui.text_colored(
-                f"实际播放速度: {actual_fps:.3f} fps (游戏 {GAME_FPS} fps 时)",
-                0.7,
-                0.7,
-                0.7,
-                1.0,
-            )
+            self.text_secondary(f"实际播放速度: {actual_fps:.3f} fps (游戏 {GAME_FPS} fps 时)")
 
     def _import_texture(self, source_path):
         """导入贴图"""
@@ -1821,20 +2152,6 @@ class ModGeneratorGUI:
 
         return new_value
 
-    def _draw_bool_combo(self, label, current_value, tooltip=""):
-        """布尔值下拉框"""
-        value_str = "是" if current_value else "否"
-        new_value = current_value
-        if imgui.begin_combo(label, value_str):
-            if imgui.selectable("是", current_value)[0]:
-                new_value = True
-            if imgui.selectable("否", not current_value)[0]:
-                new_value = False
-            imgui.end_combo()
-        if tooltip and imgui.is_item_hovered():
-            imgui.set_tooltip(tooltip)
-        return new_value
-
     def _draw_validation_errors(self, errors):
         """显示验证错误"""
         if not errors:
@@ -1846,11 +2163,11 @@ class ModGeneratorGUI:
                 continue
             content = error.lstrip()
             if content.startswith("• WARNING:"):
-                imgui.text_colored(error, 1.0, 0.5, 0.0, 1.0)
+                self.text_warning(error)
             elif content.startswith("•"):
-                imgui.text_colored(error, 1.0, 0.0, 0.0, 1.0)
+                self.text_error(error)
             else:
-                imgui.text_colored(f"  • {error}", 1.0, 0.0, 0.0, 1.0)
+                self.text_error(f"  • {error}")
 
     def draw_indented_separator(self):
         """绘制缩进分隔线"""
