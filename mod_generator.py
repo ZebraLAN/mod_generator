@@ -974,9 +974,9 @@ class ModGeneratorGUI:
         current_index = getattr(self, current_index_attr)
         available_width = imgui.get_content_region_available_width()
 
-        # 工具栏：使用文字按钮
+        # 工具栏：使用语义化中文标签
         # 添加按钮
-        if imgui.button(f"+##{item_type_label}_add"):
+        if imgui.button(f"添加##{item_type_label}"):
             new_item = item_class()
             new_item.name = self._generate_unique_name(items, default_id_base)
             new_item.localization.set_name(PRIMARY_LANGUAGE, default_name)
@@ -984,7 +984,7 @@ class ModGeneratorGUI:
             items.append(new_item)
             setattr(self, current_index_attr, len(items) - 1)
         if imgui.is_item_hovered():
-            imgui.set_tooltip(f"添加{item_type_label}")
+            imgui.set_tooltip(f"添加新的{item_type_label}")
 
         imgui.same_line()
 
@@ -992,13 +992,13 @@ class ModGeneratorGUI:
         can_delete = current_index >= 0
         if not can_delete:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-        if imgui.button(f"-##{item_type_label}_del") and can_delete:
+        if imgui.button(f"删除##{item_type_label}") and can_delete:
             del items[current_index]
             setattr(self, current_index_attr, min(current_index, len(items) - 1))
         if not can_delete:
             imgui.pop_style_var()
         if imgui.is_item_hovered():
-            imgui.set_tooltip(f"删除选中的{item_type_label}")
+            imgui.set_tooltip(f"删除当前选中的{item_type_label}")
 
         imgui.same_line()
 
@@ -1006,7 +1006,7 @@ class ModGeneratorGUI:
         can_copy = current_index >= 0
         if not can_copy:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-        if imgui.button(f"=##{item_type_label}_copy") and can_copy:
+        if imgui.button(f"复制##{item_type_label}") and can_copy:
             source_item = items[current_index]
             new_item = copy.deepcopy(source_item)
 
@@ -1030,7 +1030,7 @@ class ModGeneratorGUI:
         if not can_copy:
             imgui.pop_style_var()
         if imgui.is_item_hovered():
-            imgui.set_tooltip(f"复制选中的{item_type_label}")
+            imgui.set_tooltip(f"复制当前选中的{item_type_label}")
 
         imgui.separator()
         current_index = getattr(self, current_index_attr)
@@ -1043,13 +1043,18 @@ class ModGeneratorGUI:
             # 主显示名 + 系统ID（较小）
             is_selected = i == current_index
 
-            # 选中项添加前缀标记，增强视觉对比
-            # 使用 > 符号替代图标字体，避免不同字体大小导致的对齐问题
-            prefix = "> " if is_selected else "  "
+            # 选中项使用主题色高亮背景，增强视觉对比
+            if is_selected:
+                imgui.push_style_color(imgui.COLOR_HEADER, *self.theme_colors["accent"])
 
             # 使用 selectable，宽度填满容器
-            if imgui.selectable(f"{prefix}{display_name}##{i}", is_selected)[0]:
+            if imgui.selectable(
+                f"{display_name}##{i}", is_selected, imgui.SELECTABLE_SPAN_ALL_COLUMNS
+            )[0]:
                 setattr(self, current_index_attr, i)
+
+            if is_selected:
+                imgui.pop_style_color()
 
             # 显示系统ID和槽位后缀
             if imgui.is_item_hovered():
@@ -1277,10 +1282,15 @@ class ModGeneratorGUI:
         return new_value if changed else value
 
     def _draw_attributes_editor(self, item, attribute_groups, id_suffix):
-        """绘制属性编辑器"""
+        """绘制属性编辑器 - 使用两列布局优化对齐"""
         for group_name, attributes in attribute_groups.items():
             tree_id = f"{group_name}##{id_suffix}_attr"
             if imgui.tree_node(tree_id):
+                # 使用两列布局：输入框 | 属性名，确保对齐
+                imgui.columns(2, f"attr_cols_{tree_id}", border=False)
+                input_col_width = 120 + (self.font_size - 14) * 6
+                imgui.set_column_width(0, input_col_width)
+
                 for attr in attributes:
                     desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
                     desc_name = desc_info[0] if desc_info[0] else attr
@@ -1288,8 +1298,8 @@ class ModGeneratorGUI:
 
                     val = item.attributes.get(attr, 0)
 
-                    input_width = 100 + (self.font_size - 14) * 8
-                    imgui.push_item_width(input_width)
+                    # 第一列：输入框
+                    imgui.push_item_width(-1)
                     input_id = f"##{attr}_{id_suffix}"
                     changed, new_val = imgui.input_int(
                         input_id, val, step=1, step_fast=10
@@ -1307,11 +1317,11 @@ class ModGeneratorGUI:
                     if changed:
                         item.attributes[attr] = new_val
 
-                    # 直接显示中文属性名称
-                    imgui.same_line()
+                    # 第二列：属性名称
+                    imgui.next_column()
                     imgui.text(desc_name)
 
-                    # 只有当有说明文字时才显示tooltip
+                    # tooltip 显示详细说明
                     tooltip_text = ""
                     if desc_detail:
                         tooltip_text = desc_detail
@@ -1322,6 +1332,9 @@ class ModGeneratorGUI:
                     if tooltip_text and imgui.is_item_hovered():
                         imgui.set_tooltip(tooltip_text)
 
+                    imgui.next_column()
+
+                imgui.columns(1)
                 imgui.tree_pop()
 
     def _draw_fragments_editor(self, armor):
@@ -1605,7 +1618,7 @@ class ModGeneratorGUI:
             self._draw_loot_animation_settings(item.textures, id_suffix)
 
     def _draw_multi_pose_armor_textures(self, item: Armor, id_suffix: str):
-        """绘制多姿势装备贴图编辑器（头/身/手/腿/背）
+        """绘制多姿势装备贴图编辑器（头/身/手/腿/背）- 优化布局
 
         游戏姿势系统：
         - 站立姿势0: 单手武器/盾牌/长杆时 → character[0] → s_char_{id}_0.png
@@ -1614,23 +1627,35 @@ class ModGeneratorGUI:
         """
         imgui.text("穿戴状态贴图")
         self.text_secondary("需要为站立和休息状态各准备贴图，每个姿势可独立设置偏移")
-
         imgui.dummy(0, 8)
 
-        # 三个贴图选择器，横向排列
-        pose_width = (imgui.get_content_region_available_width() - 16) / 3
-        btn_width = 36  # 小按钮宽度
+        available_width = imgui.get_content_region_available_width()
+        # 根据窗口宽度决定布局方式
+        use_horizontal = available_width > 550
+        pose_width = (
+            (available_width - 24) / 3 if use_horizontal else available_width - 8
+        )
+        # 计算预览高度和子窗口高度
+        scale = self.texture_scale
+        preview_h = ARMOR_PREVIEW_HEIGHT * scale
+        # 子窗口高度 = 标题行 + 偏移控件行 + 预览 + 状态文字(含fallback提示) + 边距
+        child_height = 24 + 28 + preview_h + 44 + 20
 
         # === 站立姿势0 (必须) ===
-        imgui.begin_group()
-        # 标签和按钮在同一行
-        imgui.text("站立0 *")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("单手武器/盾牌/长杆时的站立姿势")
-        imgui.same_line()
+        imgui.begin_child(
+            f"pose_s0_{id_suffix}",
+            width=pose_width,
+            height=child_height,
+            border=True,
+        )
         standing0_path = item.textures.character[0] if item.textures.character else ""
 
-        if imgui.button(f"选##s0_{id_suffix}", width=btn_width):
+        # 标题行：标题 + 按钮在同一行
+        imgui.text("站立0")
+        imgui.same_line()
+        self.text_error("*")
+        imgui.same_line()
+        if imgui.small_button(f"选择##s0_{id_suffix}"):
             path = self.file_dialog([("PNG文件", "*.png")])
             if path:
                 imported = self._import_texture(path)
@@ -1639,108 +1664,244 @@ class ModGeneratorGUI:
                 else:
                     item.textures.character.append(imported)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("选择贴图")
-
+            imgui.set_tooltip("选择贴图 (必填 - 单手武器/盾牌/长杆时的站立姿势)")
         if standing0_path:
             imgui.same_line()
-            if imgui.button(f"×##s0c_{id_suffix}", width=20):
+            if imgui.small_button(f"清除##s0c_{id_suffix}"):
                 item.textures.character.clear()
+                # 同时清除偏移设置
+                item.textures.offset_x = 0
+                item.textures.offset_y = 0
             if imgui.is_item_hovered():
                 imgui.set_tooltip("清除贴图")
 
-        # 站立姿势0偏移（带微调）
+        # 偏移控件 - 填满一行（未设置贴图时禁用）
         item.textures.offset_x, item.textures.offset_y = (
-            self._draw_compact_offset_inputs(
-                item.textures.offset_x, item.textures.offset_y, f"{id_suffix}_off0"
+            self._draw_full_width_offset_inputs(
+                item.textures.offset_x,
+                item.textures.offset_y,
+                f"{id_suffix}_off0",
+                disabled=not standing0_path,
             )
         )
 
-        # 站立姿势0预览
-        self._draw_armor_pose_preview(item, standing0_path, 0, id_suffix)
-        imgui.end_group()
+        # 预览 - 居中显示
+        self._draw_armor_pose_preview_centered(
+            item, standing0_path, 0, id_suffix, pose_width
+        )
+        imgui.end_child()
 
-        imgui.same_line()
+        if use_horizontal:
+            imgui.same_line()
 
         # === 站立姿势1 (可选) ===
-        imgui.begin_group()
+        imgui.begin_child(
+            f"pose_s1_{id_suffix}",
+            width=pose_width,
+            height=child_height,
+            border=True,
+        )
+        standing1_path = item.textures.character_standing1
+
+        # 标题行：标题 + 按钮在同一行
         imgui.text("站立1")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("其他双手武器时的站立姿势\n未设置时游戏可能回退到站立0")
         imgui.same_line()
         self.text_secondary("可选")
         imgui.same_line()
-        standing1_path = item.textures.character_standing1
-
-        if imgui.button(f"选##s1_{id_suffix}", width=btn_width):
+        if imgui.small_button(f"选择##s1_{id_suffix}"):
             path = self.file_dialog([("PNG文件", "*.png")])
             if path:
                 item.textures.character_standing1 = self._import_texture(path)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("选择贴图")
-
+            imgui.set_tooltip("选择贴图 (可选 - 其他双手武器时的站立姿势)")
         if standing1_path:
             imgui.same_line()
-            if imgui.button(f"×##s1c_{id_suffix}", width=20):
+            if imgui.small_button(f"清除##s1c_{id_suffix}"):
                 item.textures.character_standing1 = ""
+                # 同时清除偏移设置
+                item.textures.offset_x_standing1 = 0
+                item.textures.offset_y_standing1 = 0
             if imgui.is_item_hovered():
                 imgui.set_tooltip("清除贴图")
 
-        # 站立姿势1偏移
+        # 偏移控件 - 填满一行（未设置贴图时禁用）
         item.textures.offset_x_standing1, item.textures.offset_y_standing1 = (
-            self._draw_compact_offset_inputs(
+            self._draw_full_width_offset_inputs(
                 item.textures.offset_x_standing1,
                 item.textures.offset_y_standing1,
                 f"{id_suffix}_off1",
+                disabled=not standing1_path,
             )
         )
 
-        # 站立姿势1预览（未设置时使用站立0贴图和站立0偏移）
+        # 预览 - 居中显示
         preview_path = standing1_path if standing1_path else standing0_path
-        self._draw_armor_pose_preview(
+        self._draw_armor_pose_preview_centered(
             item,
             preview_path,
             1,
             id_suffix,
+            pose_width,
             fallback=not standing1_path and bool(standing0_path),
         )
-        imgui.end_group()
+        imgui.end_child()
 
-        imgui.same_line()
+        if use_horizontal:
+            imgui.same_line()
 
         # === 休息姿势 (必须) ===
-        imgui.begin_group()
-        imgui.text("休息 *")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("休息状态时的姿势")
-        imgui.same_line()
+        imgui.begin_child(
+            f"pose_sr_{id_suffix}",
+            width=pose_width,
+            height=child_height,
+            border=True,
+        )
         rest_path = item.textures.character_rest
 
-        if imgui.button(f"选##sr_{id_suffix}", width=btn_width):
+        # 标题行：标题 + 按钮在同一行
+        imgui.text("休息")
+        imgui.same_line()
+        self.text_error("*")
+        imgui.same_line()
+        if imgui.small_button(f"选择##sr_{id_suffix}"):
             path = self.file_dialog([("PNG文件", "*.png")])
             if path:
                 item.textures.character_rest = self._import_texture(path)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("选择贴图")
-
+            imgui.set_tooltip("选择贴图 (必填 - 休息状态时的姿势)")
         if rest_path:
             imgui.same_line()
-            if imgui.button(f"×##src_{id_suffix}", width=20):
+            if imgui.small_button(f"清除##src_{id_suffix}"):
                 item.textures.character_rest = ""
+                # 同时清除偏移设置
+                item.textures.offset_x_rest = 0
+                item.textures.offset_y_rest = 0
             if imgui.is_item_hovered():
                 imgui.set_tooltip("清除贴图")
 
-        # 休息姿势偏移
+        # 偏移控件 - 填满一行（未设置贴图时禁用）
         item.textures.offset_x_rest, item.textures.offset_y_rest = (
-            self._draw_compact_offset_inputs(
+            self._draw_full_width_offset_inputs(
                 item.textures.offset_x_rest,
                 item.textures.offset_y_rest,
                 f"{id_suffix}_off2",
+                disabled=not rest_path,
             )
         )
 
-        # 休息姿势预览
-        self._draw_armor_pose_preview(item, rest_path, 2, id_suffix)
-        imgui.end_group()
+        # 预览 - 居中显示
+        self._draw_armor_pose_preview_centered(
+            item, rest_path, 2, id_suffix, pose_width
+        )
+        imgui.end_child()
+
+    def _draw_full_width_offset_inputs(
+        self, off_x: int, off_y: int, id_suffix: str, disabled: bool = False
+    ) -> tuple:
+        """绘制填满一行的偏移输入控件"""
+        available_width = imgui.get_content_region_available_width()
+
+        # 布局: [-][X输入框][+]  [-][Y输入框][+]
+        # 两组控件平分宽度
+        group_width = (available_width - 8) / 2  # 8px 间距
+        btn_w = 20
+        input_w = group_width - btn_w * 2 - 16  # 减去按钮和标签宽度
+
+        new_x, new_y = off_x, off_y
+
+        # 禁用时降低透明度
+        if disabled:
+            imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+
+        imgui.push_button_repeat(True)
+
+        # X 偏移组
+        if imgui.button(f"-##xm_{id_suffix}", width=btn_w) and not disabled:
+            new_x = off_x - 1
+        imgui.same_line(spacing=2)
+        imgui.text("X")
+        imgui.same_line(spacing=2)
+        imgui.push_item_width(input_w)
+        if disabled:
+            imgui.input_int(
+                f"##offx_{id_suffix}",
+                off_x,
+                step=0,
+                step_fast=0,
+                flags=imgui.INPUT_TEXT_READ_ONLY,
+            )
+        else:
+            changed_x, val_x = imgui.input_int(
+                f"##offx_{id_suffix}", off_x, step=0, step_fast=0
+            )
+            if changed_x:
+                new_x = val_x
+        imgui.pop_item_width()
+        imgui.same_line(spacing=2)
+        if imgui.button(f"+##xp_{id_suffix}", width=btn_w) and not disabled:
+            new_x = off_x + 1
+
+        imgui.same_line(spacing=8)
+
+        # Y 偏移组
+        if imgui.button(f"-##ym_{id_suffix}", width=btn_w) and not disabled:
+            new_y = off_y - 1
+        imgui.same_line(spacing=2)
+        imgui.text("Y")
+        imgui.same_line(spacing=2)
+        imgui.push_item_width(input_w)
+        if disabled:
+            imgui.input_int(
+                f"##offy_{id_suffix}",
+                off_y,
+                step=0,
+                step_fast=0,
+                flags=imgui.INPUT_TEXT_READ_ONLY,
+            )
+        else:
+            changed_y, val_y = imgui.input_int(
+                f"##offy_{id_suffix}", off_y, step=0, step_fast=0
+            )
+            if changed_y:
+                new_y = val_y
+        imgui.pop_item_width()
+        imgui.same_line(spacing=2)
+        if imgui.button(f"+##yp_{id_suffix}", width=btn_w) and not disabled:
+            new_y = off_y + 1
+
+        imgui.pop_button_repeat()
+
+        if disabled:
+            imgui.pop_style_var()
+
+        return (new_x, new_y)
+
+    def _draw_armor_pose_preview_centered(
+        self,
+        item: Armor,
+        texture_path: str,
+        pose_index: int,
+        id_suffix: str,
+        container_width: float,
+        fallback: bool = False,
+    ):
+        """绘制护甲姿势预览（在容器内居中）"""
+        scale = self.texture_scale
+        preview_w = ARMOR_PREVIEW_WIDTH * scale
+
+        # 计算居中偏移（考虑子窗口内边距和滚动条）
+        style = imgui.get_style()
+        padding = style.window_padding.x
+        content_width = container_width - padding * 2 - style.scrollbar_size
+        center_offset = max(0, (content_width - preview_w) / 2)
+
+        if center_offset > 0:
+            imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + center_offset)
+
+        # 调用原有预览绘制逻辑
+        self._draw_armor_pose_preview(
+            item, texture_path, pose_index, id_suffix, fallback
+        )
 
     # 偏移控件尺寸常量
     OFFSET_BTN_W = 24  # 微调按钮宽度
@@ -1927,11 +2088,26 @@ class ModGeneratorGUI:
         # 占位
         imgui.dummy(preview_w, preview_h)
 
-        # 回退提示
+        # 状态提示 - 居中显示
+        hint_text = ""
+        is_warning = False
         if fallback:
-            self.text_warning("(使用姿势0预览)")
+            hint_text = "(未设置，游戏中将复用姿势0)"
+            is_warning = True
         elif not texture_path:
-            self.text_secondary("(未设置)")
+            hint_text = "(未设置)"
+
+        if hint_text:
+            hint_size = imgui.calc_text_size(hint_text)
+            # 计算居中偏移
+            available_w = imgui.get_content_region_available_width()
+            center_offset = max(0, (available_w - hint_size.x) / 2)
+            if center_offset > 0:
+                imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + center_offset)
+            if is_warning:
+                self.text_warning(hint_text)
+            else:
+                self.text_secondary(hint_text)
 
     def _draw_texture_list_selector(
         self, label, texture_list: list, field_name: str, item, id_suffix
@@ -2563,21 +2739,40 @@ class ModGeneratorGUI:
         return new_value
 
     def _draw_validation_errors(self, errors):
-        """显示验证错误"""
+        """显示验证错误 - 增强视觉对比"""
         if not errors:
             return
         self.draw_indented_separator()
         imgui.text("消息:")
+
         for error in errors:
             if error.endswith("):"):
+                # 物品标题行，跳过
                 continue
             content = error.lstrip()
+
+            # 区分警告和错误，使用图标增强辨识度
             if content.startswith("• WARNING:"):
-                self.text_warning(error)
+                # 警告：黄色 + 警告图标
+                imgui.text("  ")
+                imgui.same_line()
+                self.text_warning("!")
+                imgui.same_line()
+                self.text_warning(content[10:].strip())  # 去掉 "• WARNING:" 前缀
             elif content.startswith("•"):
-                self.text_error(error)
+                # 错误：红色 + 错误图标
+                imgui.text("  ")
+                imgui.same_line()
+                self.text_error("X")
+                imgui.same_line()
+                self.text_error(content[1:].strip())  # 去掉 "•" 前缀
             else:
-                self.text_error(f"  • {error}")
+                # 其他错误
+                imgui.text("  ")
+                imgui.same_line()
+                self.text_error("X")
+                imgui.same_line()
+                self.text_error(error)
 
     def draw_indented_separator(self):
         """绘制缩进分隔线"""
