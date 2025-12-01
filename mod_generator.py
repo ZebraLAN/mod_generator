@@ -1283,7 +1283,7 @@ class ModGeneratorGUI:
             if imgui.tree_node(tree_id):
                 for attr in attributes:
                     desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
-                    desc_name = desc_info[0]
+                    desc_name = desc_info[0] if desc_info[0] else attr
                     desc_detail = desc_info[1] if len(desc_info) > 1 else ""
 
                     val = item.attributes.get(attr, 0)
@@ -1307,35 +1307,19 @@ class ModGeneratorGUI:
                     if changed:
                         item.attributes[attr] = new_val
 
-                    # 属性值颜色反馈：
-                    # 普通属性：正数绿色(增益)，负数红色(减益)
-                    # 负面属性：正数红色(减益)，负数绿色(增益)
+                    # 直接显示中文属性名称
                     imgui.same_line()
-                    is_negative_attr = attr in NEGATIVE_ATTRIBUTES
-                    if new_val > 0:
-                        if is_negative_attr:
-                            self.text_error(f"+{new_val}")
-                        else:
-                            self.text_success(f"+{new_val}")
-                    elif new_val < 0:
-                        if is_negative_attr:
-                            self.text_success(f"{new_val}")
-                        else:
-                            self.text_error(f"{new_val}")
-                    else:
-                        self.text_secondary("0")
+                    imgui.text(desc_name)
 
-                    imgui.same_line()
-                    imgui.text(f"{attr}")
-                    imgui.same_line()
-                    self.text_secondary(f"({desc_name})")
-
-                    if imgui.is_item_hovered():
+                    # 只有当有说明文字时才显示tooltip
+                    tooltip_text = ""
+                    if desc_detail:
                         tooltip_text = desc_detail
-                        if attr in BYTE_ATTRIBUTES:
-                            if tooltip_text:
-                                tooltip_text += "\n"
-                            tooltip_text += "类型: byte (0-255)"
+                    if attr in BYTE_ATTRIBUTES:
+                        if tooltip_text:
+                            tooltip_text += "\n"
+                        tooltip_text += "类型: byte (0-255)"
+                    if tooltip_text and imgui.is_item_hovered():
                         imgui.set_tooltip(tooltip_text)
 
                 imgui.tree_pop()
