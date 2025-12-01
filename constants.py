@@ -136,6 +136,14 @@ ARMOR_SLOTS_WITH_CHAR_PREVIEW = ["shield", "Head", "Chest", "Arms", "Legs", "Bac
 # 不需要角色贴图的槽位 (腰带、戒指、护身符)
 ARMOR_SLOTS_NO_CHAR = ["Waist", "Ring", "Amulet"]
 
+# 需要多姿势穿戴贴图的装备槽位 (头/身/手/腿/背)
+# 游戏姿势系统：
+# - 站立姿势0: 单手武器/盾牌/长杆 → s_char_{id}_0.png (帧序列第0帧)
+# - 站立姿势1: 其他双手武器 → s_char_{id}_1.png (帧序列第1帧，可选)
+# - 休息姿势: 休息状态 → s_char3_{id}.png (独立贴图槽)
+# 注：游戏用 s_char 帧序列的两帧存储站立姿势，导致这些装备无法支持动画
+ARMOR_SLOTS_MULTI_POSE = ["Head", "Chest", "Arms", "Legs", "Back"]
+
 # ============== 渲染与动画常量 ==============
 
 # 游戏实际帧率 (Stoneshard 运行在约 40fps)
@@ -149,6 +157,10 @@ GML_ANCHOR_X = 22  # 游戏内默认原点 X
 GML_ANCHOR_Y = 34  # 游戏内默认原点 Y
 CHAR_IMG_W = 48  # 人物贴图宽
 CHAR_IMG_H = 40  # 人物贴图高
+
+# 护甲穿戴贴图预览区域尺寸 (与人物贴图相同)
+ARMOR_PREVIEW_WIDTH = CHAR_IMG_W  # 48
+ARMOR_PREVIEW_HEIGHT = CHAR_IMG_H  # 40
 CHAR_CENTER_X = CHAR_IMG_W // 2  # 人物中心 X (24)
 CHAR_CENTER_Y = CHAR_IMG_H // 2  # 人物中心 Y (20)
 VALID_AREA_SIZE = 64  # 有效显示区域边长 (64x64)
@@ -454,12 +466,21 @@ ARMOR_FRAGMENT_LABELS = {
 
 # ============== 角色模型 ==============
 
+# 角色模型 - 每个模型有3个姿势: 0=单手, 1=双手, 2=护甲专用
 CHARACTER_MODELS = {
-    "Human Male": ["s_human_male_0.png", "s_human_male_1.png"],
-    "Human Female": ["s_human_female_0.png", "s_human_female_1.png"],
-    "Dwarf Male": ["s_dwarf_male_0.png", "s_dwarf_male_1.png"],
-    "Dwarf Female": ["s_dwarf_female_0.png", "s_dwarf_female_1.png"],
-    "Elf Male": ["s_elf_male_0.png", "s_elf_male_1.png"],
+    "Human Male": ["s_human_male_0.png", "s_human_male_1.png", "s_human_male_2.png"],
+    "Human Female": [
+        "s_human_female_0.png",
+        "s_human_female_1.png",
+        "s_human_female_2.png",
+    ],
+    "Dwarf Male": ["s_dwarf_male_0.png", "s_dwarf_male_1.png", "s_dwarf_male_2.png"],
+    "Dwarf Female": [
+        "s_dwarf_female_0.png",
+        "s_dwarf_female_1.png",
+        "s_dwarf_female_2.png",
+    ],
+    "Elf Male": ["s_elf_male_0.png", "s_elf_male_1.png", "s_elf_male_2.png"],
 }
 
 CHARACTER_MODEL_LABELS = {

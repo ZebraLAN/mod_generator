@@ -45,7 +45,10 @@ from constants import (
     ARMOR_ATTRIBUTE_GROUPS,
     ARMOR_CLASS_LABELS,
     ARMOR_FRAGMENT_LABELS,
+    ARMOR_PREVIEW_HEIGHT,
+    ARMOR_PREVIEW_WIDTH,
     ARMOR_SLOT_LABELS,
+    ARMOR_SLOTS_MULTI_POSE,
     ATTRIBUTE_DESCRIPTIONS,
     BYTE_ATTRIBUTES,
     CHARACTER_MODEL_LABELS,
@@ -1547,25 +1550,41 @@ class ModGeneratorGUI:
 
         # 穿戴/手持状态贴图
         if item.needs_char_texture():
-            char_label = "手持状态贴图*" if id_suffix == "weapon" else "穿戴状态贴图*"
-            self._draw_texture_list_selector(
-                char_label, item.textures.character, "character", item, id_suffix
+            # 判断是否为多姿势护甲（头/身/手/腿/背）
+            is_multi_pose_armor = (
+                isinstance(item, Armor) and item.needs_multi_pose_textures()
             )
 
-            offset_label = (
-                "手持贴图偏移 (右手/默认)" if id_suffix == "weapon" else "穿戴贴图偏移"
-            )
-            item.textures.offset_x, item.textures.offset_y = self._draw_offset_inputs(
-                offset_label,
-                f"调整{type_name}相对于人物的相对位置",
-                item.textures.offset_x,
-                item.textures.offset_y,
-                id_suffix,
-            )
+            if is_multi_pose_armor:
+                # 多姿势护甲 UI
+                self._draw_multi_pose_armor_textures(item, id_suffix)
+            else:
+                # 武器/盾牌：支持动画的贴图选择器
+                char_label = (
+                    "手持状态贴图*" if id_suffix == "weapon" else "穿戴状态贴图*"
+                )
+                self._draw_texture_list_selector(
+                    char_label, item.textures.character, "character", item, id_suffix
+                )
+
+                offset_label = (
+                    "手持贴图偏移 (右手/默认)"
+                    if id_suffix == "weapon"
+                    else "穿戴贴图偏移"
+                )
+                item.textures.offset_x, item.textures.offset_y = (
+                    self._draw_offset_inputs(
+                        offset_label,
+                        f"调整{type_name}相对于人物的相对位置",
+                        item.textures.offset_x,
+                        item.textures.offset_y,
+                        id_suffix,
+                    )
+                )
 
             self.draw_indented_separator()
 
-            # 左手贴图
+            # 左手贴图（仅武器/盾牌）
             if item.needs_left_texture():
                 left_label = (
                     "左手手持贴图*" if id_suffix == "weapon" else "左手穿戴贴图*"
@@ -1630,6 +1649,335 @@ class ModGeneratorGUI:
         # 战利品动画速度
         if item.textures.is_animated("loot"):
             self._draw_loot_animation_settings(item.textures, id_suffix)
+
+    def _draw_multi_pose_armor_textures(self, item: Armor, id_suffix: str):
+        """绘制多姿势装备贴图编辑器（头/身/手/腿/背）
+
+        游戏姿势系统：
+        - 站立姿势0: 单手武器/盾牌/长杆时 → character[0] → s_char_{id}_0.png
+        - 站立姿势1: 其他双手武器时 → character_standing1 → s_char_{id}_1.png (可选)
+        - 休息姿势: 休息状态 → character_rest → s_char3_{id}.png (必须)
+        """
+        imgui.text("穿戴状态贴图")
+        self.text_secondary("需要为站立和休息状态各准备贴图，每个姿势可独立设置偏移")
+
+        imgui.dummy(0, 8)
+
+        # 三个贴图选择器，横向排列
+        pose_width = (imgui.get_content_region_available_width() - 16) / 3
+        btn_width = 36  # 小按钮宽度
+
+        # === 站立姿势0 (必须) ===
+        imgui.begin_group()
+        # 标签和按钮在同一行
+        imgui.text("站立0 *")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("单手武器/盾牌/长杆时的站立姿势")
+        imgui.same_line()
+        standing0_path = item.textures.character[0] if item.textures.character else ""
+
+        if imgui.button(f"选##s0_{id_suffix}", width=btn_width):
+            path = self.file_dialog([("PNG文件", "*.png")])
+            if path:
+                imported = self._import_texture(path)
+                if item.textures.character:
+                    item.textures.character[0] = imported
+                else:
+                    item.textures.character.append(imported)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("选择贴图")
+
+        if standing0_path:
+            imgui.same_line()
+            if imgui.button(f"×##s0c_{id_suffix}", width=20):
+                item.textures.character.clear()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("清除贴图")
+
+        # 站立姿势0偏移（带微调）
+        item.textures.offset_x, item.textures.offset_y = (
+            self._draw_compact_offset_inputs(
+                item.textures.offset_x, item.textures.offset_y, f"{id_suffix}_off0"
+            )
+        )
+
+        # 站立姿势0预览
+        self._draw_armor_pose_preview(item, standing0_path, 0, id_suffix)
+        imgui.end_group()
+
+        imgui.same_line()
+
+        # === 站立姿势1 (可选) ===
+        imgui.begin_group()
+        imgui.text("站立1")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("其他双手武器时的站立姿势\n未设置时游戏可能回退到站立0")
+        imgui.same_line()
+        self.text_secondary("可选")
+        imgui.same_line()
+        standing1_path = item.textures.character_standing1
+
+        if imgui.button(f"选##s1_{id_suffix}", width=btn_width):
+            path = self.file_dialog([("PNG文件", "*.png")])
+            if path:
+                item.textures.character_standing1 = self._import_texture(path)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("选择贴图")
+
+        if standing1_path:
+            imgui.same_line()
+            if imgui.button(f"×##s1c_{id_suffix}", width=20):
+                item.textures.character_standing1 = ""
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("清除贴图")
+
+        # 站立姿势1偏移
+        item.textures.offset_x_standing1, item.textures.offset_y_standing1 = (
+            self._draw_compact_offset_inputs(
+                item.textures.offset_x_standing1,
+                item.textures.offset_y_standing1,
+                f"{id_suffix}_off1",
+            )
+        )
+
+        # 站立姿势1预览（未设置时使用站立0贴图和站立0偏移）
+        preview_path = standing1_path if standing1_path else standing0_path
+        self._draw_armor_pose_preview(
+            item,
+            preview_path,
+            1,
+            id_suffix,
+            fallback=not standing1_path and bool(standing0_path),
+        )
+        imgui.end_group()
+
+        imgui.same_line()
+
+        # === 休息姿势 (必须) ===
+        imgui.begin_group()
+        imgui.text("休息 *")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("休息状态时的姿势")
+        imgui.same_line()
+        rest_path = item.textures.character_rest
+
+        if imgui.button(f"选##sr_{id_suffix}", width=btn_width):
+            path = self.file_dialog([("PNG文件", "*.png")])
+            if path:
+                item.textures.character_rest = self._import_texture(path)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("选择贴图")
+
+        if rest_path:
+            imgui.same_line()
+            if imgui.button(f"×##src_{id_suffix}", width=20):
+                item.textures.character_rest = ""
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("清除贴图")
+
+        # 休息姿势偏移
+        item.textures.offset_x_rest, item.textures.offset_y_rest = (
+            self._draw_compact_offset_inputs(
+                item.textures.offset_x_rest,
+                item.textures.offset_y_rest,
+                f"{id_suffix}_off2",
+            )
+        )
+
+        # 休息姿势预览
+        self._draw_armor_pose_preview(item, rest_path, 2, id_suffix)
+        imgui.end_group()
+
+    # 偏移控件尺寸常量
+    OFFSET_BTN_W = 24  # 微调按钮宽度
+    OFFSET_INPUT_W = 42  # 输入框宽度
+    OFFSET_SPACING = 2  # 元素间距
+    OFFSET_GAP = 6  # X/Y 组之间间距
+
+    @classmethod
+    def _calc_offset_controls_width(cls) -> float:
+        """计算偏移控件组的总宽度"""
+        # 布局: [-] X [input] [+]  [-] Y [input] [+]
+        # 每组: btn + spacing + label(~8) + spacing + input + spacing + btn
+        single_group = (
+            cls.OFFSET_BTN_W * 2 + cls.OFFSET_INPUT_W + cls.OFFSET_SPACING * 3 + 8
+        )
+        return single_group * 2 + cls.OFFSET_GAP
+
+    def _draw_compact_offset_inputs(
+        self, off_x: int, off_y: int, id_suffix: str
+    ) -> tuple:
+        """绘制紧凑的偏移输入控件（带微调按钮，支持按住连续调整）"""
+        # 布局: [-] X [input] [+]  [-] Y [input] [+]
+        btn_w = self.OFFSET_BTN_W
+        input_w = self.OFFSET_INPUT_W
+        sp = self.OFFSET_SPACING
+
+        new_x, new_y = off_x, off_y
+
+        # X 偏移
+        imgui.push_button_repeat(True)  # 启用按住重复触发
+        if imgui.button(f"-##xm_{id_suffix}", width=btn_w):
+            new_x = off_x - 1
+        imgui.same_line(spacing=sp)
+        imgui.text("X")
+        imgui.same_line(spacing=sp)
+        imgui.push_item_width(input_w)
+        changed_x, val_x = imgui.input_int(
+            f"##offx_{id_suffix}", off_x, step=0, step_fast=0
+        )
+        if changed_x:
+            new_x = val_x
+        imgui.pop_item_width()
+        imgui.same_line(spacing=sp)
+        if imgui.button(f"+##xp_{id_suffix}", width=btn_w):
+            new_x = off_x + 1
+
+        # Y 偏移
+        imgui.same_line(spacing=self.OFFSET_GAP)
+        if imgui.button(f"-##ym_{id_suffix}", width=btn_w):
+            new_y = off_y - 1
+        imgui.same_line(spacing=sp)
+        imgui.text("Y")
+        imgui.same_line(spacing=sp)
+        imgui.push_item_width(input_w)
+        changed_y, val_y = imgui.input_int(
+            f"##offy_{id_suffix}", off_y, step=0, step_fast=0
+        )
+        if changed_y:
+            new_y = val_y
+        imgui.pop_item_width()
+        imgui.same_line(spacing=sp)
+        if imgui.button(f"+##yp_{id_suffix}", width=btn_w):
+            new_y = off_y + 1
+        imgui.pop_button_repeat()  # 恢复默认行为
+
+        return (new_x, new_y)
+
+    def _draw_armor_pose_preview(
+        self,
+        item: Armor,
+        texture_path: str,
+        pose_index: int,
+        id_suffix: str,
+        fallback: bool = False,
+    ):
+        """绘制护甲姿势预览
+
+        Args:
+            item: 护甲物品
+            texture_path: 贴图路径
+            pose_index: 姿势索引 (0, 1, 2)
+            id_suffix: ID后缀
+            fallback: 是否为回退显示（姿势1未设置时用姿势0）
+        """
+        scale = self.texture_scale
+        preview_w = ARMOR_PREVIEW_WIDTH * scale
+        preview_h = ARMOR_PREVIEW_HEIGHT * scale
+
+        # 计算居中所需的左边距
+        controls_w = self._calc_offset_controls_width()
+        margin_left = max(0, (controls_w - preview_w) / 2)
+
+        # 添加左边距使预览居中
+        if margin_left > 0:
+            imgui.dummy(margin_left, 0)
+            imgui.same_line()
+
+        draw_list = imgui.get_window_draw_list()
+        start_pos = imgui.get_cursor_screen_pos()
+
+        # 获取裁剪矩形
+        clip_rect = draw_list.get_clip_rect_min(), draw_list.get_clip_rect_max()
+        clip_min_x, clip_min_y = clip_rect[0]
+        clip_max_x, clip_max_y = clip_rect[1]
+
+        # 计算预览区域与窗口裁剪区域的交集
+        preview_clip_min_x = max(start_pos[0], clip_min_x)
+        preview_clip_min_y = max(start_pos[1], clip_min_y)
+        preview_clip_max_x = min(start_pos[0] + preview_w, clip_max_x)
+        preview_clip_max_y = min(start_pos[1] + preview_h, clip_max_y)
+
+        # 只有当裁剪区域有效时才绘制
+        if (
+            preview_clip_min_x < preview_clip_max_x
+            and preview_clip_min_y < preview_clip_max_y
+        ):
+            draw_list.push_clip_rect(
+                preview_clip_min_x,
+                preview_clip_min_y,
+                preview_clip_max_x,
+                preview_clip_max_y,
+            )
+
+            # 绘制棋盘格背景
+            self.draw_checkerboard(
+                draw_list,
+                start_pos,
+                (start_pos[0] + preview_w, start_pos[1] + preview_h),
+                cell_size=int(8 * scale),
+            )
+
+            # 绘制模特参考图
+            model_files = CHARACTER_MODELS.get(
+                self.selected_model,
+                ["s_human_male_0.png", "s_human_male_1.png", "s_human_male_2.png"],
+            )
+            if pose_index < len(model_files):
+                ref_path = os.path.join("resources", model_files[pose_index])
+                if not os.path.exists(ref_path):
+                    ref_path = model_files[pose_index]
+
+                ref_preview = self.get_texture_preview(ref_path)
+                if ref_preview:
+                    draw_list.add_image(
+                        ref_preview["tex_id"],
+                        (float(start_pos[0]), float(start_pos[1])),
+                        (
+                            float(start_pos[0] + ref_preview["width"] * scale),
+                            float(start_pos[1] + ref_preview["height"] * scale),
+                        ),
+                    )
+
+            # 绘制护甲贴图（应用各姿势独立的偏移）
+            if texture_path:
+                preview = self.get_texture_preview(texture_path)
+                if preview:
+                    # 根据姿势索引选择对应的偏移
+                    # fallback 时（站立1用站立0贴图预览）使用站立0的偏移
+                    if pose_index == 0 or fallback:
+                        off_x = item.textures.offset_x
+                        off_y = item.textures.offset_y
+                    elif pose_index == 1:
+                        off_x = item.textures.offset_x_standing1
+                        off_y = item.textures.offset_y_standing1
+                    else:  # pose_index == 2
+                        off_x = item.textures.offset_x_rest
+                        off_y = item.textures.offset_y_rest
+
+                    # 计算绘制位置（偏移向负方向移动贴图）
+                    armor_x = start_pos[0] - off_x * scale
+                    armor_y = start_pos[1] - off_y * scale
+
+                    draw_list.add_image(
+                        preview["tex_id"],
+                        (float(armor_x), float(armor_y)),
+                        (
+                            float(armor_x + preview["width"] * scale),
+                            float(armor_y + preview["height"] * scale),
+                        ),
+                    )
+
+            draw_list.pop_clip_rect()
+
+        # 占位
+        imgui.dummy(preview_w, preview_h)
+
+        # 回退提示
+        if fallback:
+            self.text_warning("(使用姿势0预览)")
+        elif not texture_path:
+            self.text_secondary("(未设置)")
 
     def _draw_texture_list_selector(
         self, label, texture_list: list, field_name: str, item, id_suffix
@@ -2019,6 +2367,7 @@ class ModGeneratorGUI:
             pose_index = 0
             if hasattr(target_item, "slot"):
                 slot = target_item.slot
+                # 单手武器、长杆武器、弓、盾牌使用姿势0
                 use_single_hand_pose = slot in [
                     "dagger",
                     "mace",
@@ -2026,6 +2375,7 @@ class ModGeneratorGUI:
                     "axe",
                     "spear",
                     "bow",
+                    "shield",  # 盾牌也使用姿势0
                 ]
                 pose_index = 0 if use_single_hand_pose else 1
 
@@ -2473,12 +2823,17 @@ class ModGeneratorGUI:
             print("复制贴图文件...")
             texture_errors = []
             for item in self.project.weapons + self.project.armors:
+                # 判断是否为多姿势护甲
+                is_multi_pose = (
+                    isinstance(item, Armor) and item.needs_multi_pose_textures()
+                )
                 errs = copy_item_textures(
                     item_id=item.id,
                     textures=item.textures,
                     sprites_dir=sprites_dir,
                     copy_char=item.needs_char_texture(),
                     copy_left=item.needs_left_texture(),
+                    is_multi_pose_armor=is_multi_pose,
                 )
                 texture_errors.extend(errs)
 

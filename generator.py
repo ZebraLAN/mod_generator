@@ -15,6 +15,8 @@ except ImportError:
     Image = None
 
 from constants import (
+    ARMOR_PREVIEW_HEIGHT,
+    ARMOR_PREVIEW_WIDTH,
     GAME_FPS,
     GML_ANCHOR_X,
     GML_ANCHOR_Y,
@@ -118,14 +120,92 @@ def copy_texture(src_path: str, dst_path, mask_offsets: tuple = None) -> str | N
         return f"复制贴图失败 {src_path}: {e}"
 
 
+def copy_armor_pose_texture(
+    src_path: str, dst_path, off_x: int, off_y: int
+) -> str | None:
+    """复制护甲姿势贴图，通过裁剪+透明填充实现偏移效果
+
+    护甲穿戴贴图固定为 48x40 尺寸，偏移通过裁剪原图并在透明画布上重绘实现。
+
+    Args:
+        src_path: 源贴图路径
+        dst_path: 目标路径
+        off_x: 水平偏移（正值向右移动贴图内容）
+        off_y: 垂直偏移（正值向下移动贴图内容）
+
+    Returns:
+        错误信息字符串，成功则返回 None
+    """
+    if not src_path:
+        return None
+    if not os.path.exists(src_path):
+        return f"贴图文件不存在: {src_path}"
+
+    os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+
+    if not Image:
+        # 没有 PIL，直接复制
+        try:
+            shutil.copy2(src_path, dst_path)
+            return None
+        except Exception as e:
+            return f"复制贴图失败 {src_path}: {e}"
+
+    try:
+        with Image.open(src_path) as img:
+            img = img.convert("RGBA")
+            src_w, src_h = img.size
+
+            # 目标尺寸固定为 48x40
+            dst_w, dst_h = ARMOR_PREVIEW_WIDTH, ARMOR_PREVIEW_HEIGHT
+
+            # 创建透明画布
+            canvas = Image.new("RGBA", (dst_w, dst_h), (0, 0, 0, 0))
+
+            # 计算源图裁剪区域和目标粘贴位置
+            # 偏移的含义：off_x 正值表示贴图内容向右移动
+            # 即从源图的 (off_x, off_y) 开始裁剪
+
+            # 源图裁剪起点
+            src_x1 = max(0, off_x)
+            src_y1 = max(0, off_y)
+
+            # 源图裁剪终点（不超过源图尺寸和目标尺寸）
+            src_x2 = min(src_w, off_x + dst_w)
+            src_y2 = min(src_h, off_y + dst_h)
+
+            # 如果偏移为负，需要在目标画布上留出空白
+            dst_x = max(0, -off_x)
+            dst_y = max(0, -off_y)
+
+            # 检查是否有有效区域
+            if src_x1 < src_x2 and src_y1 < src_y2:
+                cropped = img.crop((src_x1, src_y1, src_x2, src_y2))
+                canvas.paste(cropped, (dst_x, dst_y))
+
+            canvas.save(dst_path)
+            return None
+    except Exception as e:
+        return f"处理护甲贴图失败 {src_path}: {e}"
+
+
 def copy_item_textures(
     item_id: str,
     textures: ItemTextures,
     sprites_dir: Path,
     copy_char: bool,
     copy_left: bool,
+    is_multi_pose_armor: bool = False,
 ) -> list[str]:
     """复制物品的所有贴图文件
+
+    Args:
+        item_id: 物品ID
+        textures: 贴图数据
+        sprites_dir: 精灵图输出目录
+        copy_char: 是否复制角色/穿戴贴图
+        copy_left: 是否复制左手贴图
+        is_multi_pose_armor: 是否为多姿势护甲（头/身/手/腿/背）
 
     Returns:
         错误/警告信息列表
@@ -134,6 +214,11 @@ def copy_item_textures(
 
     def _copy(src, dst, mask=None):
         err = copy_texture(src, dst, mask)
+        if err:
+            errors.append(err)
+
+    def _copy_armor_pose(src, dst, off_x, off_y):
+        err = copy_armor_pose_texture(src, dst, off_x, off_y)
         if err:
             errors.append(err)
 
@@ -147,12 +232,46 @@ def copy_item_textures(
             for idx, path in enumerate(paths):
                 _copy(path, sprites_dir / f"{prefix}_{idx}.png", mask)
 
-    # 角色/手持贴图
-    if copy_char and textures.character:
-        mask = (textures.offset_x, textures.offset_y)
-        _copy_texture_list(textures.character, f"s_char_{item_id}", mask)
+    # 角色/手持/穿戴贴图
+    if copy_char:
+        if is_multi_pose_armor:
+            # 多姿势装备（头/身/手/腿/背）：站立和休息姿势贴图
+            # 游戏用 s_char 帧序列的第0/1帧存储站立两姿势，休息姿势用 s_char3 单独存储
 
-    # 左手贴图
+            # 站立姿势0: s_char_{id}_0.png (帧序列第0帧)
+            if textures.character:
+                standing0_path = textures.character[0] if textures.character else ""
+                if standing0_path:
+                    _copy_armor_pose(
+                        standing0_path,
+                        sprites_dir / f"s_char_{item_id}_0.png",
+                        textures.offset_x,
+                        textures.offset_y,
+                    )
+
+            # 站立姿势1: s_char_{id}_1.png (帧序列第1帧，可选)
+            if textures.character_standing1:
+                _copy_armor_pose(
+                    textures.character_standing1,
+                    sprites_dir / f"s_char_{item_id}_1.png",
+                    textures.offset_x_standing1,
+                    textures.offset_y_standing1,
+                )
+
+            # 休息姿势: s_char3_{id}.png (独立贴图槽)
+            if textures.character_rest:
+                _copy_armor_pose(
+                    textures.character_rest,
+                    sprites_dir / f"s_char3_{item_id}.png",
+                    textures.offset_x_rest,
+                    textures.offset_y_rest,
+                )
+        else:
+            # 武器/盾牌：动画帧序列
+            mask = (textures.offset_x, textures.offset_y)
+            _copy_texture_list(textures.character, f"s_char_{item_id}", mask)
+
+    # 左手贴图（仅武器/盾牌）
     if copy_left and textures.character_left:
         mask_left = (textures.offset_x_left, textures.offset_y_left)
         _copy_texture_list(textures.character_left, f"s_charleft_{item_id}", mask_left)
