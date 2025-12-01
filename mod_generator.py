@@ -1889,14 +1889,14 @@ class ModGeneratorGUI:
         scale = self.texture_scale
         preview_w = ARMOR_PREVIEW_WIDTH * scale
 
-        # 计算居中偏移（考虑子窗口内边距和滚动条）
+        # 使用传入的容器宽度和样式计算内容区域宽度
         style = imgui.get_style()
-        padding = style.window_padding.x
-        content_width = container_width - padding * 2 - style.scrollbar_size
+        # 子窗口有边框时，边框占用 1px，内容区域 = 容器宽度 - 2*padding - 2*border
+        content_width = container_width - style.window_padding.x * 2 - 2
         center_offset = max(0, (content_width - preview_w) / 2)
 
-        if center_offset > 0:
-            imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + center_offset)
+        # 直接设置光标 X 位置
+        imgui.set_cursor_pos_x(style.window_padding.x + center_offset)
 
         # 调用原有预览绘制逻辑
         self._draw_armor_pose_preview(
@@ -1989,15 +1989,6 @@ class ModGeneratorGUI:
         scale = self.texture_scale
         preview_w = ARMOR_PREVIEW_WIDTH * scale
         preview_h = ARMOR_PREVIEW_HEIGHT * scale
-
-        # 计算居中所需的左边距
-        controls_w = self._calc_offset_controls_width()
-        margin_left = max(0, (controls_w - preview_w) / 2)
-
-        # 添加左边距使预览居中
-        if margin_left > 0:
-            imgui.dummy(margin_left, 0)
-            imgui.same_line()
 
         draw_list = imgui.get_window_draw_list()
         start_pos = imgui.get_cursor_screen_pos()
