@@ -143,23 +143,6 @@ class ItemTextures:
         self.offset_x_rest = 0
         self.offset_y_rest = 0
 
-    # === 兼容性属性，用于平滑迁移旧代码 ===
-
-    @property
-    def character_frames(self) -> List[str]:
-        """兼容旧代码：返回 character 列表"""
-        return self.character
-
-    @property
-    def character_left_frames(self) -> List[str]:
-        """兼容旧代码：返回 character_left 列表"""
-        return self.character_left
-
-    @property
-    def loot_frames(self) -> List[str]:
-        """兼容旧代码：返回 loot 列表"""
-        return self.loot
-
     def has_char(self) -> bool:
         """是否有角色贴图 (武器动画/装备站立姿势0)"""
         return len(self.character) > 0

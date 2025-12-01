@@ -8,7 +8,6 @@ Stoneshard 装备模组编辑器 - 主程序
 import copy
 import json
 import os
-import shutil
 import sys
 import time
 import tkinter as tk
@@ -56,6 +55,7 @@ from constants import (
     GAME_FPS,
     LANGUAGE_LABELS,
     LEFT_HAND_SLOTS,
+    NEGATIVE_ATTRIBUTES,
     PREVIEW_ANIMATION_FPS,
     PRIMARY_LANGUAGE,
     RARITY_LABELS,
@@ -109,18 +109,7 @@ class ModGeneratorGUI:
         self.renderer = GlfwRenderer(self.window)
 
         # 确保字体目录存在
-        if not os.path.exists("fonts"):
-            os.makedirs("fonts", exist_ok=True)
-
-        # 尝试将旧字体移动到 fonts 目录
-        old_font = "HanyiSentyYongleEncyclopedia-2020.ttf"
-        new_font = os.path.join("fonts", old_font)
-        if os.path.exists(old_font) and not os.path.exists(new_font):
-            try:
-                shutil.move(old_font, new_font)
-                print(f"已将 {old_font} 移动到 fonts 目录")
-            except Exception as e:
-                print(f"移动字体文件失败: {e}")
+        os.makedirs("fonts", exist_ok=True)
 
         # 配置项
         self.font_size = 16
@@ -357,30 +346,23 @@ class ModGeneratorGUI:
 
     def text_secondary(self, text: str):
         """绘制次要文字（灰色）"""
-        color = getattr(self, "theme_colors", {}).get(
-            "text_secondary", (0.6, 0.6, 0.65, 1.0)
-        )
-        imgui.text_colored(text, *color)
+        imgui.text_colored(text, *self.theme_colors["text_secondary"])
 
     def text_success(self, text: str):
         """绘制成功文字（绿色）"""
-        color = getattr(self, "theme_colors", {}).get("success", (0.3, 0.7, 0.45, 1.0))
-        imgui.text_colored(text, *color)
+        imgui.text_colored(text, *self.theme_colors["success"])
 
     def text_warning(self, text: str):
         """绘制警告文字（橙色）"""
-        color = getattr(self, "theme_colors", {}).get("warning", (0.9, 0.7, 0.25, 1.0))
-        imgui.text_colored(text, *color)
+        imgui.text_colored(text, *self.theme_colors["warning"])
 
     def text_error(self, text: str):
         """绘制错误文字（红色）"""
-        color = getattr(self, "theme_colors", {}).get("error", (0.9, 0.35, 0.35, 1.0))
-        imgui.text_colored(text, *color)
+        imgui.text_colored(text, *self.theme_colors["error"])
 
     def text_accent(self, text: str):
         """绘制强调文字（主题色）"""
-        color = getattr(self, "theme_colors", {}).get("accent", (0.4, 0.65, 0.8, 1.0))
-        imgui.text_colored(text, *color)
+        imgui.text_colored(text, *self.theme_colors["accent"])
 
     # ==================== 字体管理 ====================
 
@@ -1324,18 +1306,6 @@ class ModGeneratorGUI:
 
                     if changed:
                         item.attributes[attr] = new_val
-
-                    # 负面属性列表（这些属性越低越好）
-                    NEGATIVE_ATTRIBUTES = {
-                        "FMB",
-                        "Cooldown_Reduction",
-                        "Abilities_Energy_Cost",
-                        "Skills_Energy_Cost",
-                        "Spells_Energy_Cost",
-                        "Miscast_Chance",
-                        "Fatigue_Gain",
-                        "Damage_Received",
-                    }
 
                     # 属性值颜色反馈：
                     # 普通属性：正数绿色(增益)，负数红色(减益)

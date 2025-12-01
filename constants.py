@@ -11,8 +11,7 @@
 TIER = ["Tier1", "Tier2", "Tier3", "Tier4", "Tier5"]
 TIER_LABELS = {tier: str(idx + 1) for idx, tier in enumerate(TIER)}
 
-# 稀有度（武器/护甲共用）
-RARITY = ["Common", "Unique"]
+# 稀有度标签
 RARITY_LABELS = {"Common": "普通", "Unique": "独特"}
 
 # ============== 武器相关枚举 ==============
@@ -132,9 +131,6 @@ ARMOR_MATERIAL_LABELS = {
 
 # 需要角色贴图预览的槽位
 ARMOR_SLOTS_WITH_CHAR_PREVIEW = ["shield", "Head", "Chest", "Arms", "Legs", "Back"]
-
-# 不需要角色贴图的槽位 (腰带、戒指、护身符)
-ARMOR_SLOTS_NO_CHAR = ["Waist", "Ring", "Amulet"]
 
 # 需要多姿势穿戴贴图的装备槽位 (头/身/手/腿/背)
 # 游戏姿势系统：
@@ -298,6 +294,18 @@ BYTE_ATTRIBUTES = {
     "PRR",
     "Block_Power",
     "Crit_Avoid",
+}
+
+# 负面属性 (这些属性的正值表示减益，负值表示增益)
+NEGATIVE_ATTRIBUTES = {
+    "FMB",
+    "Cooldown_Reduction",
+    "Abilities_Energy_Cost",
+    "Skills_Energy_Cost",
+    "Spells_Energy_Cost",
+    "Miscast_Chance",
+    "Fatigue_Gain",
+    "Damage_Received",
 }
 
 # ============== 属性分组 ==============
