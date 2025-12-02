@@ -238,6 +238,7 @@ def copy_item_textures(
             # 多姿势装备（头/身/手/腿/背）：站立和休息姿势贴图
             # 游戏用 s_char 帧序列的第0/1帧存储站立两姿势，休息姿势用 s_char3 单独存储
 
+            # ====== 默认/男性版贴图 ======
             # 站立姿势0: s_char_{id}_0.png (帧序列第0帧)
             if textures.character:
                 standing0_path = textures.character[0] if textures.character else ""
@@ -265,6 +266,36 @@ def copy_item_textures(
                     sprites_dir / f"s_char3_{item_id}.png",
                     textures.offset_x_rest,
                     textures.offset_y_rest,
+                )
+
+            # ====== 女性版贴图 ======
+            # 文件名格式：s_char_{id}_female_0.png (female 后缀在数字前)
+
+            # 女性版站立姿势0: s_char_{id}_female_0.png
+            if textures.character_female:
+                _copy_armor_pose(
+                    textures.character_female,
+                    sprites_dir / f"s_char_{item_id}_female_0.png",
+                    textures.offset_x_female,
+                    textures.offset_y_female,
+                )
+
+            # 女性版站立姿势1: s_char_{id}_female_1.png (仅当男性版设置了才可能有)
+            if textures.character_standing1_female:
+                _copy_armor_pose(
+                    textures.character_standing1_female,
+                    sprites_dir / f"s_char_{item_id}_female_1.png",
+                    textures.offset_x_standing1_female,
+                    textures.offset_y_standing1_female,
+                )
+
+            # 女性版休息姿势: s_char3_{id}_female.png
+            if textures.character_rest_female:
+                _copy_armor_pose(
+                    textures.character_rest_female,
+                    sprites_dir / f"s_char3_{item_id}_female.png",
+                    textures.offset_x_rest_female,
+                    textures.offset_y_rest_female,
                 )
         else:
             # 武器/盾牌：动画帧序列

@@ -489,6 +489,11 @@ CHARACTER_MODELS = {
         "s_dwarf_female_2.png",
     ],
     "Elf Male": ["s_elf_male_0.png", "s_elf_male_1.png", "s_elf_male_2.png"],
+    "Elf Female": [
+        "s_elf_female_0.png",
+        "s_elf_female_1.png",
+        "s_elf_female_2.png",
+    ],
 }
 
 CHARACTER_MODEL_LABELS = {
@@ -497,7 +502,24 @@ CHARACTER_MODEL_LABELS = {
     "Dwarf Male": "矮人男性",
     "Dwarf Female": "矮人女性",
     "Elf Male": "精灵男性",
+    "Elf Female": "精灵女性",
 }
+
+# 人种列表（用于多姿势装备编辑器中的模特选择）
+CHARACTER_RACES = ["Human", "Dwarf", "Elf"]
+CHARACTER_RACE_LABELS = {
+    "Human": "人类",
+    "Dwarf": "矮人",
+    "Elf": "精灵",
+}
+
+
+# 根据人种和性别获取模型键名
+def get_model_key(race: str, is_female: bool) -> str:
+    """根据人种和性别获取角色模型键名"""
+    gender = "Female" if is_female else "Male"
+    return f"{race} {gender}"
+
 
 # ============== 语言配置 ==============
 

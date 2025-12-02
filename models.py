@@ -121,6 +121,25 @@ class ItemTextures:
     offset_x_rest: int = 0
     offset_y_rest: int = 0
 
+    # ====== 女性版贴图（多姿势装备专用，可选） ======
+    # 游戏会检查是否存在女性版贴图，若不存在则使用默认/男性版
+    # 女性版贴图各姿势独立设置，可只为部分姿势提供女性版
+
+    # 女性版站立姿势0
+    character_female: str = ""
+    offset_x_female: int = 0
+    offset_y_female: int = 0
+
+    # 女性版站立姿势1（仅当男性版站立姿势1已设置时才允许设置）
+    character_standing1_female: str = ""
+    offset_x_standing1_female: int = 0
+    offset_y_standing1_female: int = 0
+
+    # 女性版休息姿势
+    character_rest_female: str = ""
+    offset_x_rest_female: int = 0
+    offset_y_rest_female: int = 0
+
     # 战利品贴图动画设置
     loot_fps: float = 10.0
     loot_use_relative_speed: bool = False
@@ -142,6 +161,16 @@ class ItemTextures:
         self.offset_y_standing1 = 0
         self.offset_x_rest = 0
         self.offset_y_rest = 0
+        # 清理女性版贴图
+        self.character_female = ""
+        self.offset_x_female = 0
+        self.offset_y_female = 0
+        self.character_standing1_female = ""
+        self.offset_x_standing1_female = 0
+        self.offset_y_standing1_female = 0
+        self.character_rest_female = ""
+        self.offset_x_rest_female = 0
+        self.offset_y_rest_female = 0
 
     def has_char(self) -> bool:
         """是否有角色贴图 (武器动画/装备站立姿势0)"""
@@ -154,6 +183,44 @@ class ItemTextures:
     def has_rest(self) -> bool:
         """是否有休息姿势贴图 (仅多姿势装备)"""
         return bool(self.character_rest)
+
+    def has_female(self) -> bool:
+        """是否有任何女性版贴图"""
+        return bool(
+            self.character_female
+            or self.character_standing1_female
+            or self.character_rest_female
+        )
+
+    def has_female_standing0(self) -> bool:
+        """是否有女性版站立姿势0贴图"""
+        return bool(self.character_female)
+
+    def has_female_standing1(self) -> bool:
+        """是否有女性版站立姿势1贴图"""
+        return bool(self.character_standing1_female)
+
+    def has_female_rest(self) -> bool:
+        """是否有女性版休息姿势贴图"""
+        return bool(self.character_rest_female)
+
+    def clear_female_standing0(self):
+        """清理女性版站立姿势0贴图"""
+        self.character_female = ""
+        self.offset_x_female = 0
+        self.offset_y_female = 0
+
+    def clear_female_standing1(self):
+        """清理女性版站立姿势1贴图"""
+        self.character_standing1_female = ""
+        self.offset_x_standing1_female = 0
+        self.offset_y_standing1_female = 0
+
+    def clear_female_rest(self):
+        """清理女性版休息姿势贴图"""
+        self.character_rest_female = ""
+        self.offset_x_rest_female = 0
+        self.offset_y_rest_female = 0
 
     def has_char_left(self) -> bool:
         """是否有左手贴图"""
@@ -468,6 +535,22 @@ class ModProject:
             "offset_y_standing1": textures.offset_y_standing1,
             "offset_x_rest": textures.offset_x_rest,
             "offset_y_rest": textures.offset_y_rest,
+            # 女性版贴图（多姿势装备专用）
+            "character_female": get_relative_path(
+                textures.character_female, project_dir
+            ),
+            "offset_x_female": textures.offset_x_female,
+            "offset_y_female": textures.offset_y_female,
+            "character_standing1_female": get_relative_path(
+                textures.character_standing1_female, project_dir
+            ),
+            "offset_x_standing1_female": textures.offset_x_standing1_female,
+            "offset_y_standing1_female": textures.offset_y_standing1_female,
+            "character_rest_female": get_relative_path(
+                textures.character_rest_female, project_dir
+            ),
+            "offset_x_rest_female": textures.offset_x_rest_female,
+            "offset_y_rest_female": textures.offset_y_rest_female,
             # 动画设置
             "loot_fps": round(textures.loot_fps, 3),
             "loot_use_relative_speed": textures.loot_use_relative_speed,
@@ -520,6 +603,19 @@ class ModProject:
         if rest_path:
             rest_path = resolve_path(rest_path, project_dir)
 
+        # 处理女性版贴图路径
+        female_standing0_path = tex_data.get("character_female", "")
+        if female_standing0_path:
+            female_standing0_path = resolve_path(female_standing0_path, project_dir)
+
+        female_standing1_path = tex_data.get("character_standing1_female", "")
+        if female_standing1_path:
+            female_standing1_path = resolve_path(female_standing1_path, project_dir)
+
+        female_rest_path = tex_data.get("character_rest_female", "")
+        if female_rest_path:
+            female_rest_path = resolve_path(female_rest_path, project_dir)
+
         return ItemTextures(
             character=to_list(tex_data.get("character"), "character_frames"),
             character_standing1=standing1_path,
@@ -539,6 +635,16 @@ class ModProject:
             offset_y_standing1=tex_data.get("offset_y_standing1", 0),
             offset_x_rest=tex_data.get("offset_x_rest", 0),
             offset_y_rest=tex_data.get("offset_y_rest", 0),
+            # 女性版贴图
+            character_female=female_standing0_path,
+            offset_x_female=tex_data.get("offset_x_female", 0),
+            offset_y_female=tex_data.get("offset_y_female", 0),
+            character_standing1_female=female_standing1_path,
+            offset_x_standing1_female=tex_data.get("offset_x_standing1_female", 0),
+            offset_y_standing1_female=tex_data.get("offset_y_standing1_female", 0),
+            character_rest_female=female_rest_path,
+            offset_x_rest_female=tex_data.get("offset_x_rest_female", 0),
+            offset_y_rest_female=tex_data.get("offset_y_rest_female", 0),
             # 动画设置
             loot_fps=round(tex_data.get("loot_fps", 10), 3),
             loot_use_relative_speed=tex_data.get("loot_use_relative_speed", False),

@@ -52,6 +52,8 @@ from constants import (
     BYTE_ATTRIBUTES,
     CHARACTER_MODEL_LABELS,
     CHARACTER_MODELS,
+    CHARACTER_RACE_LABELS,
+    CHARACTER_RACES,
     GAME_FPS,
     LANGUAGE_LABELS,
     LEFT_HAND_SLOTS,
@@ -69,6 +71,7 @@ from constants import (
     WEAPON_ATTRIBUTE_GROUPS,
     WEAPON_MATERIAL_LABELS,
     ARMOR_MATERIAL_LABELS,
+    get_model_key,
 )
 from generator import CodeGenerator, copy_item_textures
 from models import (
@@ -134,8 +137,10 @@ class ModGeneratorGUI:
         self.current_texture_field = ""
         self.texture_preview_cache = {}
         self.selected_model = "Human Male"
+        self.selected_race = "Human"  # 多姿势编辑器中的人种选择
         self.preview_states = {}
         self.active_item_tab = 0
+        self.gender_tab_index = 0  # 0=男性, 1=女性
 
         # 弹窗状态
         self.show_error_popup = False
@@ -1494,25 +1499,6 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip("设置预览图的显示倍率 (默认 4.0)")
 
-        if item.needs_char_texture():
-            imgui.same_line(spacing=16)
-            imgui.text("模特:")
-            imgui.same_line()
-            # 模特选择宽度随字体缩放
-            model_combo_width = 100 + (self.font_size - 14) * 4
-            imgui.push_item_width(model_combo_width)
-            current_model_label = CHARACTER_MODEL_LABELS.get(
-                self.selected_model, self.selected_model
-            )
-            if imgui.begin_combo(f"##model_{id_suffix}", current_model_label):
-                for model_key, model_label in CHARACTER_MODEL_LABELS.items():
-                    if imgui.selectable(model_label, model_key == self.selected_model)[
-                        0
-                    ]:
-                        self.selected_model = model_key
-                imgui.end_combo()
-            imgui.pop_item_width()
-
         self.draw_indented_separator()
 
         # 穿戴/手持状态贴图
@@ -1523,58 +1509,13 @@ class ModGeneratorGUI:
             )
 
             if is_multi_pose_armor:
-                # 多姿势护甲 UI
+                # 多姿势护甲 UI（内部自带人种选择）
                 self._draw_multi_pose_armor_textures(item, id_suffix)
             else:
-                # 武器/盾牌：支持动画的贴图选择器
-                char_label = (
-                    "手持状态贴图*" if id_suffix == "weapon" else "穿戴状态贴图*"
-                )
-                self._draw_texture_list_selector(
-                    char_label, item.textures.character, "character", item, id_suffix
-                )
-
-                offset_label = (
-                    "手持贴图偏移 (右手/默认)"
-                    if id_suffix == "weapon"
-                    else "穿戴贴图偏移"
-                )
-                item.textures.offset_x, item.textures.offset_y = (
-                    self._draw_offset_inputs(
-                        offset_label,
-                        f"调整{type_name}相对于人物的相对位置",
-                        item.textures.offset_x,
-                        item.textures.offset_y,
-                        id_suffix,
-                    )
-                )
+                # 武器/盾牌的手持贴图编辑器
+                self._draw_weapon_char_textures(item, id_suffix, type_name)
 
             self.draw_indented_separator()
-
-            # 左手贴图（仅武器/盾牌）
-            if item.needs_left_texture():
-                left_label = (
-                    "左手手持贴图*" if id_suffix == "weapon" else "左手穿戴贴图*"
-                )
-                self._draw_texture_list_selector(
-                    left_label,
-                    item.textures.character_left,
-                    "character_left",
-                    item,
-                    id_suffix,
-                )
-
-                item.textures.offset_x_left, item.textures.offset_y_left = (
-                    self._draw_offset_inputs(
-                        "左手贴图偏移",
-                        f"调整左手{type_name}相对于人物的相对位置",
-                        item.textures.offset_x_left,
-                        item.textures.offset_y_left,
-                        f"{id_suffix}_left",
-                    )
-                )
-
-                self.draw_indented_separator()
         else:
             slot_name = slot_labels.get(item.slot, item.slot)
             self.text_secondary(f"提示: {slot_name} 槽位不需要穿戴状态贴图")
@@ -1617,45 +1558,161 @@ class ModGeneratorGUI:
         if item.textures.is_animated("loot"):
             self._draw_loot_animation_settings(item.textures, id_suffix)
 
+    def _draw_weapon_char_textures(self, item, id_suffix: str, type_name: str):
+        """绘制武器/盾牌的手持贴图编辑器
+
+        将右手和左手贴图编辑整合到一起，模特选择放在标题行同时影响两者预览。
+        """
+        is_weapon = id_suffix == "weapon"
+        has_left = item.needs_left_texture()
+
+        # 标题行：标题 + 模特选择
+        title = "手持状态贴图" if is_weapon else "穿戴状态贴图"
+        imgui.text(title)
+        imgui.same_line()
+        imgui.text("  模特:")
+        imgui.same_line()
+        model_combo_width = 100 + (self.font_size - 14) * 4
+        imgui.push_item_width(model_combo_width)
+        current_model_label = CHARACTER_MODEL_LABELS.get(
+            self.selected_model, self.selected_model
+        )
+        if imgui.begin_combo(f"##model_{id_suffix}", current_model_label):
+            for model_key, model_label in CHARACTER_MODEL_LABELS.items():
+                if imgui.selectable(model_label, model_key == self.selected_model)[0]:
+                    self.selected_model = model_key
+            imgui.end_combo()
+        imgui.pop_item_width()
+
+        imgui.dummy(0, 4)
+
+        # === 右手/默认贴图 ===
+        right_label = "右手/默认*" if has_left else "贴图*"
+        self._draw_texture_list_selector(
+            right_label, item.textures.character, "character", item, id_suffix
+        )
+
+        offset_label = "偏移 (右手)" if has_left else "偏移"
+        item.textures.offset_x, item.textures.offset_y = self._draw_offset_inputs(
+            offset_label,
+            f"调整{type_name}相对于人物的相对位置",
+            item.textures.offset_x,
+            item.textures.offset_y,
+            id_suffix,
+        )
+
+        # === 左手贴图 ===
+        if has_left:
+            self.draw_indented_separator()
+
+            self._draw_texture_list_selector(
+                "左手*",
+                item.textures.character_left,
+                "character_left",
+                item,
+                id_suffix,
+            )
+
+            item.textures.offset_x_left, item.textures.offset_y_left = (
+                self._draw_offset_inputs(
+                    "偏移 (左手)",
+                    f"调整左手{type_name}相对于人物的相对位置",
+                    item.textures.offset_x_left,
+                    item.textures.offset_y_left,
+                    f"{id_suffix}_left",
+                )
+            )
+
     def _draw_multi_pose_armor_textures(self, item: Armor, id_suffix: str):
-        """绘制多姿势装备贴图编辑器（头/身/手/腿/背）- 优化布局
+        """绘制多姿势装备贴图编辑器（头/身/手/腿/背）- 支持男性/女性贴图
 
         游戏姿势系统：
         - 站立姿势0: 单手武器/盾牌/长杆时 → character[0] → s_char_{id}_0.png
         - 站立姿势1: 其他双手武器时 → character_standing1 → s_char_{id}_1.png (可选)
         - 休息姿势: 休息状态 → character_rest → s_char3_{id}.png (必须)
+
+        女性版贴图：
+        - 游戏会检查是否存在女性版贴图，若不存在则使用默认/男性版
+        - 各姿势独立设置，可只为部分姿势提供女性版
+        - 文件名加 _female 后缀（在帧序号前）
         """
         imgui.text("穿戴状态贴图")
-        self.text_secondary("需要为站立和休息状态各准备贴图，每个姿势可独立设置偏移")
-        imgui.dummy(0, 8)
+        self.text_secondary("需要为站立和休息状态各准备贴图，女性版贴图可选")
 
+        # 人种选择 + 性别标签页
+        imgui.same_line()
+        imgui.text("  模特:")
+        imgui.same_line()
+        imgui.push_item_width(80)
+        current_race_label = CHARACTER_RACE_LABELS.get(
+            self.selected_race, self.selected_race
+        )
+        if imgui.begin_combo(f"##race_{id_suffix}", current_race_label):
+            for race in CHARACTER_RACES:
+                label = CHARACTER_RACE_LABELS.get(race, race)
+                if imgui.selectable(label, race == self.selected_race)[0]:
+                    self.selected_race = race
+            imgui.end_combo()
+        imgui.pop_item_width()
+
+        imgui.dummy(0, 4)
+
+        # 性别 Tab 切换按钮（手动实现，避免 ImGui Tab 状态问题）
+        if self.gender_tab_index == 0:
+            imgui.push_style_color(imgui.COLOR_BUTTON, *self.theme_colors["accent"])
+            imgui.button("默认/男性")
+            imgui.pop_style_color()
+        else:
+            if imgui.button("默认/男性"):
+                self.gender_tab_index = 0
+
+        imgui.same_line()
+
+        female_label = "女性 *" if item.textures.has_female() else "女性"
+        if self.gender_tab_index == 1:
+            imgui.push_style_color(imgui.COLOR_BUTTON, *self.theme_colors["accent"])
+            imgui.button(female_label)
+            imgui.pop_style_color()
+        else:
+            if imgui.button(female_label):
+                self.gender_tab_index = 1
+
+        imgui.dummy(0, 4)
+
+        # 根据选择绘制对应内容
+        if self.gender_tab_index == 0:
+            self._draw_multi_pose_armor_textures_male(item, id_suffix)
+        else:
+            self._draw_multi_pose_armor_textures_female(item, id_suffix)
+
+    def _draw_multi_pose_armor_textures_male(self, item: Armor, id_suffix: str):
+        """绘制男性/默认版多姿势贴图编辑器"""
         available_width = imgui.get_content_region_available_width()
-        # 根据窗口宽度决定布局方式
         use_horizontal = available_width > 550
         pose_width = (
             (available_width - 24) / 3 if use_horizontal else available_width - 8
         )
-        # 计算预览高度和子窗口高度
         scale = self.texture_scale
         preview_h = ARMOR_PREVIEW_HEIGHT * scale
-        # 子窗口高度 = 标题行 + 偏移控件行 + 预览 + 状态文字(含fallback提示) + 边距
         child_height = 24 + 28 + preview_h + 44 + 20
+
+        # 获取男性模特
+        model_key = get_model_key(self.selected_race, False)
 
         # === 站立姿势0 (必须) ===
         imgui.begin_child(
-            f"pose_s0_{id_suffix}",
+            f"pose_s0_m_{id_suffix}",
             width=pose_width,
             height=child_height,
             border=True,
         )
         standing0_path = item.textures.character[0] if item.textures.character else ""
 
-        # 标题行：标题 + 按钮在同一行
         imgui.text("站立0")
         imgui.same_line()
         self.text_error("*")
         imgui.same_line()
-        if imgui.small_button(f"选择##s0_{id_suffix}"):
+        if imgui.small_button(f"选择##s0_m_{id_suffix}"):
             path = self.file_dialog([("PNG文件", "*.png")])
             if path:
                 imported = self._import_texture(path)
@@ -1667,27 +1724,24 @@ class ModGeneratorGUI:
             imgui.set_tooltip("选择贴图 (必填 - 单手武器/盾牌/长杆时的站立姿势)")
         if standing0_path:
             imgui.same_line()
-            if imgui.small_button(f"清除##s0c_{id_suffix}"):
+            if imgui.small_button(f"清除##s0c_m_{id_suffix}"):
                 item.textures.character.clear()
-                # 同时清除偏移设置
                 item.textures.offset_x = 0
                 item.textures.offset_y = 0
             if imgui.is_item_hovered():
                 imgui.set_tooltip("清除贴图")
 
-        # 偏移控件 - 填满一行（未设置贴图时禁用）
         item.textures.offset_x, item.textures.offset_y = (
             self._draw_full_width_offset_inputs(
                 item.textures.offset_x,
                 item.textures.offset_y,
-                f"{id_suffix}_off0",
+                f"{id_suffix}_off0_m",
                 disabled=not standing0_path,
             )
         )
 
-        # 预览 - 居中显示
         self._draw_armor_pose_preview_centered(
-            item, standing0_path, 0, id_suffix, pose_width
+            item, standing0_path, 0, id_suffix, pose_width, model_key=model_key
         )
         imgui.end_child()
 
@@ -1696,19 +1750,18 @@ class ModGeneratorGUI:
 
         # === 站立姿势1 (可选) ===
         imgui.begin_child(
-            f"pose_s1_{id_suffix}",
+            f"pose_s1_m_{id_suffix}",
             width=pose_width,
             height=child_height,
             border=True,
         )
         standing1_path = item.textures.character_standing1
 
-        # 标题行：标题 + 按钮在同一行
         imgui.text("站立1")
         imgui.same_line()
         self.text_secondary("可选")
         imgui.same_line()
-        if imgui.small_button(f"选择##s1_{id_suffix}"):
+        if imgui.small_button(f"选择##s1_m_{id_suffix}"):
             path = self.file_dialog([("PNG文件", "*.png")])
             if path:
                 item.textures.character_standing1 = self._import_texture(path)
@@ -1716,33 +1769,36 @@ class ModGeneratorGUI:
             imgui.set_tooltip("选择贴图 (可选 - 其他双手武器时的站立姿势)")
         if standing1_path:
             imgui.same_line()
-            if imgui.small_button(f"清除##s1c_{id_suffix}"):
+            if imgui.small_button(f"清除##s1c_m_{id_suffix}"):
                 item.textures.character_standing1 = ""
-                # 同时清除偏移设置
                 item.textures.offset_x_standing1 = 0
                 item.textures.offset_y_standing1 = 0
+                # 同时清除女性版站立姿势1
+                item.textures.clear_female_standing1()
             if imgui.is_item_hovered():
-                imgui.set_tooltip("清除贴图")
+                imgui.set_tooltip("清除贴图（同时清除女性版站立姿势1）")
 
-        # 偏移控件 - 填满一行（未设置贴图时禁用）
         item.textures.offset_x_standing1, item.textures.offset_y_standing1 = (
             self._draw_full_width_offset_inputs(
                 item.textures.offset_x_standing1,
                 item.textures.offset_y_standing1,
-                f"{id_suffix}_off1",
+                f"{id_suffix}_off1_m",
                 disabled=not standing1_path,
             )
         )
 
-        # 预览 - 居中显示
         preview_path = standing1_path if standing1_path else standing0_path
+        fallback_hint = (
+            "(复用站立姿势0)" if not standing1_path and standing0_path else ""
+        )
         self._draw_armor_pose_preview_centered(
             item,
             preview_path,
             1,
             id_suffix,
             pose_width,
-            fallback=not standing1_path and bool(standing0_path),
+            fallback_hint=fallback_hint,
+            model_key=model_key,
         )
         imgui.end_child()
 
@@ -1751,19 +1807,18 @@ class ModGeneratorGUI:
 
         # === 休息姿势 (必须) ===
         imgui.begin_child(
-            f"pose_sr_{id_suffix}",
+            f"pose_sr_m_{id_suffix}",
             width=pose_width,
             height=child_height,
             border=True,
         )
         rest_path = item.textures.character_rest
 
-        # 标题行：标题 + 按钮在同一行
         imgui.text("休息")
         imgui.same_line()
         self.text_error("*")
         imgui.same_line()
-        if imgui.small_button(f"选择##sr_{id_suffix}"):
+        if imgui.small_button(f"选择##sr_m_{id_suffix}"):
             path = self.file_dialog([("PNG文件", "*.png")])
             if path:
                 item.textures.character_rest = self._import_texture(path)
@@ -1771,27 +1826,242 @@ class ModGeneratorGUI:
             imgui.set_tooltip("选择贴图 (必填 - 休息状态时的姿势)")
         if rest_path:
             imgui.same_line()
-            if imgui.small_button(f"清除##src_{id_suffix}"):
+            if imgui.small_button(f"清除##src_m_{id_suffix}"):
                 item.textures.character_rest = ""
-                # 同时清除偏移设置
                 item.textures.offset_x_rest = 0
                 item.textures.offset_y_rest = 0
             if imgui.is_item_hovered():
                 imgui.set_tooltip("清除贴图")
 
-        # 偏移控件 - 填满一行（未设置贴图时禁用）
         item.textures.offset_x_rest, item.textures.offset_y_rest = (
             self._draw_full_width_offset_inputs(
                 item.textures.offset_x_rest,
                 item.textures.offset_y_rest,
-                f"{id_suffix}_off2",
+                f"{id_suffix}_off2_m",
                 disabled=not rest_path,
             )
         )
 
-        # 预览 - 居中显示
         self._draw_armor_pose_preview_centered(
-            item, rest_path, 2, id_suffix, pose_width
+            item, rest_path, 2, id_suffix, pose_width, model_key=model_key
+        )
+        imgui.end_child()
+
+    def _draw_multi_pose_armor_textures_female(self, item: Armor, id_suffix: str):
+        """绘制女性版多姿势贴图编辑器"""
+        self.text_secondary("女性版贴图可选，未设置时游戏将使用默认/男性版贴图")
+        imgui.dummy(0, 4)
+
+        available_width = imgui.get_content_region_available_width()
+        use_horizontal = available_width > 550
+        pose_width = (
+            (available_width - 24) / 3 if use_horizontal else available_width - 8
+        )
+        scale = self.texture_scale
+        preview_h = ARMOR_PREVIEW_HEIGHT * scale
+        child_height = 24 + 28 + preview_h + 44 + 20
+
+        # 获取女性模特
+        model_key = get_model_key(self.selected_race, True)
+
+        # 获取男性版贴图路径（用于 fallback 预览）
+        male_standing0 = item.textures.character[0] if item.textures.character else ""
+        male_standing1 = item.textures.character_standing1
+        male_rest = item.textures.character_rest
+
+        # === 女性站立姿势0 (可选) ===
+        imgui.begin_child(
+            f"pose_s0_f_{id_suffix}",
+            width=pose_width,
+            height=child_height,
+            border=True,
+        )
+        female_standing0 = item.textures.character_female
+
+        imgui.text("站立0")
+        imgui.same_line()
+        self.text_secondary("可选")
+        imgui.same_line()
+        if imgui.small_button(f"选择##s0_f_{id_suffix}"):
+            path = self.file_dialog([("PNG文件", "*.png")])
+            if path:
+                item.textures.character_female = self._import_texture(path)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("选择女性版贴图 (可选)")
+        if female_standing0:
+            imgui.same_line()
+            if imgui.small_button(f"清除##s0c_f_{id_suffix}"):
+                item.textures.clear_female_standing0()
+                # 同时清除女性版站立姿势1（因为姿势1依赖姿势0）
+                item.textures.clear_female_standing1()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("清除贴图（同时清除女性版站立姿势1）")
+
+        item.textures.offset_x_female, item.textures.offset_y_female = (
+            self._draw_full_width_offset_inputs(
+                item.textures.offset_x_female,
+                item.textures.offset_y_female,
+                f"{id_suffix}_off0_f",
+                disabled=not female_standing0,
+            )
+        )
+
+        # 预览：优先女性版，否则显示男性版
+        preview_path = female_standing0 if female_standing0 else male_standing0
+        fallback_hint = (
+            "(使用默认/男性版)" if not female_standing0 and male_standing0 else ""
+        )
+        self._draw_armor_pose_preview_centered(
+            item,
+            preview_path,
+            0,
+            id_suffix + "_f",
+            pose_width,
+            fallback_hint=fallback_hint,
+            model_key=model_key,
+            use_female_offset=bool(female_standing0),
+        )
+        imgui.end_child()
+
+        if use_horizontal:
+            imgui.same_line()
+
+        # === 女性站立姿势1 (仅当男性版姿势1已设置且女性版姿势0已设置时可用) ===
+        imgui.begin_child(
+            f"pose_s1_f_{id_suffix}",
+            width=pose_width,
+            height=child_height,
+            border=True,
+        )
+        female_standing1 = item.textures.character_standing1_female
+        # 需要同时满足：男性版姿势1已设置 且 女性版姿势0已设置
+        can_set_female_standing1 = bool(male_standing1) and bool(female_standing0)
+
+        imgui.text("站立1")
+        imgui.same_line()
+        if can_set_female_standing1:
+            self.text_secondary("可选")
+        else:
+            self.text_secondary("禁用")
+        imgui.same_line()
+
+        if not can_set_female_standing1:
+            imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+        if imgui.small_button(f"选择##s1_f_{id_suffix}") and can_set_female_standing1:
+            path = self.file_dialog([("PNG文件", "*.png")])
+            if path:
+                item.textures.character_standing1_female = self._import_texture(path)
+        if not can_set_female_standing1:
+            imgui.pop_style_var()
+        if imgui.is_item_hovered():
+            if can_set_female_standing1:
+                imgui.set_tooltip("选择女性版贴图 (可选)")
+            elif not male_standing1:
+                imgui.set_tooltip("需要先设置默认/男性版站立姿势1贴图")
+            else:
+                imgui.set_tooltip("需要先设置女性版站立姿势0贴图")
+
+        if female_standing1:
+            imgui.same_line()
+            if imgui.small_button(f"清除##s1c_f_{id_suffix}"):
+                item.textures.clear_female_standing1()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("清除贴图")
+
+        (
+            item.textures.offset_x_standing1_female,
+            item.textures.offset_y_standing1_female,
+        ) = self._draw_full_width_offset_inputs(
+            item.textures.offset_x_standing1_female,
+            item.textures.offset_y_standing1_female,
+            f"{id_suffix}_off1_f",
+            disabled=not female_standing1,
+        )
+
+        # 预览逻辑及提示（基于游戏实际 fallback 顺序）：
+        # - 女性姿势1设置了 → 显示女性姿势1
+        # - 女性姿势1未设置，女性姿势0设置了 → 显示女性姿势0（游戏优先复用女性0）
+        # - 女性姿势0也未设置，男性姿势1设置了 → 显示男性姿势1
+        # - 都未设置 → 显示男性姿势0
+        if female_standing1:
+            preview_path = female_standing1
+            fallback_hint = ""
+            use_female_offset = True
+        elif female_standing0:
+            preview_path = female_standing0
+            fallback_hint = "(复用女性版站立0)"
+            use_female_offset = True
+        elif male_standing1:
+            preview_path = male_standing1
+            fallback_hint = "(使用默认/男性版站立1)"
+            use_female_offset = False
+        else:
+            preview_path = male_standing0
+            fallback_hint = "(使用默认/男性版站立0)" if male_standing0 else ""
+            use_female_offset = False
+
+        self._draw_armor_pose_preview_centered(
+            item,
+            preview_path,
+            1,
+            id_suffix + "_f",
+            pose_width,
+            fallback_hint=fallback_hint,
+            model_key=model_key,
+            use_female_offset=use_female_offset,
+        )
+        imgui.end_child()
+
+        if use_horizontal:
+            imgui.same_line()
+
+        # === 女性休息姿势 (可选) ===
+        imgui.begin_child(
+            f"pose_sr_f_{id_suffix}",
+            width=pose_width,
+            height=child_height,
+            border=True,
+        )
+        female_rest = item.textures.character_rest_female
+
+        imgui.text("休息")
+        imgui.same_line()
+        self.text_secondary("可选")
+        imgui.same_line()
+        if imgui.small_button(f"选择##sr_f_{id_suffix}"):
+            path = self.file_dialog([("PNG文件", "*.png")])
+            if path:
+                item.textures.character_rest_female = self._import_texture(path)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("选择女性版贴图 (可选)")
+        if female_rest:
+            imgui.same_line()
+            if imgui.small_button(f"清除##src_f_{id_suffix}"):
+                item.textures.clear_female_rest()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("清除贴图")
+
+        item.textures.offset_x_rest_female, item.textures.offset_y_rest_female = (
+            self._draw_full_width_offset_inputs(
+                item.textures.offset_x_rest_female,
+                item.textures.offset_y_rest_female,
+                f"{id_suffix}_off2_f",
+                disabled=not female_rest,
+            )
+        )
+
+        # 预览：优先女性版，否则显示男性版
+        preview_path = female_rest if female_rest else male_rest
+        fallback_hint = "(使用默认/男性版)" if not female_rest and male_rest else ""
+        self._draw_armor_pose_preview_centered(
+            item,
+            preview_path,
+            2,
+            id_suffix + "_f",
+            pose_width,
+            fallback_hint=fallback_hint,
+            model_key=model_key,
+            use_female_offset=bool(female_rest),
         )
         imgui.end_child()
 
@@ -1883,9 +2153,22 @@ class ModGeneratorGUI:
         pose_index: int,
         id_suffix: str,
         container_width: float,
-        fallback: bool = False,
+        fallback_hint: str = "",
+        model_key: str = None,
+        use_female_offset: bool = False,
     ):
-        """绘制护甲姿势预览（在容器内居中）"""
+        """绘制护甲姿势预览（在容器内居中）
+
+        Args:
+            item: 护甲物品
+            texture_path: 贴图路径
+            pose_index: 姿势索引 (0, 1, 2)
+            id_suffix: ID后缀
+            container_width: 容器宽度
+            fallback_hint: 回退提示文字，空字符串表示无回退
+            model_key: 角色模型键名（如 "Human Male"），None则使用默认
+            use_female_offset: 是否使用女性版偏移
+        """
         scale = self.texture_scale
         preview_w = ARMOR_PREVIEW_WIDTH * scale
 
@@ -1900,7 +2183,13 @@ class ModGeneratorGUI:
 
         # 调用原有预览绘制逻辑
         self._draw_armor_pose_preview(
-            item, texture_path, pose_index, id_suffix, fallback
+            item,
+            texture_path,
+            pose_index,
+            id_suffix,
+            fallback_hint=fallback_hint,
+            model_key=model_key,
+            use_female_offset=use_female_offset,
         )
 
     # 偏移控件尺寸常量
@@ -1975,7 +2264,9 @@ class ModGeneratorGUI:
         texture_path: str,
         pose_index: int,
         id_suffix: str,
-        fallback: bool = False,
+        fallback_hint: str = "",
+        model_key: str = None,
+        use_female_offset: bool = False,
     ):
         """绘制护甲姿势预览
 
@@ -1984,7 +2275,9 @@ class ModGeneratorGUI:
             texture_path: 贴图路径
             pose_index: 姿势索引 (0, 1, 2)
             id_suffix: ID后缀
-            fallback: 是否为回退显示（姿势1未设置时用姿势0）
+            fallback_hint: 回退提示文字，空字符串表示无回退
+            model_key: 角色模型键名（如 "Human Male"），None则使用 self.selected_model
+            use_female_offset: 是否使用女性版偏移
         """
         scale = self.texture_scale
         preview_w = ARMOR_PREVIEW_WIDTH * scale
@@ -2025,8 +2318,9 @@ class ModGeneratorGUI:
             )
 
             # 绘制模特参考图
+            actual_model_key = model_key if model_key else self.selected_model
             model_files = CHARACTER_MODELS.get(
-                self.selected_model,
+                actual_model_key,
                 ["s_human_male_0.png", "s_human_male_1.png", "s_human_male_2.png"],
             )
             if pose_index < len(model_files):
@@ -2049,17 +2343,29 @@ class ModGeneratorGUI:
             if texture_path:
                 preview = self.get_texture_preview(texture_path)
                 if preview:
-                    # 根据姿势索引选择对应的偏移
-                    # fallback 时（站立1用站立0贴图预览）使用站立0的偏移
-                    if pose_index == 0 or fallback:
-                        off_x = item.textures.offset_x
-                        off_y = item.textures.offset_y
-                    elif pose_index == 1:
-                        off_x = item.textures.offset_x_standing1
-                        off_y = item.textures.offset_y_standing1
-                    else:  # pose_index == 2
-                        off_x = item.textures.offset_x_rest
-                        off_y = item.textures.offset_y_rest
+                    # 根据姿势索引和是否使用女性偏移选择对应的偏移值
+                    if use_female_offset:
+                        # 女性版偏移
+                        if pose_index == 0:
+                            off_x = item.textures.offset_x_female
+                            off_y = item.textures.offset_y_female
+                        elif pose_index == 1:
+                            off_x = item.textures.offset_x_standing1_female
+                            off_y = item.textures.offset_y_standing1_female
+                        else:  # pose_index == 2
+                            off_x = item.textures.offset_x_rest_female
+                            off_y = item.textures.offset_y_rest_female
+                    else:
+                        # 男性版/默认偏移
+                        if pose_index == 0 or bool(fallback_hint):
+                            off_x = item.textures.offset_x
+                            off_y = item.textures.offset_y
+                        elif pose_index == 1:
+                            off_x = item.textures.offset_x_standing1
+                            off_y = item.textures.offset_y_standing1
+                        else:  # pose_index == 2
+                            off_x = item.textures.offset_x_rest
+                            off_y = item.textures.offset_y_rest
 
                     # 计算绘制位置（偏移向负方向移动贴图）
                     armor_x = start_pos[0] - off_x * scale
@@ -2082,8 +2388,8 @@ class ModGeneratorGUI:
         # 状态提示 - 居中显示
         hint_text = ""
         is_warning = False
-        if fallback:
-            hint_text = "(未设置，游戏中将复用姿势0)"
+        if fallback_hint:
+            hint_text = fallback_hint
             is_warning = True
         elif not texture_path:
             hint_text = "(未设置)"
