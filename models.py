@@ -780,6 +780,13 @@ class ModProject:
             all_paths = list(all_paths) + [textures.character_standing1]
         if textures.character_rest:
             all_paths = list(all_paths) + [textures.character_rest]
+        # 添加女性版贴图
+        if textures.character_female:
+            all_paths = list(all_paths) + [textures.character_female]
+        if textures.character_standing1_female:
+            all_paths = list(all_paths) + [textures.character_standing1_female]
+        if textures.character_rest_female:
+            all_paths = list(all_paths) + [textures.character_rest_female]
 
         for p in all_paths:
             if p:
