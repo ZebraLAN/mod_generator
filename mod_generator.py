@@ -2822,6 +2822,11 @@ class ModGeneratorGUI:
             if ref_preview:
                 off_x = target_item.textures.offset_x
                 off_y = target_item.textures.offset_y
+                is_shield_mainhand = (
+                    field_identifier == "character"
+                    and getattr(target_item, "slot", None) == "shield"
+                )
+
                 if field_identifier == "character_left":
                     off_x = target_item.textures.offset_x_left
                     off_y = target_item.textures.offset_y_left
@@ -2857,29 +2862,47 @@ class ModGeneratorGUI:
                     char_draw_x = start_pos[0] + VIEWPORT_CHAR_OFFSET_X * scale
                     char_draw_y = start_pos[1] + VIEWPORT_CHAR_OFFSET_Y * scale
 
-                    draw_list.add_image(
-                        ref_preview["tex_id"],
-                        (float(char_draw_x), float(char_draw_y)),
-                        (
-                            float(char_draw_x + ref_preview["width"] * scale),
-                            float(char_draw_y + ref_preview["height"] * scale),
-                        ),
-                    )
-
                     wep_rel_x = -off_x
                     wep_rel_y = -off_y
 
                     wep_draw_x = char_draw_x + wep_rel_x * scale
                     wep_draw_y = char_draw_y + wep_rel_y * scale
 
-                    draw_list.add_image(
-                        preview["tex_id"],
-                        (float(wep_draw_x), float(wep_draw_y)),
-                        (
-                            float(wep_draw_x + tex_w * scale),
-                            float(wep_draw_y + tex_h * scale),
-                        ),
-                    )
+                    # 盾牌主手特例：先绘制盾牌，再绘制角色，实现盾牌在角色图下方
+                    if is_shield_mainhand:
+                        draw_list.add_image(
+                            preview["tex_id"],
+                            (float(wep_draw_x), float(wep_draw_y)),
+                            (
+                                float(wep_draw_x + tex_w * scale),
+                                float(wep_draw_y + tex_h * scale),
+                            ),
+                        )
+                        draw_list.add_image(
+                            ref_preview["tex_id"],
+                            (float(char_draw_x), float(char_draw_y)),
+                            (
+                                float(char_draw_x + ref_preview["width"] * scale),
+                                float(char_draw_y + ref_preview["height"] * scale),
+                            ),
+                        )
+                    else:
+                        draw_list.add_image(
+                            ref_preview["tex_id"],
+                            (float(char_draw_x), float(char_draw_y)),
+                            (
+                                float(char_draw_x + ref_preview["width"] * scale),
+                                float(char_draw_y + ref_preview["height"] * scale),
+                            ),
+                        )
+                        draw_list.add_image(
+                            preview["tex_id"],
+                            (float(wep_draw_x), float(wep_draw_y)),
+                            (
+                                float(wep_draw_x + tex_w * scale),
+                                float(wep_draw_y + tex_h * scale),
+                            ),
+                        )
 
                     draw_list.add_rect(
                         wep_draw_x,
