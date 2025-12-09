@@ -384,12 +384,13 @@ public class {code_namespace} : Mod
     def _generate_item_method(self, item: Item) -> str:
         """生成单个物品的 C# 方法"""
         is_weapon = isinstance(item, Weapon)
+        is_shield = isinstance(item, Armor) and item.slot == "shield"
         method_name = f"Add{item.id}" if is_weapon else f"AddArmor{item.id}"
 
         code = f"    private void {method_name}()\n    {{\n"
         code += self._generate_item_injection_code(item)
         code += self._generate_localization_code(item)
-        if is_weapon:
+        if is_weapon or is_shield:
             code += self._generate_gml_offset_code(item)
         code += self._generate_loot_animation_code(item)
         code += "    }\n\n"
@@ -513,33 +514,33 @@ public class {code_namespace} : Mod
         code += "popz.v\n"
         return code
 
-    def _generate_gml_offset_code(self, weapon: Weapon) -> str:
-        """生成 GML 偏移注入代码"""
+    def _generate_gml_offset_code(self, item: Item) -> str:
+        """生成 GML 偏移注入代码（武器/盾牌）"""
         gml_code_block = ""
 
-        if weapon.textures.offset_x != 0 or weapon.textures.offset_y != 0:
+        if item.textures.offset_x != 0 or item.textures.offset_y != 0:
             adj_off_x, adj_off_y = calculate_adjusted_offsets(
-                weapon.textures.offset_x, weapon.textures.offset_y
+                item.textures.offset_x, item.textures.offset_y
             )
 
             if adj_off_x != 0 or adj_off_y != 0:
                 val_y = GML_ANCHOR_Y + adj_off_y
                 val_x = GML_ANCHOR_X + adj_off_x
-                sprite_name = f"s_char_{weapon.id}"
+                sprite_name = f"s_char_{item.id}"
                 gml_code_block += self._generate_anchor_gml_block(
                     val_y, val_x, sprite_name
                 )
 
-        if weapon.textures.has_char_left():
-            if weapon.textures.offset_x_left != 0 or weapon.textures.offset_y_left != 0:
+        if item.textures.has_char_left():
+            if item.textures.offset_x_left != 0 or item.textures.offset_y_left != 0:
                 adj_off_x_left, adj_off_y_left = calculate_adjusted_offsets(
-                    weapon.textures.offset_x_left, weapon.textures.offset_y_left
+                    item.textures.offset_x_left, item.textures.offset_y_left
                 )
 
                 if adj_off_x_left != 0 or adj_off_y_left != 0:
                     val_y = GML_ANCHOR_Y + adj_off_y_left
                     val_x = GML_ANCHOR_X + adj_off_x_left
-                    sprite_name = f"s_charleft_{weapon.id}"
+                    sprite_name = f"s_charleft_{item.id}"
                     gml_code_block += self._generate_anchor_gml_block(
                         val_y, val_x, sprite_name
                     )
