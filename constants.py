@@ -558,6 +558,370 @@ LANGUAGE_TO_ENUM_MAP = {
     "한국어": "ModLanguage.Korean",
 }
 
+# ============== 混合物品相关枚举 ==============
+
+# 混合物品父对象
+HYBRID_PARENT_OBJECTS = {
+    "o_inv_consum": "基础消耗品",
+    "o_inv_consum_active": "主动技能消耗品",
+    "o_inv_consum_passive": "被动效果消耗品",
+    "o_inv_consum_technical": "工具类消耗品",
+    "o_inv_timer_consum": "自动触发消耗品",
+}
+
+# 混合物品槽位标签
+HYBRID_SLOT_LABELS = {
+    "hand": "手持",
+    "Head": "头部",
+    "Chest": "胸部",
+    "Arms": "手臂",
+    "Legs": "腿部",
+    "Waist": "腰部",
+    "Back": "背部",
+    "Ring": "戒指",
+    "Amulet": "护身符",
+    "heal": "背包道具",
+}
+
+# 混合物品品质标签
+HYBRID_QUALITY_LABELS = {
+    1: "普通",
+    6: "独特",
+    7: "文物",
+}
+
+# 混合物品武器类型
+HYBRID_WEAPON_TYPES = {
+    "sword": "单手剑",
+    "axe": "单手斧",
+    "mace": "单手锤",
+    "dagger": "匕首",
+    "spear": "长杆",
+    "bow": "弓",
+    "crossbow": "弩",
+    "2hsword": "双手剑",
+    "2haxe": "双手斧",
+    "2hmace": "双手锤",
+    "2hStaff": "双手杖",
+    "shield": "盾牌",
+    "tool": "工具",
+    "pick": "镐",
+    "chain": "锁链",
+    "lute": "鲁特琴",
+}
+
+# 混合物品伤害类型
+HYBRID_DAMAGE_TYPES = {
+    "Slashing_Damage": "劈砍",
+    "Piercing_Damage": "穿刺",
+    "Blunt_Damage": "钝击",
+    "Rending_Damage": "撕裂",
+    "Fire_Damage": "火焰",
+    "Shock_Damage": "电击",
+    "Poison_Damage": "毒素",
+    "Caustic_Damage": "腐蚀",
+    "Frost_Damage": "霜冻",
+    "Arcane_Damage": "秘术",
+    "Unholy_Damage": "邪术",
+    "Sacred_Damage": "神圣",
+    "Psionic_Damage": "灵能",
+}
+
+# 混合物品材质
+HYBRID_MATERIALS = {
+    "Steel": "钢",
+    "Iron": "铁",
+    "Wood": "木",
+    "Bone": "骨",
+    "Leather": "皮革",
+    "Cloth": "布料",
+    "Silver": "银",
+    "Gold": "金",
+}
+
+# 混合物品护甲类型
+HYBRID_ARMOR_TYPES = {
+    "Chest": "胸甲",
+    "Head": "头盔",
+    "Arms": "手套",
+    "Legs": "靴子",
+    "Waist": "腰带",
+    "Back": "披风",
+    "shield": "盾牌",
+}
+
+# 混合物品护甲材质
+HYBRID_ARMOR_MATERIALS = {
+    "metal": "金属",
+    "leather": "皮革",
+    "cloth": "布料",
+    "wood": "木",
+    "silver": "银",
+    "gold": "金",
+}
+
+# 混合物品护甲类别
+HYBRID_ARMOR_CLASSES = {
+    "Light": "轻甲",
+    "Medium": "中甲",
+    "Heavy": "重甲",
+}
+
+# 混合物品属性分组（综合武器和护甲属性）
+HYBRID_ATTRIBUTE_GROUPS = {
+    "战斗属性": [
+        "Hit_Chance",
+        "CRT",
+        "CRTD",
+        "CTA",
+        "PRR",
+        "Block_Power",
+        "Block_Recovery",
+        "FMB",
+        "EVS",
+        "Crit_Avoid",
+        "Weapon_Damage",
+        "Armor_Piercing",
+        "Armor_Damage",
+        "Bodypart_Damage",
+    ],
+    "伤害类型": [
+        "Slashing_Damage",
+        "Piercing_Damage",
+        "Blunt_Damage",
+        "Rending_Damage",
+        "Fire_Damage",
+        "Shock_Damage",
+        "Poison_Damage",
+        "Caustic_Damage",
+        "Frost_Damage",
+        "Arcane_Damage",
+        "Unholy_Damage",
+        "Sacred_Damage",
+        "Psionic_Damage",
+    ],
+    "状态效果": [
+        "Bleeding_Chance",
+        "Knockback_Chance",
+        "Daze_Chance",
+        "Stun_Chance",
+        "Immob_Chance",
+        "Stagger_Chance",
+    ],
+    "生存属性": [
+        "max_hp",
+        "Health_Restoration",
+        "Healing_Received",
+        "Lifesteal",
+        "Manasteal",
+        "Damage_Received",
+        "Damage_Returned",
+        "Fortitude",
+        "DEF",
+    ],
+    "精力相关": [
+        "MP",
+        "MP_Restoration",
+        "Abilities_Energy_Cost",
+        "Skills_Energy_Cost",
+        "Spells_Energy_Cost",
+        "Fatigue_Gain",
+    ],
+    "魔法属性": [
+        "Magic_Power",
+        "Miscast_Chance",
+        "Miracle_Chance",
+        "Miracle_Power",
+        "Cooldown_Reduction",
+        "Bonus_Range",
+    ],
+    "元素法力": [
+        "Pyromantic_Power",
+        "Geomantic_Power",
+        "Venomantic_Power",
+        "Electromantic_Power",
+        "Cryomantic_Power",
+        "Arcanistic_Power",
+        "Astromantic_Power",
+        "Psimantic_Power",
+    ],
+    "抗性（综合）": [
+        "Physical_Resistance",
+        "Nature_Resistance",
+        "Magic_Resistance",
+    ],
+    "抗性（元素）": [
+        "Slashing_Resistance",
+        "Piercing_Resistance",
+        "Blunt_Resistance",
+        "Rending_Resistance",
+        "Fire_Resistance",
+        "Shock_Resistance",
+        "Poison_Resistance",
+        "Caustic_Resistance",
+        "Frost_Resistance",
+        "Arcane_Resistance",
+        "Unholy_Resistance",
+        "Sacred_Resistance",
+        "Psionic_Resistance",
+    ],
+    "状态抗性": [
+        "Bleeding_Resistance",
+        "Knockback_Resistance",
+        "Stun_Resistance",
+        "Pain_Resistance",
+    ],
+    "其他": [
+        "VSN",
+        "Received_XP",
+    ],
+}
+
+# 常用技能对象 ID
+HYBRID_SKILL_IDS = {
+    -4: "无技能",
+    6096: "修理工具使用 (o_skill_use_tinker)",
+    6094: "修理物品 (o_skill_repair_item)",
+    6076: "开锁 (o_skill_open_door_quest)",
+    6073: "撬锁 (o_skill_break_lock)",
+    6062: "放置陷阱 (o_skill_set_trap)",
+    6876: "放置营火 (o_skill_set_campfire)",
+    6085: "放血 (o_skill_leech)",
+    4509: "打开书籍 (o_open_book)",
+    4510: "打开笔记 (o_open_note)",
+    138: "灭火/倒水 (o_skill_douse)",
+}
+
+# 混合物品音效选项
+# 格式: (音效ID, 音效名称)
+# 音效分为拾取(pickup)和放下(drop)两类
+HYBRID_PICKUP_SOUNDS = {
+    # 消耗品默认
+    907: "默认消耗品拾取",
+    # 武器拾取
+    813: "单手剑拾取 (金属)",
+    814: "单手剑拾取 (木)",
+    794: "单手斧拾取 (金属)",
+    795: "匕首拾取 (金属)",
+    817: "单手锤拾取 (金属)",
+    818: "单手锤拾取 (木)",
+    821: "长杆拾取 (金属)",
+    822: "长杆拾取 (木)",
+    800: "弓拾取 (木)",
+    791: "弩拾取 (木)",
+    798: "双手剑拾取 (金属)",
+    801: "双手锤拾取 (金属)",
+    803: "双手斧拾取 (金属)",
+    811: "双手杖拾取 (金属)",
+    282: "双手杖拾取 (木)",
+    # 盾牌拾取
+    825: "轻盾拾取 (木)",
+    836: "轻盾拾取 (皮)",
+    828: "轻盾拾取 (金属)",
+    826: "中盾拾取 (皮)",
+    827: "中盾拾取 (木)",
+    407: "中盾拾取 (金属)",
+    829: "重盾拾取 (木)",
+    830: "重盾拾取 (金属)",
+    # 护甲拾取
+    839: "头盔拾取 (轻金属)",
+    840: "头盔拾取 (中金属)",
+    843: "头盔拾取 (重金属)",
+    850: "胸甲拾取 (轻皮)",
+    851: "胸甲拾取 (轻金属)",
+    852: "胸甲拾取 (中金属)",
+    854: "胸甲拾取 (重金属)",
+    862: "手套拾取 (轻皮)",
+    864: "手套拾取 (中金属)",
+    868: "手套拾取 (重金属)",
+    438: "靴子拾取 (轻金属)",
+    93: "靴子拾取 (中金属)",
+    878: "靴子拾取 (重金属)",
+    883: "腰带拾取 (轻皮)",
+    885: "腰带拾取 (轻金属)",
+    893: "披风拾取 (轻布)",
+    # 饰品拾取
+    104: "护身符拾取 (宝石)",
+    508: "护身符拾取 (金)",
+    975: "护身符拾取 (金属)",
+    976: "护身符拾取 (木)",
+    384: "戒指拾取 (银)",
+    1457: "戒指拾取 (金)",
+    971: "戒指拾取 (金属)",
+    2009: "戒指拾取 (宝石)",
+    # 其他
+    944: "钥匙拾取",
+    956: "背包拾取",
+    193: "工具拾取 (木)",
+    435: "工具拾取 (金属)",
+}
+
+HYBRID_DROP_SOUNDS = {
+    # 消耗品默认
+    911: "默认消耗品放下",
+    # 武器放下
+    816: "单手剑放下 (金属)",
+    815: "单手剑放下 (木)",
+    793: "单手斧放下 (金属)",
+    796: "匕首放下 (金属)",
+    819: "单手锤放下 (金属)",
+    820: "单手锤放下 (木)",
+    824: "长杆放下 (金属)",
+    823: "长杆放下 (木)",
+    799: "弓放下 (木)",
+    792: "弩放下 (木)",
+    797: "双手剑放下 (金属)",
+    805: "双手锤放下 (金属)",
+    804: "双手斧放下 (金属)",
+    812: "双手杖放下 (金属)",
+    2134: "双手杖放下 (木)",
+    # 盾牌放下
+    831: "轻盾放下 (木)",
+    837: "轻盾放下 (皮)",
+    834: "轻盾放下 (金属)",
+    833: "中盾放下 (皮)",
+    832: "中盾放下 (木)",
+    2099: "中盾放下 (金属)",
+    835: "重盾放下 (木)",
+    838: "重盾放下 (金属)",
+    # 护甲放下
+    844: "头盔放下 (轻金属)",
+    846: "头盔放下 (中金属)",
+    847: "头盔放下 (重金属)",
+    856: "胸甲放下 (轻皮)",
+    857: "胸甲放下 (轻金属)",
+    858: "胸甲放下 (中金属)",
+    860: "胸甲放下 (重金属)",
+    869: "手套放下 (轻皮)",
+    871: "手套放下 (中金属)",
+    874: "手套放下 (重金属)",
+    2198: "靴子放下 (轻金属)",
+    2195: "靴子放下 (中金属)",
+    882: "靴子放下 (重金属)",
+    888: "腰带放下 (轻皮)",
+    890: "腰带放下 (轻金属)",
+    894: "披风放下 (轻布)",
+    # 饰品放下
+    161: "护身符放下 (宝石)",
+    1212: "护身符放下 (金)",
+    973: "护身符放下 (金属)",
+    974: "护身符放下 (木)",
+    451: "戒指放下 (银)",
+    249: "戒指放下 (金)",
+    972: "戒指放下 (金属)",
+    496: "戒指放下 (宝石)",
+    # 其他
+    48: "钥匙放下",
+    958: "背包放下",
+    2139: "工具放下 (木)",
+    2173: "工具放下 (金属)",
+}
+
+# 耐久使用策略
+HYBRID_DURABILITY_POLICIES = {
+    "allow_to_one": "不足消耗时允许最后一次，耐久变为 1 留存",
+    "destroy": "不足消耗时允许最后一次，用后删除道具",
+}
 # ============== 物品类型配置 ==============
 
 ITEM_TYPE_CONFIG = {
@@ -576,5 +940,13 @@ ITEM_TYPE_CONFIG = {
         "tag_labels": TAG_LABELS,
         "rarity_labels": RARITY_LABELS,
         "attributes_config": ARMOR_ATTRIBUTE_GROUPS,
+    },
+    "hybrid": {
+        "type_name": "混合物品",
+        "slot_labels": HYBRID_SLOT_LABELS,
+        "material_labels": HYBRID_MATERIALS,
+        "tag_labels": TAG_LABELS,
+        "rarity_labels": RARITY_LABELS,
+        "attributes_config": HYBRID_ATTRIBUTE_GROUPS,
     },
 }

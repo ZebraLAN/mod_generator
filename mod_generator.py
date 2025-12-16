@@ -72,13 +72,29 @@ from constants import (
     WEAPON_MATERIAL_LABELS,
     ARMOR_MATERIAL_LABELS,
     get_model_key,
+    # 混合物品常量
+    HYBRID_SLOT_LABELS,
+    HYBRID_QUALITY_LABELS,
+    HYBRID_WEAPON_TYPES,
+    HYBRID_DAMAGE_TYPES,
+    HYBRID_MATERIALS,
+    HYBRID_ARMOR_TYPES,
+    HYBRID_ARMOR_MATERIALS,
+    HYBRID_ARMOR_CLASSES,
+    HYBRID_ATTRIBUTE_GROUPS,
+    HYBRID_SKILL_IDS,
+    HYBRID_PICKUP_SOUNDS,
+    HYBRID_DROP_SOUNDS,
+    HYBRID_DURABILITY_POLICIES,
 )
-from generator import CodeGenerator, copy_item_textures
+from generator import CodeGenerator, copy_item_textures, copy_hybrid_item_textures, CONSUMABLE_ATTRIBUTES
 from models import (
     Armor,
+    HybridItem,
     ModProject,
     Weapon,
     validate_item,
+    validate_hybrid_item,
 )
 
 
@@ -131,6 +147,7 @@ class ModGeneratorGUI:
         self.project = ModProject()
         self.current_weapon_index = -1
         self.current_armor_index = -1
+        self.current_hybrid_index = -1
         self.show_import_dialog = False
         self.import_file_path = ""
         self.import_conflicts = []
@@ -746,6 +763,19 @@ class ModGeneratorGUI:
                     )
                     imgui.end_tab_item()
 
+                hybrid_tab_label = f"混合物品 ({len(self.project.hybrid_items)})###HybridTab"
+                if imgui.begin_tab_item(hybrid_tab_label)[0]:
+                    self.active_item_tab = 2
+                    self.draw_item_panel(
+                        "Hybrid",
+                        self.project.hybrid_items,
+                        "current_hybrid_index",
+                        self.draw_hybrid_list,
+                        self.draw_hybrid_editor,
+                        "请从左侧列表选择一个混合物品进行编辑",
+                    )
+                    imgui.end_tab_item()
+
                 imgui.end_tab_bar()
 
         imgui.end()
@@ -1143,6 +1173,1117 @@ class ModGeneratorGUI:
         errors = validate_item(armor, self.project, include_warnings=True)
         self._draw_validation_errors(errors)
 
+    # ==================== 混合物品列表和编辑器 ====================
+
+    def draw_hybrid_list(self):
+        """绘制混合物品列表"""
+        self._draw_item_list(
+            items=self.project.hybrid_items,
+            item_class=HybridItem,
+            current_index_attr="current_hybrid_index",
+            item_type_label="混合物品",
+            default_name="新混合物品",
+            default_desc="这是新混合物品的描述",
+            default_id_base="请设置混合物品系统ID",
+            get_display_suffix=lambda item: f" [{HYBRID_SLOT_LABELS.get(item.slot, item.slot)}]",
+        )
+
+    def draw_hybrid_editor(self):
+        """绘制混合物品编辑器"""
+        hybrid = self.project.hybrid_items[self.current_hybrid_index]
+
+        if imgui.tree_node("基本属性##hybrid", flags=imgui.TREE_NODE_FRAMED | imgui.TREE_NODE_DEFAULT_OPEN):
+            self._draw_hybrid_basic_properties(hybrid)
+            imgui.tree_pop()
+
+        if imgui.tree_node("功能设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
+            self._draw_hybrid_feature_settings(hybrid)
+            imgui.tree_pop()
+
+        if hybrid.init_weapon_stats:
+            if imgui.tree_node("武器设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
+                self._draw_hybrid_weapon_settings(hybrid)
+                imgui.tree_pop()
+
+        if hybrid.init_armor_stats:
+            if imgui.tree_node("护甲设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
+                self._draw_hybrid_armor_settings(hybrid)
+                imgui.tree_pop()
+
+        # 属性加成：仅在有被动效果或纯消耗品时显示
+        # 武器/护甲的属性在武器设置/护甲设置中配置
+        if self._should_show_hybrid_attributes(hybrid):
+            if imgui.tree_node("属性加成##hybrid", flags=imgui.TREE_NODE_FRAMED):
+                self._draw_hybrid_attributes_editor(hybrid)
+                imgui.tree_pop()
+
+        # 消耗品属性编辑器
+        self._draw_hybrid_consumable_attributes_editor(hybrid)
+
+        if imgui.tree_node("名称与本地化##hybrid", flags=imgui.TREE_NODE_FRAMED):
+            self._draw_localization_editor(hybrid, "hybrid")
+            imgui.tree_pop()
+
+        if imgui.tree_node("贴图文件##hybrid", flags=imgui.TREE_NODE_FRAMED):
+            self._draw_hybrid_textures_editor(hybrid)
+            imgui.tree_pop()
+
+        # 移除自定义代码板块 - 让用户编写代码有悖于设计原则
+
+        errors = validate_hybrid_item(hybrid, self.project, include_warnings=True)
+        self._draw_validation_errors(errors)
+
+    def _should_show_hybrid_attributes(self, hybrid: HybridItem) -> bool:
+        """判断是否显示属性加成编辑器
+        
+        需求调整：即使是武器/护甲也允许编辑额外属性（例如 HYBRID_ITEM_TEMPLATE 中提到的武器可选属性）。
+        因此只要是武器/护甲/有被动效果，就展示属性编辑器。
+        """
+        if hybrid.init_weapon_stats or hybrid.init_armor_stats or hybrid.has_passive:
+            return True
+        return False
+
+    def _draw_hybrid_basic_properties(self, hybrid: HybridItem):
+        """绘制混合物品基本属性"""
+        # 系统ID
+        imgui.text("混合物品系统ID")
+        imgui.same_line()
+        self.text_secondary(f"(生成ID: {hybrid.id})")
+        imgui.push_item_width(-1)
+        changed, hybrid.name = imgui.input_text("##hybrid_sysid", hybrid.name, 256)
+        imgui.pop_item_width()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "用来让游戏识别该物品的内部名称，不向玩家展示。\n请确保ID尽可能独特，以免与其他Mod冲突！"
+            )
+
+        imgui.dummy(0, 4)
+
+        # 固定父类为 o_inv_consum（不向用户显示）
+        hybrid.parent_object = "o_inv_consum"
+        
+        # 固定标签为 "special exc"（不向用户显示）
+        hybrid.tags = "special exc"
+
+        # 两列布局
+        col_width = imgui.get_content_region_available_width() / 2 - 8
+        imgui.columns(2, "hybrid_basic_cols", border=False)
+        imgui.set_column_width(0, col_width)
+
+        # 左列
+        imgui.push_item_width(-1)
+
+        imgui.text("品质")
+        old_quality = hybrid.quality
+        hybrid.quality = self._draw_enum_combo(
+            "##quality_hybrid",
+            hybrid.quality,
+            list(HYBRID_QUALITY_LABELS.keys()),
+            HYBRID_QUALITY_LABELS,
+        )
+        # 品质变化时自动更新稀有度
+        if hybrid.quality != old_quality:
+            self._update_hybrid_rarity_from_quality(hybrid)
+
+        imgui.text("基础价格")
+        changed, hybrid.base_price = imgui.input_int("##price_hybrid", hybrid.base_price)
+        if changed:
+            hybrid.base_price = max(0, hybrid.base_price)
+
+        imgui.pop_item_width()
+
+        # 右列
+        imgui.next_column()
+        imgui.push_item_width(-1)
+
+        imgui.text("等级")
+        changed, hybrid.tier = imgui.input_int("##tier_hybrid", hybrid.tier)
+        if changed:
+            hybrid.tier = max(1, min(7, hybrid.tier))
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品等级 (1-7)，用于商人筛选和悬浮提示显示")
+
+        imgui.pop_item_width()
+        imgui.columns(1)
+
+        self.draw_indented_separator()
+
+        # 装备设置（先于槽位）
+        imgui.text("装备设置")
+
+        old_equipable = hybrid.equipable
+        changed, hybrid.equipable = imgui.checkbox("可装备##hybrid", hybrid.equipable)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品是否可以装备到对应槽位")
+
+        # 可装备状态改变时调整槽位
+        if changed:
+            if not hybrid.equipable:
+                # 不可装备时锁定为背包道具
+                hybrid.slot = "heal"
+            elif hybrid.slot == "heal":
+                # 从不可装备变为可装备时，默认设为手持
+                hybrid.slot = "hand"
+
+        # 槽位选择
+        imgui.same_line(spacing=20)
+        imgui.text("槽位:")
+        imgui.same_line()
+        imgui.push_item_width(150)
+        
+        if hybrid.equipable:
+            # 可装备时，排除 heal 选项
+            equipable_slots = {k: v for k, v in HYBRID_SLOT_LABELS.items() if k != "heal"}
+            new_slot = self._draw_enum_combo(
+                "##slot_hybrid",
+                hybrid.slot,
+                list(equipable_slots.keys()),
+                equipable_slots,
+            )
+        else:
+            # 不可装备：固定为 heal，兼容老版本 imgui（无 begin_disabled）
+            self._draw_enum_combo(
+                "##slot_hybrid",
+                "heal",
+                ["heal"],
+                {"heal": "背包道具"},
+            )
+            new_slot = "heal"
+        
+        imgui.pop_item_width()
+        
+        if new_slot != hybrid.slot:
+            hybrid.slot = new_slot
+
+        # 手数（仅手持槽位且可装备时显示）
+        if hybrid.equipable and hybrid.slot == "hand":
+            imgui.same_line(spacing=20)
+            imgui.text("手数:")
+            imgui.same_line()
+            imgui.push_item_width(120)
+            changed, hybrid.hands = imgui.input_int("##hands_hybrid", hybrid.hands, step=1, step_fast=1)
+            if changed:
+                hybrid.hands = max(1, min(2, hybrid.hands))
+            imgui.pop_item_width()
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("装备时占用的手数 (1 或 2)")
+
+    def _update_hybrid_rarity_from_quality(self, hybrid: HybridItem):
+        """根据品质自动更新稀有度"""
+        # 普通(1) -> 空, 独特(6) -> "Unique", 文物(7) -> 空
+        if hybrid.quality == 6:
+            hybrid.rarity = "Unique"
+        else:
+            hybrid.rarity = ""
+
+    def _draw_hybrid_feature_settings(self, hybrid: HybridItem):
+        """绘制混合物品功能设置"""
+        # 功能开关
+        imgui.text("物品类型")
+
+        changed, hybrid.init_weapon_stats = imgui.checkbox("武器类##hybrid", hybrid.init_weapon_stats)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("初始化武器类型、伤害类型、材料等\n将物品作为武器处理")
+        if changed and hybrid.init_weapon_stats:
+            hybrid.init_armor_stats = False  # 互斥
+            hybrid.has_passive = False  # 武器不允许被动效果
+
+        imgui.same_line(spacing=20)
+        changed, hybrid.init_armor_stats = imgui.checkbox("护甲类##hybrid", hybrid.init_armor_stats)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("初始化护甲类型、防御等\n将物品作为护甲处理")
+        if changed and hybrid.init_armor_stats:
+            hybrid.init_weapon_stats = False  # 互斥
+            hybrid.has_passive = False  # 护甲不允许被动效果
+
+        # 自动设置 is_weapon（不向用户显示）
+        # is_weapon = true 当且仅当是武器类型且槽位为手持
+        hybrid.mark_as_weapon = hybrid.init_weapon_stats and hybrid.slot == "hand"
+
+        self.draw_indented_separator()
+
+        # 技能设置（仅在拥有使用次数时可设置主动技能）
+        imgui.text("技能设置")
+
+        if hybrid.has_charges:
+            changed, hybrid.has_active_skill = imgui.checkbox("拥有主动技能##hybrid", hybrid.has_active_skill)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("物品是否拥有可触发的主动技能")
+
+            if hybrid.has_active_skill:
+                imgui.same_line(spacing=20)
+                imgui.text("技能ID:")
+                imgui.same_line()
+                imgui.push_item_width(220)
+                current_skill_label = HYBRID_SKILL_IDS.get(hybrid.skill_id, f"自定义 ({hybrid.skill_id})")
+                if imgui.begin_combo("##skill_id_hybrid", current_skill_label):
+                    for skill_id, skill_label in HYBRID_SKILL_IDS.items():
+                        if imgui.selectable(skill_label, skill_id == hybrid.skill_id)[0]:
+                            hybrid.skill_id = skill_id
+                    imgui.end_combo()
+                imgui.pop_item_width()
+        else:
+            # 未勾选使用次数时，显示提示（重置已在使用次数区块集中处理）
+            self.text_secondary('（需要先勾选"拥有使用次数"才能设置主动技能）')
+
+        # 被动效果（仅当不是武器也不是护甲时显示）
+        if not hybrid.init_weapon_stats and not hybrid.init_armor_stats:
+            imgui.same_line(spacing=20)
+            changed, hybrid.has_passive = imgui.checkbox("拥有被动效果##hybrid", hybrid.has_passive)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "物品是否拥有被动效果 (check_inventory_data)\n"
+                    "放在背包中即可生效的属性加成\n\n"
+                    "注意：武器/护甲类物品不允许设置被动效果，\n"
+                    "因为装备后属性会被统计两次（背包+已装备）"
+                )
+        else:
+            # 武器/护甲强制关闭被动效果
+            hybrid.has_passive = False
+
+        self.draw_indented_separator()
+
+        # 使用次数
+        imgui.text("使用次数")
+
+        changed, hybrid.has_charges = imgui.checkbox("拥有使用次数##hybrid", hybrid.has_charges)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品是否有使用次数限制")
+
+        if hybrid.has_charges:
+            imgui.same_line(spacing=20)
+            imgui.text("次数:")
+            imgui.same_line()
+            imgui.push_item_width(120)
+            changed, hybrid.charge = imgui.input_int("##charge_hybrid", hybrid.charge, step=1, step_fast=5)
+            if changed:
+                hybrid.charge = max(1, hybrid.charge)
+            imgui.pop_item_width()
+
+            imgui.same_line(spacing=20)
+            changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("是否在物品图标上显示使用次数")
+        else:
+            # 未勾选使用次数时，清除所有依赖于使用次数的设置
+            # 这样可以避免无效数据残留导致的bug
+            hybrid.charge = 0
+            hybrid.draw_charges = False
+            hybrid.has_active_skill = False
+            hybrid.skill_id = -4
+            hybrid.duration_change = 0
+            hybrid.delete_on_charge_zero = False
+            hybrid.has_cooldown = False
+            hybrid.cooldown_hours = 1
+
+        self.draw_indented_separator()
+
+        # 耐久
+        imgui.text("耐久设置")
+
+        changed, hybrid.has_durability = imgui.checkbox("拥有耐久##hybrid", hybrid.has_durability)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品是否有耐久度")
+
+        if hybrid.has_durability:
+            imgui.same_line(spacing=20)
+            imgui.text("初始:")
+            imgui.same_line()
+            imgui.push_item_width(120)
+            changed, hybrid.duration_init = imgui.input_int("##dur_init", hybrid.duration_init)
+            if changed:
+                hybrid.duration_init = max(1, hybrid.duration_init)
+            imgui.pop_item_width()
+
+            imgui.same_line(spacing=10)
+            imgui.text("最大:")
+            imgui.same_line()
+            imgui.push_item_width(120)
+            changed, hybrid.duration_max = imgui.input_int("##dur_max", hybrid.duration_max)
+            if changed:
+                hybrid.duration_max = max(1, hybrid.duration_max)
+            imgui.pop_item_width()
+
+        # 每次使用耐久消耗和耐久耗尽行为（仅在拥有使用次数时可设置）
+        # 每次使用耐久消耗和耐久耗尽行为（仅在拥有使用次数时可设置）
+        if hybrid.has_charges:
+            # 次数与耐久挂钩选项
+            if hybrid.has_durability:
+                changed, hybrid.link_charges_to_durability = imgui.checkbox("次数与耐久挂钩##hybrid", hybrid.link_charges_to_durability)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("开启后：\n1. 每次使用消耗 = 总耐久 / 总使用次数\n2. 忽略下方'每次使用耐久消耗'设置\n3. 忽略'耐久耗尽行为'，改为由'次数用尽后删除'控制")
+                imgui.same_line(spacing=20)
+            
+            # 如果未挂钩，显示常规耐久消耗设置
+            if not hybrid.link_charges_to_durability:
+                imgui.text("每次使用耐久消耗 (%):")
+                imgui.same_line()
+                imgui.push_item_width(120)
+                changed, hybrid.duration_change = imgui.input_int("##dur_change", hybrid.duration_change)
+                if changed:
+                    hybrid.duration_change = max(0, min(100, hybrid.duration_change))
+                imgui.pop_item_width()
+                
+                imgui.same_line(spacing=20)
+
+            # 次数用尽/耐久行为控制
+            # 如果挂钩：控制是归零删除还是留1耐久
+            # 如果未挂钩：控制charge归零是否删除物品
+            label = "次数用尽后删除##hybrid" if not hybrid.link_charges_to_durability else "耐久耗尽后删除物品##hybrid"
+            changed, hybrid.delete_on_charge_zero = imgui.checkbox(label, hybrid.delete_on_charge_zero)
+            if imgui.is_item_hovered():
+                if hybrid.link_charges_to_durability:
+                    imgui.set_tooltip("开启：最后一次使用后删除物品\n关闭：最后一次使用后保留1点耐久")
+                else:
+                    imgui.set_tooltip("仅作用于使用次数 charge；耐久耗尽由耐久策略决定")
+
+            if hybrid.has_durability and not hybrid.link_charges_to_durability:
+                if hybrid.durability_use_policy not in HYBRID_DURABILITY_POLICIES:
+                    hybrid.durability_use_policy = "destroy"
+                imgui.text("耐久耗尽行为:")
+                imgui.same_line()
+                imgui.push_item_width(250)
+                hybrid.durability_use_policy = self._draw_enum_combo(
+                    "##dur_policy",
+                    hybrid.durability_use_policy,
+                    list(HYBRID_DURABILITY_POLICIES.keys()),
+                    HYBRID_DURABILITY_POLICIES,
+                )
+                imgui.pop_item_width()
+                if imgui.is_item_hovered():
+                    tip = HYBRID_DURABILITY_POLICIES.get(hybrid.durability_use_policy, "")
+                    if tip:
+                        imgui.set_tooltip(tip)
+
+        self.draw_indented_separator()
+
+        # 冷却（仅在拥有使用次数时可设置）
+        imgui.text("冷却设置")
+
+        if hybrid.has_charges:
+            changed, hybrid.has_cooldown = imgui.checkbox("拥有冷却##hybrid", hybrid.has_cooldown)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("使用后是否有冷却时间")
+
+            if hybrid.has_cooldown:
+                imgui.same_line(spacing=20)
+                imgui.text("冷却时间 (小时):")
+                imgui.same_line()
+                imgui.push_item_width(120)
+                changed, hybrid.cooldown_hours = imgui.input_int("##cd_hours", hybrid.cooldown_hours)
+                if changed:
+                    hybrid.cooldown_hours = max(1, hybrid.cooldown_hours)
+                imgui.pop_item_width()
+        else:
+            # 未勾选使用次数时，显示提示（重置已在使用次数区块集中处理）
+            self.text_secondary('（需要先勾选"拥有使用次数"才能设置冷却）')
+
+        self.draw_indented_separator()
+
+        # 音效（使用下拉选项）
+        imgui.text("音效设置")
+
+        imgui.text("放下音效:")
+        imgui.same_line()
+        imgui.push_item_width(200)
+        current_drop_label = HYBRID_DROP_SOUNDS.get(hybrid.drop_sound, f"自定义 ({hybrid.drop_sound})")
+        if imgui.begin_combo("##drop_sound", current_drop_label):
+            for sound_id, sound_label in HYBRID_DROP_SOUNDS.items():
+                if imgui.selectable(sound_label, sound_id == hybrid.drop_sound)[0]:
+                    hybrid.drop_sound = sound_id
+            imgui.end_combo()
+        imgui.pop_item_width()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品放下时播放的音效")
+
+        imgui.same_line(spacing=20)
+        imgui.text("拾取音效:")
+        imgui.same_line()
+        imgui.push_item_width(200)
+        current_pickup_label = HYBRID_PICKUP_SOUNDS.get(hybrid.pickup_sound, f"自定义 ({hybrid.pickup_sound})")
+        if imgui.begin_combo("##pickup_sound", current_pickup_label):
+            for sound_id, sound_label in HYBRID_PICKUP_SOUNDS.items():
+                if imgui.selectable(sound_label, sound_id == hybrid.pickup_sound)[0]:
+                    hybrid.pickup_sound = sound_id
+            imgui.end_combo()
+        imgui.pop_item_width()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品拾取时播放的音效")
+
+    def _draw_hybrid_weapon_settings(self, hybrid: HybridItem):
+        """绘制混合物品武器设置"""
+        col_width = imgui.get_content_region_available_width() / 2 - 8
+        imgui.columns(2, "hybrid_weapon_cols", border=False)
+        imgui.set_column_width(0, col_width)
+
+        imgui.push_item_width(-1)
+
+        imgui.text("武器类型")
+        hybrid.weapon_type = self._draw_enum_combo(
+            "##wep_type",
+            hybrid.weapon_type,
+            list(HYBRID_WEAPON_TYPES.keys()),
+            HYBRID_WEAPON_TYPES,
+        )
+
+        # 伤害汇总（不区分主/额外，全部在属性里填）
+        damage_components = self._compute_weapon_damage_components(hybrid)
+        total_dmg = sum(v for _, v in damage_components)
+        max_val = max([v for _, v in damage_components], default=0)
+        ties = [t for t, v in damage_components if v == max_val and v > 0]
+        best_type = ties[0] if ties else (hybrid.damage_type or "Slashing_Damage")
+        hybrid.damage_type = best_type  # 仅作为生成时的占位标记
+        dmg_label_map = HYBRID_DAMAGE_TYPES
+        dmg_type_label = dmg_label_map.get(best_type, best_type)
+        imgui.text(f"伤害汇总: DMG={total_dmg}  主类型={dmg_type_label}（自动取最高伤害类型）")
+
+        imgui.text("材料")
+        hybrid.material = self._draw_enum_combo(
+            "##wep_mat",
+            hybrid.material,
+            list(HYBRID_MATERIALS.keys()),
+            HYBRID_MATERIALS,
+        )
+
+        imgui.pop_item_width()
+        imgui.next_column()
+        imgui.push_item_width(-1)
+
+        imgui.text("等级")
+        changed, hybrid.tier = imgui.input_int("##wep_tier", hybrid.tier)
+        if changed:
+            hybrid.tier = max(1, min(7, hybrid.tier))
+
+        imgui.text("平衡")
+        changed, hybrid.balance = imgui.input_int("##wep_balance", hybrid.balance)
+
+        imgui.pop_item_width()
+        imgui.columns(1)
+
+        imgui.text("攻击范围:")
+        imgui.same_line()
+        imgui.push_item_width(80)
+        changed, hybrid.weapon_range = imgui.input_int("##wep_range", hybrid.weapon_range)
+        if changed:
+            hybrid.weapon_range = max(1, hybrid.weapon_range)
+        imgui.pop_item_width()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("攻击距离 (格数)")
+
+    def _draw_hybrid_armor_settings(self, hybrid: HybridItem):
+        """绘制混合物品护甲设置"""
+        col_width = imgui.get_content_region_available_width() / 2 - 8
+        imgui.columns(2, "hybrid_armor_cols", border=False)
+        imgui.set_column_width(0, col_width)
+
+        imgui.push_item_width(-1)
+
+        imgui.text("护甲类型")
+        hybrid.armor_type = self._draw_enum_combo(
+            "##armor_type",
+            hybrid.armor_type,
+            list(HYBRID_ARMOR_TYPES.keys()),
+            HYBRID_ARMOR_TYPES,
+        )
+
+        imgui.text("护甲材料")
+        hybrid.armor_material = self._draw_enum_combo(
+            "##armor_mat",
+            hybrid.armor_material,
+            list(HYBRID_ARMOR_MATERIALS.keys()),
+            HYBRID_ARMOR_MATERIALS,
+        )
+
+        imgui.pop_item_width()
+        imgui.next_column()
+        imgui.push_item_width(-1)
+
+        imgui.text("护甲类别")
+        hybrid.armor_class = self._draw_enum_combo(
+            "##armor_class",
+            hybrid.armor_class,
+            list(HYBRID_ARMOR_CLASSES.keys()),
+            HYBRID_ARMOR_CLASSES,
+        )
+
+        imgui.text("防御值")
+        changed, hybrid.defense = imgui.input_int("##armor_def", hybrid.defense)
+        if changed:
+            hybrid.defense = max(0, hybrid.defense)
+
+        imgui.pop_item_width()
+        imgui.columns(1)
+
+    def _draw_hybrid_attributes_editor(self, hybrid: HybridItem):
+        """绘制混合物品属性编辑器（按武器/护甲/被动区分可选字段）"""
+        groups = self._get_hybrid_attribute_groups(hybrid)
+        if not groups:
+            return
+
+        tips = []
+        if hybrid.init_weapon_stats:
+            tips.append("武器属性")
+        if hybrid.init_armor_stats:
+            tips.append("护甲属性")
+        if hybrid.has_passive:
+            tips.append("被动属性")
+        if tips:
+            self.text_secondary(" / ".join(tips) + "：仅显示模板允许的字段")
+            self.draw_indented_separator()
+
+        for group_name, attributes in groups.items():
+            tree_id = f"{group_name}##hybrid_attr"
+            if imgui.tree_node(tree_id):
+                imgui.columns(2, f"hybrid_attr_cols_{tree_id}", border=False)
+                input_col_width = 120 + (self.font_size - 14) * 6
+                imgui.set_column_width(0, input_col_width)
+
+                for attr in attributes:
+                    desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
+                    desc_name = desc_info[0] if desc_info[0] else attr
+                    desc_detail = desc_info[1] if len(desc_info) > 1 else ""
+
+                    val = hybrid.attributes.get(attr, 0)
+
+                    imgui.push_item_width(-1)
+                    input_id = f"##{attr}_hybrid"
+                    changed, new_val = imgui.input_int(input_id, val, step=1, step_fast=10)
+                    imgui.pop_item_width()
+
+                    if changed:
+                        hybrid.attributes[attr] = new_val
+
+                    imgui.next_column()
+                    imgui.text(desc_name)
+
+                    if desc_detail and imgui.is_item_hovered():
+                        imgui.set_tooltip(desc_detail)
+
+                    imgui.next_column()
+
+                imgui.columns(1)
+                imgui.tree_pop()
+
+        # 清除当前类型不再允许的属性
+        self._prune_hybrid_attributes(hybrid, groups)
+
+    def _prune_hybrid_attributes(self, hybrid: HybridItem, groups: dict):
+        """移除与当前类型不匹配的属性"""
+        allowed = set()
+        for attrs in groups.values():
+            allowed.update(attrs)
+        to_delete = [k for k in hybrid.attributes.keys() if k not in allowed]
+        for k in to_delete:
+            del hybrid.attributes[k]
+
+    def _draw_hybrid_consumable_attributes_editor(self, hybrid: HybridItem):
+        """绘制混合物品消耗品属性编辑器"""
+        if not hybrid.has_charges:
+            return
+
+        imgui.dummy(0, 5)
+        if imgui.collapsing_header("消耗品属性 (Consumable Attributes)")[0]:
+            imgui.indent()
+            
+            # 1. 持续时间 (控制依赖属性)
+            changed, new_dur = imgui.drag_float(
+                "效果持续时间 (Duration)",
+                hybrid.consumable_attributes.get("Duration", 0.0),
+                change_speed=1.0,
+                min_value=0.0,
+                format="%.0f"
+            )
+            if changed:
+                hybrid.consumable_attributes["Duration"] = new_dur
+            
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("部分属性(如回复/Buff)只有在持续时间 > 0 时生效")
+
+            imgui.dummy(0, 5)
+
+            # 2. 独立属性 (Instant / Special) - 始终可用
+            imgui.text_colored("独立/即时效果 (Independent)", *self.theme_colors["accent"])
+            
+            independent_groups = [
+                ("基础状态", ["Hunger", "Thirsty", "Intoxication", "Pain", "Fatigue", "Condition"]),
+                ("精神/士气", ["SanitySituational", "MoraleSituational", "MoraleDiet"]),
+                ("特殊", ["Immunity", "max_mp_res", "max_hp_res", "Poisoning_Chance", "Nausea_Chance"])
+            ]
+
+            # 3. 依赖属性 (Duration Dependent) - 持续时间 > 0 时可用
+            dependent_groups = [
+                ("生命/能量回复", ["Health_Restoration", "MP_Restoration", "MP_turn", "HP_turn"]),
+                ("战斗属性", ["Weapon_Damage", "Hit_Chance", "FMB", "CRTD", "Fortitude", "Magic_Power", "Cooldown_Reduction"]),
+                ("抗性", ["Physical_Resistance", "Magic_Resistance", "Bleeding_Resistance", "Toxicity_Resistance", "Pain_Resistance", "Hunger_Resistance"]),
+                ("其他", ["Received_XP", "VSN"])
+            ]
+
+            def draw_attr_grid(attr_list, enabled=True):
+                 if not enabled:
+                     imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+                 
+                 columns = 2
+                 for i, attr in enumerate(attr_list):
+                    if i % columns == 0:
+                        imgui.columns(columns, f"consum_grid_{attr}", False)
+                    
+                    val = hybrid.consumable_attributes.get(attr, 0.0)
+                    
+                    # 如果禁用，显示 simple text 而不是 input
+                    # 或者使用 flags=imgui.INPUT_TEXT_READ_ONLY ? drag_float 没有 read_only flag
+                    # 直接不处理 changed 即可
+                    
+                    label = f"{ATTRIBUTE_DESCRIPTIONS.get(attr, attr)}##consum_{attr}"
+                    if enabled:
+                        changed, new_val = imgui.drag_float(
+                            label,
+                            val,
+                            change_speed=0.1 if attr in ["HP_turn", "MP_turn"] else 1.0,
+                            format="%.1f"
+                        )
+                        if changed:
+                            hybrid.consumable_attributes[attr] = new_val
+                    else:
+                        imgui.text(f"{ATTRIBUTE_DESCRIPTIONS.get(attr, attr)}: {val}")
+
+                    imgui.next_column()
+                 imgui.columns(1)
+                 
+                 if not enabled:
+                     imgui.pop_style_var()
+
+            # 绘制独立属性
+            for group_name, attrs in independent_groups:
+                imgui.text_secondary(f"- {group_name}")
+                draw_attr_grid(attrs, enabled=True)
+                imgui.dummy(0, 2)
+            
+            imgui.separator()
+            
+            # 绘制依赖属性
+            duration_valid = hybrid.consumable_attributes.get("Duration", 0) > 0
+            
+            header_text = "持续性效果 (Duration Dependent)"
+            if not duration_valid:
+                header_text += " [需设置持续时间]"
+                
+            imgui.text_colored(header_text, *self.theme_colors["accent" if duration_valid else "text_disabled"])
+            
+            if not duration_valid:
+                imgui.text_colored("警告: 这些属性需要设置 '效果持续时间' 才能生效。", 1.0, 0.5, 0.0)
+            
+            if duration_valid or imgui.tree_node("查看被禁用的属性"):
+                for group_name, attrs in dependent_groups:
+                     imgui.text_secondary(f"- {group_name}")
+                     draw_attr_grid(attrs, enabled=duration_valid)
+                     imgui.dummy(0, 2)
+                if not duration_valid:
+                    imgui.tree_pop()
+                
+            imgui.unindent()
+
+    def _get_passive_attribute_groups(self) -> dict:
+        """获取被动效果物品适用的属性分组
+        
+        被动物品可以提供的属性加成（参考 HYBRID_ITEM_TEMPLATE.gml.hbs）
+        """
+        return {
+            "战斗属性": [
+                "Hit_Chance",
+                "CRT",
+                "CRTD",
+                "CTA",
+                "PRR",
+                "Block_Power",
+                "Block_Recovery",
+                "FMB",
+                "Weapon_Damage",
+                "Armor_Piercing",
+                "Armor_Damage",
+                "Bodypart_Damage",
+            ],
+            "生存属性": [
+                "max_hp",
+                "Health_Restoration",
+                "Healing_Received",
+                "Lifesteal",
+                "Manasteal",
+                "Fatigue_Gain",
+            ],
+            "魔法属性": [
+                "MP",
+                "MP_Restoration",
+                "Magic_Power",
+                "Cooldown_Reduction",
+                "Miscast_Chance",
+                "Miracle_Chance",
+                "Miracle_Power",
+                "Abilities_Energy_Cost",
+                "Skills_Energy_Cost",
+                "Spells_Energy_Cost",
+                "Bonus_Range",
+            ],
+            "法术系加成": [
+                "Pyromantic_Power",
+                "Geomantic_Power",
+                "Venomantic_Power",
+                "Electromantic_Power",
+                "Cryomantic_Power",
+                "Arcanistic_Power",
+                "Astromantic_Power",
+                "Psimantic_Power",
+            ],
+            "抗性（综合）": [
+                "Physical_Resistance",
+                "Nature_Resistance",
+                "Magic_Resistance",
+            ],
+            "抗性（元素）": [
+                "Slashing_Resistance",
+                "Piercing_Resistance",
+                "Blunt_Resistance",
+                "Rending_Resistance",
+                "Fire_Resistance",
+                "Shock_Resistance",
+                "Poison_Resistance",
+                "Caustic_Resistance",
+                "Frost_Resistance",
+                "Arcane_Resistance",
+                "Unholy_Resistance",
+                "Sacred_Resistance",
+                "Psionic_Resistance",
+            ],
+            "状态抗性": [
+                "Bleeding_Resistance",
+                "Knockback_Resistance",
+                "Stun_Resistance",
+                "Pain_Resistance",
+            ],
+        }
+
+    def _get_hybrid_attribute_groups(self, hybrid: HybridItem) -> dict:
+        """根据类型获取可编辑属性分组（模板映射），并清理无效属性"""
+        result: dict[str, list[str]] = {}
+
+        def merge(src: dict):
+            for k, v in src.items():
+                if k not in result:
+                    result[k] = []
+                for attr in v:
+                    if attr not in result[k]:
+                        result[k].append(attr)
+
+        if hybrid.init_weapon_stats:
+            merge(self._get_weapon_attribute_groups())
+        if hybrid.init_armor_stats:
+            merge(self._get_armor_attribute_groups())
+        if hybrid.has_passive:
+            merge(self._get_passive_attribute_groups())
+
+        # 清理不再允许的属性
+        if result:
+            allowed = set()
+            for attrs in result.values():
+                allowed.update(attrs)
+            to_delete = [k for k in hybrid.attributes.keys() if k not in allowed]
+            for k in to_delete:
+                del hybrid.attributes[k]
+
+        return result
+
+    def _compute_weapon_damage_components(self, hybrid: HybridItem) -> list[tuple[str, int]]:
+        """收集所有伤害（不区分主/额外，全部来自属性伤害键）"""
+        damage_keys = [
+            "Slashing_Damage",
+            "Piercing_Damage",
+            "Blunt_Damage",
+            "Rending_Damage",
+            "Fire_Damage",
+            "Shock_Damage",
+            "Poison_Damage",
+            "Caustic_Damage",
+            "Frost_Damage",
+            "Arcane_Damage",
+            "Unholy_Damage",
+            "Sacred_Damage",
+            "Psionic_Damage",
+        ]
+        comps: list[tuple[str, int]] = []
+        for k, v in hybrid.attributes.items():
+            if k in damage_keys and v != 0:
+                comps.append((k, v))
+        return comps
+
+    def _get_weapon_attribute_groups(self) -> dict:
+        """模板武器段落可选属性"""
+        return {
+            "基础战斗": [
+                "Range",
+                "Bodypart_Damage",
+                "Armor_Piercing",
+                "Armor_Damage",
+            ],
+            "伤害": [
+                "Slashing_Damage",
+                "Piercing_Damage",
+                "Blunt_Damage",
+                "Rending_Damage",
+                "Fire_Damage",
+                "Shock_Damage",
+                "Poison_Damage",
+                "Caustic_Damage",
+                "Frost_Damage",
+                "Arcane_Damage",
+                "Unholy_Damage",
+                "Sacred_Damage",
+                "Psionic_Damage",
+            ],
+            "状态几率": [
+                "Bleeding_Chance",
+                "Daze_Chance",
+                "Stun_Chance",
+                "Knockback_Chance",
+                "Immob_Chance",
+                "Stagger_Chance",
+            ],
+            "命中/暴击": [
+                "Hit_Chance",
+                "CRT",
+                "CRTD",
+                "CTA",
+                "FMB",
+            ],
+            "格挡/护甲": [
+                "PRR",
+                "Block_Power",
+                "Block_Recovery",
+            ],
+            "魔法/能量": [
+                "MP",
+                "MP_Restoration",
+                "Cooldown_Reduction",
+                "Abilities_Energy_Cost",
+                "Skills_Energy_Cost",
+                "Spells_Energy_Cost",
+                "Magic_Power",
+                "Miscast_Chance",
+                "Miracle_Chance",
+                "Miracle_Power",
+                "Bonus_Range",
+            ],
+            "生存/其他": [
+                "max_hp",
+                "Health_Restoration",
+                "Healing_Received",
+                "Crit_Avoid",
+                "Fatigue_Gain",
+                "Lifesteal",
+                "Manasteal",
+                "Damage_Received",
+            ],
+            "元素法力": [
+                "Pyromantic_Power",
+                "Geomantic_Power",
+                "Venomantic_Power",
+                "Electromantic_Power",
+                "Cryomantic_Power",
+                "Arcanistic_Power",
+                "Astromantic_Power",
+                "Psimantic_Power",
+            ],
+        }
+
+    def _get_armor_attribute_groups(self) -> dict:
+        """模板护甲段落可选属性"""
+        return {
+            "主属性": ["DEF"],
+            "战斗/防御": [
+                "PRR",
+                "Block_Power",
+                "Block_Recovery",
+                "EVS",
+                "Crit_Avoid",
+                "Damage_Received",
+                "Damage_Returned",
+                "Fortitude",
+                "FMB",
+                "Hit_Chance",
+                "Weapon_Damage",
+                "Armor_Piercing",
+                "Armor_Damage",
+                "CRT",
+                "CRTD",
+                "CTA",
+                "VSN",
+            ],
+            "生存/回复": [
+                "max_hp",
+                "Health_Restoration",
+                "Healing_Received",
+                "Lifesteal",
+                "Manasteal",
+                "Fatigue_Gain",
+                "Received_XP",
+            ],
+            "抗性（综合）": [
+                "Physical_Resistance",
+                "Nature_Resistance",
+                "Magic_Resistance",
+            ],
+            "抗性（元素）": [
+                "Slashing_Resistance",
+                "Piercing_Resistance",
+                "Blunt_Resistance",
+                "Rending_Resistance",
+                "Fire_Resistance",
+                "Shock_Resistance",
+                "Poison_Resistance",
+                "Caustic_Resistance",
+                "Frost_Resistance",
+                "Arcane_Resistance",
+                "Unholy_Resistance",
+                "Sacred_Resistance",
+                "Psionic_Resistance",
+            ],
+            "状态抗性": [
+                "Bleeding_Resistance",
+                "Knockback_Resistance",
+                "Stun_Resistance",
+                "Pain_Resistance",
+            ],
+            "魔法/能量": [
+                "MP",
+                "MP_Restoration",
+                "Magic_Power",
+                "Cooldown_Reduction",
+                "Miscast_Chance",
+                "Miracle_Chance",
+                "Miracle_Power",
+                "Bonus_Range",
+            ],
+        }
+
+    def _draw_hybrid_textures_editor(self, hybrid: HybridItem):
+        """绘制混合物品贴图编辑器"""
+        self.text_secondary("注意: 所有贴图仅支持 PNG 格式")
+        self.draw_indented_separator()
+
+        # 预览设置
+        imgui.text("预览:")
+        imgui.same_line()
+        imgui.push_item_width(120)
+        changed, self.texture_scale = imgui.input_float(
+            "##scale_hybrid",
+            self.texture_scale,
+            step=0.5,
+            step_fast=1.0,
+            format="%.1fx",
+        )
+        imgui.pop_item_width()
+        if changed:
+            self.texture_scale = max(0.5, min(8.0, self.texture_scale))
+            self.save_config()
+
+        self.draw_indented_separator()
+
+        # 穿戴/手持状态贴图
+        if hybrid.needs_char_texture():
+            imgui.text("穿戴/手持状态贴图")
+
+            # 模特选择
+            imgui.same_line()
+            imgui.text("  模特:")
+            imgui.same_line()
+            model_combo_width = 100 + (self.font_size - 14) * 4
+            imgui.push_item_width(model_combo_width)
+            current_model_label = CHARACTER_MODEL_LABELS.get(
+                self.selected_model, self.selected_model
+            )
+            if imgui.begin_combo("##model_hybrid", current_model_label):
+                for model_key, model_label in CHARACTER_MODEL_LABELS.items():
+                    if imgui.selectable(model_label, model_key == self.selected_model)[0]:
+                        self.selected_model = model_key
+                imgui.end_combo()
+            imgui.pop_item_width()
+
+            imgui.dummy(0, 4)
+
+            # 角色贴图
+            self._draw_texture_list_selector(
+                "角色贴图*", hybrid.textures.character, "character", hybrid, "hybrid"
+            )
+
+            hybrid.textures.offset_x, hybrid.textures.offset_y = self._draw_offset_inputs(
+                "偏移",
+                "调整物品相对于人物的相对位置",
+                hybrid.textures.offset_x,
+                hybrid.textures.offset_y,
+                "hybrid",
+            )
+
+            # 左手贴图（如果需要）
+            if hybrid.needs_left_texture():
+                self.draw_indented_separator()
+                self._draw_texture_list_selector(
+                    "左手贴图*",
+                    hybrid.textures.character_left,
+                    "character_left",
+                    hybrid,
+                    "hybrid",
+                )
+
+                hybrid.textures.offset_x_left, hybrid.textures.offset_y_left = (
+                    self._draw_offset_inputs(
+                        "偏移 (左手)",
+                        "调整左手物品相对于人物的相对位置",
+                        hybrid.textures.offset_x_left,
+                        hybrid.textures.offset_y_left,
+                        "hybrid_left",
+                    )
+                )
+
+            self.draw_indented_separator()
+        else:
+            slot_name = HYBRID_SLOT_LABELS.get(hybrid.slot, hybrid.slot)
+            self.text_secondary(f"提示: {slot_name} 槽位不需要穿戴状态贴图")
+            self.draw_indented_separator()
+
+        # 常规贴图
+        imgui.text("常规贴图（物品栏显示）")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品在物品栏中显示的贴图\n如有多张，可显示不同耐久状态")
+
+        for idx in range(len(hybrid.textures.inventory)):
+            current_path = (
+                hybrid.textures.inventory[idx]
+                if idx < len(hybrid.textures.inventory)
+                else ""
+            )
+            self._draw_single_texture_selector(
+                f"常规贴图 {idx + 1}##hybrid",
+                current_path,
+                ("inventory", idx),
+                hybrid,
+                "hybrid",
+            )
+
+        if imgui.button("添加贴图槽##hybrid"):
+            hybrid.textures.inventory.append("")
+        if len(hybrid.textures.inventory) > 1:
+            imgui.same_line()
+            if imgui.button("删除最后一个贴图槽##hybrid"):
+                hybrid.textures.inventory.pop()
+
+        self.draw_indented_separator()
+
+        # 战利品贴图
+        self._draw_texture_list_selector(
+            "战利品贴图*##hybrid", hybrid.textures.loot, "loot", hybrid, "hybrid"
+        )
+
+        if hybrid.textures.is_animated("loot"):
+            self._draw_loot_animation_settings(hybrid.textures, "hybrid")
+
     # ==================== 通用属性编辑器 ====================
 
     def _draw_basic_properties(self, item, id_suffix, slot_labels, material_labels):
@@ -1527,6 +2668,8 @@ class ModGeneratorGUI:
             imgui.set_tooltip(
                 f"排在后面的贴图代表更低耐久状态下的{type_name}\n注意：游戏内一格为 27 像素"
             )
+
+
 
         for idx in range(len(item.textures.inventory)):
             current_path = (
@@ -3257,6 +4400,10 @@ class ModGeneratorGUI:
         for item in self.project.weapons + self.project.armors:
             item_errors.extend(validate_item(item, self.project))
 
+        # 验证混合物品
+        for hybrid in self.project.hybrid_items:
+            item_errors.extend(validate_hybrid_item(hybrid, self.project))
+
         if item_errors:
             self._show_error("物品验证失败:\n" + "\n".join(item_errors))
             return
@@ -3303,6 +4450,17 @@ class ModGeneratorGUI:
                     copy_char=item.needs_char_texture(),
                     copy_left=item.needs_left_texture(),
                     is_multi_pose_armor=is_multi_pose,
+                )
+                texture_errors.extend(errs)
+
+            # 复制混合物品贴图
+            for hybrid in self.project.hybrid_items:
+                errs = copy_hybrid_item_textures(
+                    item_id=hybrid.id,
+                    textures=hybrid.textures,
+                    sprites_dir=sprites_dir,
+                    copy_char=hybrid.needs_char_texture(),
+                    copy_left=hybrid.needs_left_texture(),
                 )
                 texture_errors.extend(errs)
 

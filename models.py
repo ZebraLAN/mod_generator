@@ -2,7 +2,7 @@
 """
 数据模型模块
 
-包含所有数据类：Item, Weapon, Armor, ModProject, ItemTextures, ItemLocalization
+包含所有数据类：Item, Weapon, Armor, HybridItem, ModProject, ItemTextures, ItemLocalization
 """
 
 import json
@@ -17,6 +17,7 @@ from constants import (
     ARMOR_SLOT_TO_HOOK,
     ARMOR_SLOTS_MULTI_POSE,
     ARMOR_SLOTS_WITH_CHAR_PREVIEW,
+    HYBRID_SLOT_LABELS,
     ITEM_TYPE_CONFIG,
     LEFT_HAND_SLOTS,
     PRIMARY_LANGUAGE,
@@ -355,6 +356,135 @@ class Weapon(Item):
         return self.slot in LEFT_HAND_SLOTS
 
 
+# ============== 混合物品类 ==============
+
+
+@dataclass
+class HybridItem:
+    """混合物品数据类 - 实验性物品，可以是武器/装备/消耗品的组合
+    
+    基于 HYBRID_ITEM_TEMPLATE.gml.hbs 模板设计
+    """
+    
+    # ====== 基础信息 ======
+    name: str = ""  # 系统ID (idName)
+    
+    # 本地化
+    localization: ItemLocalization = field(default_factory=ItemLocalization)
+    
+    # 父对象（决定基本行为）
+    parent_object: str = "o_inv_consum"
+    
+    # ====== 品质 ======
+    quality: int = 1  # 1=普通, 6=独特, 7=文物
+    
+    # ====== 槽位与装备 ======
+    equipable: bool = False  # 是否可装备
+    slot: str = "heal"  # hand/Head/Chest/Arms/Legs/Waist/Back/Ring/Amulet/heal
+    hands: int = 1  # 1=单手, 2=双手 (仅 hand 槽位使用)
+    
+    # ====== 武器标记 ======
+    mark_as_weapon: bool = False  # 是否标记为武器 (is_weapon)
+    
+    # ====== 武器属性初始化 ======
+    init_weapon_stats: bool = False  # 是否初始化武器数值
+    weapon_type: str = "sword"  # 武器类型
+    damage_type: str = "Slashing_Damage"  # 主伤害类型
+    primary_damage: int = 10  # 主伤害数值
+    material: str = "Steel"  # 材质
+    tier: int = 1  # 等级 1-5
+    balance: int = 2  # 平衡性
+    weapon_range: int = 1  # 攻击范围
+    
+    # ====== 护甲属性初始化 ======
+    init_armor_stats: bool = False  # 是否初始化护甲数值
+    armor_type: str = "Head"  # 护甲类型
+    armor_material: str = "Leather"  # 护甲材质
+    armor_class: str = "Light"  # 轻/中/重
+    defense: int = 0  # 防御值
+    
+    # ====== 技能系统 ======
+    has_active_skill: bool = False  # 是否有主动技能
+    skill_id: int = -4  # 技能对象ID，-4表示无技能
+    has_passive: bool = False  # 是否有被动效果 (check_inventory_data)
+    
+    # ====== 使用次数 ======
+    has_charges: bool = False  # 是否有使用次数
+    charge: int = 0  # 使用次数
+    draw_charges: bool = False  # 是否绘制次数条
+    
+    # ====== 耐久系统 ======
+    has_durability: bool = False  # 是否有自定义耐久度
+    duration_init: int = 100  # 初始耐久
+    duration_max: int = 100  # 最大耐久
+    duration_change: int = 0  # 每次使用消耗百分比
+    durability_use_policy: str = "destroy"  # 使用耐久策略：allow_to_one/destroy
+    delete_on_charge_zero: bool = False  # 使用次数耗尽后是否删除（仅作用于 charge）
+    durability_affects_stats: bool = False  # 耐久是否影响属性
+    link_charges_to_durability: bool = False  # 次数与耐久挂钩
+    
+    # ====== 冷却系统 ======
+    has_cooldown: bool = False  # 是否有冷却
+    cooldown_hours: int = 1  # 冷却时间（小时）
+    
+    # ====== 价格与音效 ======
+    base_price: int = 100  # 基础价格
+    drop_sound: int = 911  # 放下音效ID
+    pickup_sound: int = 907  # 拾取音效ID
+    
+    # ====== 元数据 ======
+    tags: str = "special exc"  # 固定为 "special exc"
+    rarity: str = ""  # 稀有度（由品质自动决定）
+    
+    # ====== 属性 ======
+    attributes: Dict[str, Any] = field(default_factory=dict)
+    consumable_attributes: Dict[str, Any] = field(default_factory=dict)
+    
+    # ====== 贴图 ======
+    textures: ItemTextures = field(default_factory=ItemTextures)
+    
+    @property
+    def id(self) -> str:
+        """根据name自动生成id"""
+        return self.name.lower().replace(" ", "").replace("'", "")
+    
+    @classmethod
+    def get_type_key(cls) -> str:
+        return "hybrid"
+    
+    @classmethod
+    def get_config(cls) -> dict:
+        """返回物品类型配置"""
+        return ITEM_TYPE_CONFIG[cls.get_type_key()]
+    
+    def needs_char_texture(self) -> bool:
+        """判断是否需要角色/穿戴贴图"""
+        # 手持槽位或可装备的身体槽位需要角色贴图
+        if self.slot == "hand" and self.equipable:
+            return True
+        if self.slot in ["Head", "Chest", "Arms", "Legs", "Back"] and self.equipable:
+            return True
+        return False
+    
+    def needs_left_texture(self) -> bool:
+        """判断是否需要左手贴图"""
+        if self.slot == "hand" and self.equipable and self.hands == 1:
+            # 单手武器需要左手贴图
+            return self.weapon_type in ["sword", "axe", "mace", "dagger"]
+        return False
+    
+    def get_quality_label(self) -> str:
+        """获取品质显示文本"""
+        from constants import HYBRID_QUALITY_LABELS
+        return HYBRID_QUALITY_LABELS.get(self.quality, "普通")
+    
+    def get_loot_parent(self) -> str:
+        """获取 Loot 对象的父类"""
+        if self.mark_as_weapon or self.init_weapon_stats:
+            return "o_weapon_loot"
+        return "o_consument_loot"
+
+
 # ============== 验证函数 ==============
 
 
@@ -415,6 +545,106 @@ def validate_item(
     return formatted
 
 
+def validate_hybrid_item(
+    item: HybridItem, project=None, include_warnings: bool = False
+) -> List[str]:
+    """验证混合物品数据的完整性"""
+    errors = []
+    item.name = item.name.strip()
+
+    # ID 格式检查
+    if not item.name:
+        errors.append("混合物品系统ID不能为空")
+    elif not re.match(r"^[A-Za-z][A-Za-z0-9_]*$", item.name):
+        errors.append(
+            "混合物品系统ID格式错误: 必须以字母开头，只能包含字母、数字和下划线"
+        )
+
+    # ID 唯一性检查
+    if project:
+        all_ids = []
+        for w in project.weapons:
+            all_ids.append(w.id)
+        for a in project.armors:
+            all_ids.append(a.id)
+        for h in project.hybrid_items:
+            all_ids.append(h.id)
+        if all_ids.count(item.id) > 1:
+            errors.append(
+                f"混合物品系统ID '{item.name}' (ID: {item.id}) 与其他物品重复，请确保唯一"
+            )
+
+    # 槽位与装备一致性检查
+    if item.equipable and item.slot == "heal":
+        errors.append("可装备物品的槽位不能是 'heal'（背包道具）")
+    
+    if not item.equipable and item.slot != "heal":
+        errors.append("WARNING: 不可装备物品的槽位应为 'heal'（背包道具）")
+
+    # 武器属性初始化检查
+    if item.init_weapon_stats:
+        if not item.equipable:
+            errors.append("WARNING: 初始化武器属性通常需要物品可装备")
+        if item.slot != "hand":
+            errors.append("WARNING: 武器类型物品的槽位通常应为 'hand'")
+        if item.primary_damage <= 0:
+            errors.append("武器主伤害应大于0")
+
+    # 护甲属性初始化检查
+    if item.init_armor_stats:
+        if not item.equipable:
+            errors.append("WARNING: 初始化护甲属性通常需要物品可装备")
+        if item.slot == "hand" or item.slot == "heal":
+            errors.append("WARNING: 护甲类型物品的槽位不应为 'hand' 或 'heal'")
+
+    # 互斥检查
+    if item.init_weapon_stats and item.init_armor_stats:
+        errors.append("不能同时初始化武器属性和护甲属性")
+
+    # 技能检查
+    if item.has_active_skill and item.skill_id == -4:
+        errors.append("WARNING: 启用了主动技能但未设置技能ID")
+
+    # 使用次数检查
+    if item.has_charges and item.charge <= 0:
+        errors.append("使用次数应大于0")
+
+    # 耐久检查
+    if item.has_durability:
+        if item.duration_init <= 0 or item.duration_max <= 0:
+            errors.append("耐久度应大于0")
+        if item.duration_init > item.duration_max:
+            errors.append("初始耐久不应大于最大耐久")
+
+    # 冷却检查
+    if item.has_cooldown and item.cooldown_hours <= 0:
+        errors.append("冷却时间应大于0")
+
+    # 贴图检查
+    if not item.textures.has_loot():
+        errors.append("必须提供战利品贴图")
+    if not item.textures.inventory:
+        errors.append("至少需要提供一张常规贴图")
+    
+    # 角色贴图检查
+    if item.needs_char_texture() and not item.textures.has_char():
+        slot_labels = HYBRID_SLOT_LABELS
+        slot_name = slot_labels.get(item.slot, item.slot)
+        errors.append(f"槽位为 '{slot_name}' 的物品必须提供穿戴/手持状态贴图")
+
+    # 过滤 WARNING
+    if not include_warnings:
+        errors = [e for e in errors if not e.startswith("WARNING:")]
+
+    if not errors:
+        return []
+
+    # 格式化输出
+    formatted = [f"混合物品 {item.name} ({item.id}):"]
+    formatted.extend(f"  • {err}" for err in errors)
+    return formatted
+
+
 # ============== 项目类 ==============
 
 
@@ -430,6 +660,7 @@ class ModProject:
     target_version: str = "0.9.3.13"
     weapons: List[Weapon] = field(default_factory=list)
     armors: List[Armor] = field(default_factory=list)
+    hybrid_items: List[HybridItem] = field(default_factory=list)
     file_path: str = ""
 
     def validate(self) -> List[str]:
@@ -466,6 +697,7 @@ class ModProject:
             "target_version": self.target_version,
             "weapons": [],
             "armors": [],
+            "hybrid_items": [],
         }
 
         for weapon in self.weapons:
@@ -475,6 +707,10 @@ class ModProject:
         for armor in self.armors:
             armor.name = armor.name.strip()
             data["armors"].append(self._serialize_item(armor, project_dir))
+
+        for hybrid in self.hybrid_items:
+            hybrid.name = hybrid.name.strip()
+            data["hybrid_items"].append(self._serialize_hybrid_item(hybrid, project_dir))
 
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -506,6 +742,55 @@ class ModProject:
             item_data["fragments"] = item.fragments
             item_data["is_open"] = item.is_open
         return item_data
+
+    def _serialize_hybrid_item(self, item: HybridItem, project_dir: str) -> dict:
+        """序列化混合物品数据为字典"""
+        return {
+            "name": item.name,
+            "localization": item.localization.languages,
+            "parent_object": item.parent_object,
+            "quality": item.quality,
+            "equipable": item.equipable,
+            "slot": item.slot,
+            "hands": item.hands,
+            "mark_as_weapon": item.mark_as_weapon,
+            "init_weapon_stats": item.init_weapon_stats,
+            "weapon_type": item.weapon_type,
+            "damage_type": item.damage_type,
+            "primary_damage": item.primary_damage,
+            "material": item.material,
+            "tier": item.tier,
+            "balance": item.balance,
+            "weapon_range": item.weapon_range,
+            "init_armor_stats": item.init_armor_stats,
+            "armor_type": item.armor_type,
+            "armor_material": item.armor_material,
+            "armor_class": item.armor_class,
+            "defense": item.defense,
+            "has_active_skill": item.has_active_skill,
+            "skill_id": item.skill_id,
+            "has_passive": item.has_passive,
+            "has_charges": item.has_charges,
+            "charge": item.charge,
+            "draw_charges": item.draw_charges,
+            "has_durability": item.has_durability,
+            "duration_init": item.duration_init,
+            "duration_max": item.duration_max,
+            "duration_change": item.duration_change,
+            "durability_use_policy": item.durability_use_policy,
+            "delete_on_charge_zero": item.delete_on_charge_zero,
+            "durability_affects_stats": item.durability_affects_stats,
+            "link_charges_to_durability": item.link_charges_to_durability,
+            "has_cooldown": item.has_cooldown,
+            "cooldown_hours": item.cooldown_hours,
+            "base_price": item.base_price,
+            "drop_sound": item.drop_sound,
+            "pickup_sound": item.pickup_sound,
+            "tags": item.tags,
+            "rarity": item.rarity,
+            "attributes": item.attributes,
+            "textures": self._serialize_textures(item.textures, project_dir),
+        }
 
     def _serialize_textures(self, textures: ItemTextures, project_dir: str) -> dict:
         """序列化贴图数据"""
@@ -717,6 +1002,62 @@ class ModProject:
         item.no_drop = item_data.get("no_drop", False)
         return item
 
+    def _deserialize_hybrid_item(self, item_data: dict, project_dir: str) -> HybridItem:
+        """反序列化混合物品数据"""
+        item = HybridItem(
+            name=item_data.get("name", ""),
+            parent_object=item_data.get("parent_object", "o_inv_consum"),
+            quality=item_data.get("quality", 1),
+            equipable=item_data.get("equipable", False),
+            slot=item_data.get("slot", "heal"),
+            hands=item_data.get("hands", 1),
+            mark_as_weapon=item_data.get("mark_as_weapon", False),
+            init_weapon_stats=item_data.get("init_weapon_stats", False),
+            weapon_type=item_data.get("weapon_type", "sword"),
+            damage_type=item_data.get("damage_type", "Slashing_Damage"),
+            primary_damage=item_data.get("primary_damage", 10),
+            material=item_data.get("material", "Steel"),
+            tier=item_data.get("tier", 1),
+            balance=item_data.get("balance", 2),
+            weapon_range=item_data.get("weapon_range", 1),
+            init_armor_stats=item_data.get("init_armor_stats", False),
+            armor_type=item_data.get("armor_type", "Head"),
+            armor_material=item_data.get("armor_material", "Leather"),
+            armor_class=item_data.get("armor_class", "Light"),
+            defense=item_data.get("defense", 0),
+            has_active_skill=item_data.get("has_active_skill", False),
+            skill_id=item_data.get("skill_id", -4),
+            has_passive=item_data.get("has_passive", False),
+            has_charges=item_data.get("has_charges", False),
+            charge=item_data.get("charge", 1),
+            draw_charges=item_data.get("draw_charges", False),
+            has_durability=item_data.get("has_durability", False),
+            duration_init=item_data.get("duration_init", 100),
+            duration_max=item_data.get("duration_max", 100),
+            duration_change=item_data.get("duration_change", 0),
+            durability_use_policy=item_data.get("durability_use_policy", "destroy"),
+            delete_on_charge_zero=item_data.get("delete_on_charge_zero", False),
+            durability_affects_stats=item_data.get("durability_affects_stats", False),
+            link_charges_to_durability=item_data.get("link_charges_to_durability", False),
+            has_cooldown=item_data.get("has_cooldown", False),
+            cooldown_hours=item_data.get("cooldown_hours", 1),
+            base_price=item_data.get("base_price", 100),
+            drop_sound=item_data.get("drop_sound", 911),
+            pickup_sound=item_data.get("pickup_sound", 907),
+            tags=item_data.get("tags", "special exc"),
+            rarity=item_data.get("rarity", ""),
+            attributes=item_data.get("attributes", {}),
+        )
+        
+        item.localization = ItemLocalization(
+            languages=item_data.get("localization", {})
+        )
+        item.textures = self._deserialize_textures(
+            item_data.get("textures", {}), project_dir
+        )
+        
+        return item
+
     def load(self, file_path: str):
         """从文件加载项目"""
         try:
@@ -752,6 +1093,10 @@ class ModProject:
             self._deserialize_item(a, project_dir, is_weapon=False)
             for a in data.get("armors", [])
         ]
+        self.hybrid_items = [
+            self._deserialize_hybrid_item(h, project_dir)
+            for h in data.get("hybrid_items", [])
+        ]
 
         self.clean_invalid_data()
         self.clean_unused_assets()
@@ -759,12 +1104,18 @@ class ModProject:
         return True
 
     def clean_invalid_data(self):
-        """清理无效的武器/装备数据"""
+        """清理无效的武器/装备/混合物品数据"""
         for item in self.weapons + self.armors:
             if not item.needs_char_texture():
                 item.textures.clear_char()
             if not item.needs_left_texture():
                 item.textures.clear_left()
+        
+        for hybrid in self.hybrid_items:
+            if not hybrid.needs_char_texture():
+                hybrid.textures.clear_char()
+            if not hybrid.needs_left_texture():
+                hybrid.textures.clear_left()
 
     def _collect_texture_paths(self, textures: ItemTextures, project_dir: str) -> set:
         """收集物品的所有贴图路径"""
@@ -808,6 +1159,8 @@ class ModProject:
         used_files = set()
         for item in self.weapons + self.armors:
             used_files.update(self._collect_texture_paths(item.textures, project_dir))
+        for hybrid in self.hybrid_items:
+            used_files.update(self._collect_texture_paths(hybrid.textures, project_dir))
 
         cleaned_count = 0
         for root, dirs, files in os.walk(assets_dir):
