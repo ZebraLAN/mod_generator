@@ -18,6 +18,8 @@ except ImportError:
 from constants import (
     ARMOR_PREVIEW_HEIGHT,
     ARMOR_PREVIEW_WIDTH,
+    CONSUMABLE_ATTRIBUTES,
+    DAMAGE_ATTRIBUTES,
     GAME_FPS,
     GML_ANCHOR_X,
     GML_ANCHOR_Y,
@@ -36,22 +38,8 @@ from constants import (
 from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon
 
 
-CONSUMABLE_ATTRIBUTES = {
-    "Hunger", "Hunger_Change", "Hunger_Resistance", "Thirsty", "Thirst_Change", 
-    "Intoxication", "Toxicity_Change", "Toxicity_Resistance", "Pain", "Pain_Resistance", 
-    "Pain_Change", "Pain_Limit", "Sanity", "Sanity_Change", "Morale", "Morale_Change", 
-    "max_mp_res", "MP_Restoration", "max_hp_res", "Health_Restoration", "Healing_Received", 
-    "Condition", "Immunity", "Physical_Resistance", "Nature_Resistance", "Magic_Resistance", 
-    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance", 
-    "Fire_Resistance", "Shock_Resistance", "Poison_Resistance", "Caustic_Resistance", 
-    "Frost_Resistance", "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", 
-    "Psionic_Resistance", "Bleeding_Resistance", "Fatigue_Change", "Fatigue", 
-    "Fatigue_Gain", "Cooldown_Reduction", "VSN", "Knockback_Resistance", "Stun_Resistance", 
-    "Received_XP", "Immunity_Change", "Weapon_Damage", "Hit_Chance", "FMB", "CRTD", 
-    "max_mp", "max_hp", "Fortitude", "Nausea_Chance", "Poisoning_Chance", "MP_turn", 
-    "HP_turn", "Magic_Power", "SanitySituational", "MoraleSituational", 
-    "MoraleDiet", "MoraleTemporary", "Duration"
-}
+
+
 
 # ============== 贴图处理工具函数 ==============
 
@@ -129,7 +117,8 @@ def copy_texture(src_path: str, dst_path, mask_offsets: tuple = None) -> str | N
                     placeholder.save(dst_path)
                     return f"警告: 贴图 {src_path} 完全超出有效显示区域"
         except Exception as e:
-            # 裁剪失败，尝试直接复制
+            # 裁剪失败，回退到直接复制
+            # 注：此处不返回警告，因为后续 shutil.copy2 会正常复制文件
             pass
 
     try:
@@ -208,62 +197,6 @@ def copy_armor_pose_texture(
         return f"处理护甲贴图失败 {src_path}: {e}"
 
 
-def copy_hybrid_item_textures(
-    item_id: str,
-    textures: ItemTextures,
-    sprites_dir: Path,
-    copy_char: bool = True,
-    copy_left: bool = False,
-) -> list[str]:
-    """复制混合物品的贴图文件到模组输出目录
-    
-    与普通物品类似，但使用混合物品特定的命名规则。
-    
-    Args:
-        item_id: 物品ID
-        textures: 贴图数据
-        sprites_dir: 精灵图输出目录
-        copy_char: 是否复制角色/穿戴贴图
-        copy_left: 是否复制左手贴图
-    
-    Returns:
-        错误/警告信息列表
-    """
-    errors = []
-    
-    def _copy(src, dst, mask=None):
-        err = copy_texture(src, dst, mask)
-        if err:
-            errors.append(err)
-    
-    def _copy_texture_list(paths: list, prefix: str, mask=None):
-        """复制贴图列表，根据长度决定命名方式"""
-        if not paths:
-            return
-        if len(paths) == 1:
-            _copy(paths[0], sprites_dir / f"{prefix}.png", mask)
-        else:
-            for idx, path in enumerate(paths):
-                _copy(path, sprites_dir / f"{prefix}_{idx}.png", mask)
-    
-    # 角色/手持/穿戴贴图
-    if copy_char and textures.character:
-        mask = (textures.offset_x, textures.offset_y)
-        _copy_texture_list(textures.character, f"s_char_{item_id}", mask)
-    
-    # 左手贴图
-    if copy_left and textures.character_left:
-        mask_left = (textures.offset_x_left, textures.offset_y_left)
-        _copy_texture_list(textures.character_left, f"s_charleft_{item_id}", mask_left)
-    
-    # 常规/物品栏贴图
-    for idx, inv_texture in enumerate(textures.inventory):
-        _copy(inv_texture, sprites_dir / f"s_inv_{item_id}_{idx}.png")
-    
-    # 战利品贴图
-    _copy_texture_list(textures.loot, f"s_loot_{item_id}")
-    
-    return errors
 
 
 def copy_item_textures(
@@ -632,7 +565,7 @@ public class {code_namespace} : Mod
                 if adj_off_x_left != 0 or adj_off_y_left != 0:
                     val_y = GML_ANCHOR_Y + adj_off_y_left
                     val_x = GML_ANCHOR_X + adj_off_x_left
-                    sprite_name = f"s_charleft_{weapon.id}"
+                    sprite_name = f"s_charleft_{item.id}"
                     gml_code_block += self._generate_anchor_gml_block(
                         val_y, val_x, sprite_name
                     )
@@ -954,12 +887,12 @@ popz.v"""
              lines.append("var _max_index = sprite_get_number(s_index) - 1;")
              lines.append("var _new_index = 0;")
              lines.append("")
-             if isinstance(item, HybridItem): # Always true, helps logic context separation
-                lines.append("if (_duration <= _maxDuration) _new_index = 0;")
-                lines.append("if (_duration < (_maxDuration / 2)) _new_index = 1;")
-                lines.append("if (_duration < (_maxDuration / 4)) _new_index = 2;")
-                lines.append("if (_new_index > _max_index) _new_index = _max_index;")
-                lines.append("i_index = _new_index;")
+             # 耐久度贴图切换逻辑
+             lines.append("if (_duration <= _maxDuration) _new_index = 0;")
+             lines.append("if (_duration < (_maxDuration / 2)) _new_index = 1;")
+             lines.append("if (_duration < (_maxDuration / 4)) _new_index = 2;")
+             lines.append("if (_new_index > _max_index) _new_index = _max_index;")
+             lines.append("i_index = _new_index;")
              
              # 属性衰减逻辑
              lines.append("")
@@ -1043,22 +976,7 @@ popz.v"""
             lines.append("")
             lines.append("    // 武器伤害初始化（静态展开：attributes 中的伤害键汇总）")
             lines.append("    var _main = ds_map_find_value(data, \"Main\");")
-            damage_keys = [
-                "Slashing_Damage",
-                "Piercing_Damage",
-                "Blunt_Damage",
-                "Rending_Damage",
-                "Fire_Damage",
-                "Shock_Damage",
-                "Poison_Damage",
-                "Caustic_Damage",
-                "Frost_Damage",
-                "Arcane_Damage",
-                "Unholy_Damage",
-                "Sacred_Damage",
-                "Psionic_Damage",
-            ]
-            damage_components = [(k, v) for k, v in item.attributes.items() if k in damage_keys and v != 0]
+            damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
             total_dmg = sum(v for _, v in damage_components) if damage_components else 0
             best_type = item.damage_type or "Slashing_Damage"
             if damage_components:
@@ -1077,7 +995,7 @@ popz.v"""
                 lines.append(f'    ds_map_add(data, \"Range\", {item.weapon_range});')
             
             for attr, value in item.attributes.items():
-                if value != 0 and attr not in damage_keys:
+                if value != 0 and attr not in DAMAGE_ATTRIBUTES:
                     lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
             
             lines.append("")
@@ -1150,27 +1068,6 @@ popz.v"""
         elif item.equipable:
             lines.append(f'slot = "{item.slot}";')
         # 纯消耗品不需要覆盖任何值
-        
-        return "\n".join(lines)
-
-    def _generate_hybrid_other12_gml(self, item: HybridItem) -> str:
-        """生成混合物品的 Other_12 (拾取初始化) GML 代码
-        
-        这是最关键的事件！缺少会导致：
-        - 无法进行鼠标左右键交互
-        - Hover 显示异常
-        - 属性值被错误覆盖或清空
-        
-        自定义物品必须跳过 scr_inventory_weapon_get_params()，
-        因为自定义物品不在 CSV 中。
-        """
-        lines = []
-        lines.append("// 自定义物品必须跳过 scr_inventory_weapon_get_params()")
-        lines.append("empty = false;")
-        lines.append("i_index = image_index;")
-        lines.append("if (!is_new)")
-        lines.append('    identified = ds_map_find_value(data, \"identified\");')
-        lines.append("event_user(1);")
         
         return "\n".join(lines)
 
@@ -1271,7 +1168,7 @@ popz.v"""
         
         lines.append("        } else {")
         lines.append("            // 未鉴定物品")
-        lines.append("            hoverID = scr_hoverCreate(id, id, 1220, _hoverPlacementsArray, _hoverDepthOffset);")
+        lines.append("            hoverID = scr_hoverCreate(id, id, o_hoverUnidentified, _hoverPlacementsArray, _hoverDepthOffset);")
         lines.append("        }")
         lines.append("        break;")
         
@@ -1359,11 +1256,10 @@ popz.v"""
         
         lines = []
         lines.append("// 简化使用效果：仿照 o_inv_antivenom")
-        # 充能检查（仅在开启使用次数时生成）
-        if item.has_charges:
-            lines.append("if (charge <= 0)")
-            lines.append("    exit;")
-            lines.append("")
+        # 充能检查
+        lines.append("if (charge <= 0)")
+        lines.append("    exit;")
+        lines.append("")
         # 耐久消耗前检查（阻止型）与前置变量
         if item.has_durability and item.duration_change > 0:
             lines.append("var _maxd = ds_map_find_value(data, \"MaxDuration\");")
@@ -1374,7 +1270,7 @@ popz.v"""
                 lines.append("if (_dur <= 1)")
                 lines.append("    exit;")
             lines.append("")
-        lines.append("scr_actionsLog(\"useItem\", [scr_id_get_name(5074), log_text, ds_map_find_value(data, \"Name\")]);")
+        lines.append('scr_actionsLog("useItem", [scr_id_get_name(o_player), log_text, ds_map_find_value(data, "Name")]);')
         lines.append("// 使用消耗品效果（仅使用 attributes_data）")
         lines.append('var _key = ds_map_find_first(attributes_data);')
         lines.append('var _size = ds_map_size(attributes_data);')
@@ -1413,13 +1309,13 @@ popz.v"""
         lines.append('                 scr_immunity_change(_val);')
         lines.append('                 break;')
         lines.append('            case "max_mp_res":')
-        lines.append('                 scr_restore_mp(5074, (o_player.max_mp * _val) / 100, ds_map_find_value(data, "Name"));')
+        lines.append('                 scr_restore_mp(o_player, (o_player.max_mp * _val) / 100, ds_map_find_value(data, "Name"));')
         lines.append('                 break;')
         lines.append('            case "max_hp_res":')
         lines.append('                 if (_val < 0)')
-        lines.append('                     scr_pure_damage(5074, (-o_player.max_hp * _val) / 100);')
+        lines.append('                     scr_pure_damage(o_player, (-o_player.max_hp * _val) / 100);')
         lines.append('                 else')
-        lines.append('                     scr_restore_hp(5074, (o_player.max_hp * _val) / 100, ds_map_find_value(data, "Name"));')
+        lines.append('                     scr_restore_hp(o_player, (o_player.max_hp * _val) / 100, ds_map_find_value(data, "Name"));')
         lines.append('                 break;')
         lines.append('            case "Condition":')
         lines.append('                 break;')
@@ -1427,16 +1323,16 @@ popz.v"""
         lines.append('                 scr_fatigue_change(_val, true);')
         lines.append('                 break;')
         lines.append('            case "Poisoning_Chance":')
-        lines.append('                 if (scr_chance_value(_val)) scr_effect_create(5598, poison_duration);')
+        lines.append('                 if (scr_chance_value(_val)) scr_effect_create(o_db_poison, poison_duration);')
         lines.append('                 break;')
         lines.append('            case "Nausea_Chance":')
-        lines.append('                 if (scr_chance_value(_val)) scr_effect_create(5602, 1);')
+        lines.append('                 if (scr_chance_value(_val)) scr_effect_create(o_db_nause, 1);')
         lines.append('                 break;')
         lines.append('            // ====== Duration Dependent Buffs (Default) ======')
         lines.append('            default:')
         lines.append('                 var dur = ds_map_find_value(attributes_data, "Duration");') # Use attributes_data for Duration source
         lines.append('                 if (!is_undefined(dur) && dur > 0)')
-        lines.append('                     scr_temp_effect_update(object_index, 5074, _key, _val, dur, 1);')
+        lines.append('                     scr_temp_effect_update(object_index, o_player, _key, _val, dur, 1);')
         lines.append('                 break;')
         lines.append('        }')
         lines.append('    }')
@@ -1444,10 +1340,10 @@ popz.v"""
         lines.append('}')
         lines.append("")
         lines.append("with (o_player)")
-        lines.append("    scr_guiAnimation(1928, 1, 1, 0);")
+        lines.append("    scr_guiAnimation(o_b_gamekeeper_brew, 1, 1, 0);")
         lines.append("")
         lines.append("audio_play_sound(snd_healing_salve, 3, 0);")
-        lines.append("scr_effect_create(5616, 10);")
+        lines.append("scr_effect_create(o_db_confuse, 10);")
         lines.append("")
         lines.append("with (o_db_poison)")
         lines.append("{")

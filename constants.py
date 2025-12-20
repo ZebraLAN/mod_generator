@@ -171,117 +171,6 @@ VALID_MAX_Y = CHAR_CENTER_Y + VALID_AREA_SIZE // 2  # 52
 VIEWPORT_CHAR_OFFSET_X = VALID_AREA_SIZE // 2 - CHAR_CENTER_X  # = 8
 VIEWPORT_CHAR_OFFSET_Y = VALID_AREA_SIZE // 2 - CHAR_CENTER_Y  # = 12
 
-# ============== 属性描述 ==============
-
-ATTRIBUTE_DESCRIPTIONS = {
-    "max_hp": ("生命上限", "你~r~死亡~/~之前可以承受这么多伤害。"),
-    "Health_Restoration": ("生命自动恢复", "生命自动恢复的速度。"),
-    "Healing_Received": ("治疗效果", "生命各类恢复手段实际恢复的比例。"),
-    "MP": ("精力", "你有这么多精力可以运用能力和进行游泳等其他行动。"),
-    "MP_Restoration": ("精力自动恢复", "精力自动恢复的速度。"),
-    "Damage_Received": ("所受伤害", "你实际会受到这么多伤害。"),
-    "Lifesteal": ("生命吸取", "通过物理攻击对敌人造成伤害时获得生命。"),
-    "Manasteal": ("精力吸取", "通过物理攻击对敌人造成伤害时获得精力。"),
-    "Hit_Chance": ("准度", "你的击打、射击有这么大的几率命中目标。"),
-    "CRT": ("暴击几率", "你的攻击有这么大的几率造成额外的伤害。"),
-    "CRTD": ("暴击效果", "暴击会额外造成这么多伤害。"),
-    "PRR": ("格挡几率", "你有这么大的几率挡住近身攻击。"),
-    "Block_Power": ("格挡力量", "你的格挡当前和最多分别可以吸收这么多伤害。"),
-    "Block_Recovery": ("格挡力量恢复", "格挡力量每回合恢复的数值与上限的比值。"),
-    "CTA": ("反击几率", "你受到近身攻击之后，有这么大的几率击打一次。"),
-    "FMB": ("失手几率", "你的攻击有这么大的几率只会造成~r~一半~/~的伤害。"),
-    "Bonus_Range": ("距离加成", "影响你远程攻击和某些咒法的距离。"),
-    "Rng": ("距离", ""),
-    "Crit_Avoid": ("暴击避免", "你有这么大的几率将一次暴击变为普通攻击。"),
-    "Bodypart_Damage": ("肢体伤害", "你的攻击还会对敌人的身体部位造成这么多伤害。"),
-    "Armor_Damage": ("护甲破坏", "你的攻击还会对敌人的护甲造成这么多破坏。"),
-    "Armor_Piercing": ("护甲穿透", "你的攻击会无视这么多防护。"),
-    "Bleeding_Chance": (
-        "出血几率",
-        "你的攻击命中目标的身体部位之后，有这么大的几率造成~r~出血~/~。",
-    ),
-    "Knockback_Chance": (
-        "击退几率",
-        "你的攻击有这么大的几率令目标~w~后退~/~一个方格。",
-    ),
-    "Daze_Chance": ("击晕几率", "你的攻击有这么大的几率令目标~w~眩晕~/~。"),
-    "Stun_Chance": ("硬直几率", "你的攻击有这么大的几率令目标~w~硬直~/~。"),
-    "Immob_Chance": ("限制移动几率", "你的攻击有这么大的几率令目标~w~移动受限~/~。"),
-    "Stagger_Chance": ("破衡几率", "你的攻击有这么大的几率令其~w~失衡~/~。"),
-    "Spells_Energy_Cost": (
-        "咒法精力消耗",
-        "这个属性影响咒法实际所耗精力与其正常所耗精力的比值。",
-    ),
-    "Skills_Energy_Cost": (
-        "技能精力消耗",
-        "这个属性影响技能实际所耗精力与其正常所耗精力的比值。",
-    ),
-    "Abilities_Energy_Cost": (
-        "能力精力消耗",
-        "这是技能和咒法实际所耗精力与其正常所耗精力的比值。",
-    ),
-    "Cooldown_Reduction": (
-        "冷却时间",
-        "这是所有能力实际冷却时间与其正常冷却时间的比值。",
-    ),
-    "Slashing_Damage": ("劈砍伤害", ""),
-    "Piercing_Damage": ("穿刺伤害", ""),
-    "Blunt_Damage": ("钝击伤害", ""),
-    "Rending_Damage": ("撕裂伤害", ""),
-    "Frost_Damage": ("霜冻伤害", ""),
-    "Shock_Damage": ("电击伤害", ""),
-    "Poison_Damage": ("中毒伤害", ""),
-    "Fire_Damage": ("灼烧伤害", ""),
-    "Caustic_Damage": ("腐蚀伤害", ""),
-    "Arcane_Damage": ("秘术伤害", ""),
-    "Unholy_Damage": ("邪术伤害", ""),
-    "Sacred_Damage": ("神圣伤害", ""),
-    "Psionic_Damage": ("灵能伤害", ""),
-    "Fatigue_Gain": ("疲劳增益", "影响你疲劳的速度。"),
-    "Magic_Power": ("法力", "影响多数法咒的伤害和效果。"),
-    "Miracle_Chance": ("奇观几率", ""),
-    "Miracle_Power": ("奇观效果", ""),
-    "Miscast_Chance": ("失误几率", "你催动法咒有这么大的几率犯错。"),
-    "Pyromantic_Power": ("炎术法力", ""),
-    "Geomantic_Power": ("地术法力", ""),
-    "Venomantic_Power": ("毒术法力", ""),
-    "Cryomantic_Power": ("冰术法力", ""),
-    "Electromantic_Power": ("电术法力", ""),
-    "Arcanistic_Power": ("秘术法力", ""),
-    "Astromantic_Power": ("星术法力", ""),
-    "Psimantic_Power": ("灵术法力", ""),
-    # 护甲专属属性
-    "DEF": ("防护", "你的护甲可以吸收这么多伤害。"),
-    "EVS": ("闪避", "你有这么大的几率完全避开攻击。"),
-    "VSN": ("视野", "你能看到这么远的距离。"),
-    "Weapon_Damage": ("武器伤害", "影响你武器造成的伤害。"),
-    "Fortitude": ("韧性", "影响你抵抗负面状态的能力。"),
-    "Received_XP": ("经验获取", "影响你获得经验值的比例。"),
-    "Damage_Returned": ("伤害反射", "将受到的部分伤害反射给攻击者。"),
-    # 状态抗性
-    "Bleeding_Resistance": ("出血抗性", "抵抗出血状态的能力。"),
-    "Knockback_Resistance": ("击退抗性", "抵抗被击退的能力。"),
-    "Stun_Resistance": ("硬直抗性", "抵抗硬直状态的能力。"),
-    "Pain_Resistance": ("疼痛抗性", "抵抗疼痛的能力。"),
-    # 伤害类型抗性
-    "Physical_Resistance": ("物理抗性", "减少受到的物理伤害。"),
-    "Nature_Resistance": ("自然抗性", "减少受到的自然伤害。"),
-    "Magic_Resistance": ("魔法抗性", "减少受到的魔法伤害。"),
-    "Slashing_Resistance": ("劈砍抗性", "减少受到的劈砍伤害。"),
-    "Piercing_Resistance": ("穿刺抗性", "减少受到的穿刺伤害。"),
-    "Blunt_Resistance": ("钝击抗性", "减少受到的钝击伤害。"),
-    "Rending_Resistance": ("撕裂抗性", "减少受到的撕裂伤害。"),
-    "Fire_Resistance": ("火焰抗性", "减少受到的火焰伤害。"),
-    "Shock_Resistance": ("电击抗性", "减少受到的电击伤害。"),
-    "Poison_Resistance": ("毒素抗性", "减少受到的毒素伤害。"),
-    "Caustic_Resistance": ("腐蚀抗性", "减少受到的腐蚀伤害。"),
-    "Frost_Resistance": ("霜冻抗性", "减少受到的霜冻伤害。"),
-    "Arcane_Resistance": ("秘术抗性", "减少受到的秘术伤害。"),
-    "Unholy_Resistance": ("邪术抗性", "减少受到的邪术伤害。"),
-    "Sacred_Resistance": ("神圣抗性", "减少受到的神圣伤害。"),
-    "Psionic_Resistance": ("灵能抗性", "减少受到的灵能伤害。"),
-}
-
 # Byte类型的属性 (需要限制为 0-255)
 BYTE_ATTRIBUTES = {
     "Bleeding_Chance",
@@ -308,153 +197,400 @@ NEGATIVE_ATTRIBUTES = {
     "Damage_Received",
 }
 
-# ============== 属性分组 ==============
-
-# 武器属性分组
-WEAPON_ATTRIBUTE_GROUPS = {
-    "伤害类型": [
-        "Slashing_Damage",
-        "Piercing_Damage",
-        "Blunt_Damage",
-        "Rending_Damage",
-        "Fire_Damage",
-        "Shock_Damage",
-        "Poison_Damage",
-        "Caustic_Damage",
-        "Frost_Damage",
-        "Arcane_Damage",
-        "Unholy_Damage",
-        "Sacred_Damage",
-        "Psionic_Damage",
-    ],
-    "战斗属性": [
-        "Hit_Chance",
-        "CRT",
-        "CRTD",
-        "CTA",
-        "PRR",
-        "Block_Power",
-        "Block_Recovery",
-        "FMB",
-    ],
-    "穿透破坏": ["Armor_Piercing", "Armor_Damage", "Bodypart_Damage"],
-    "状态效果": [
-        "Bleeding_Chance",
-        "Knockback_Chance",
-        "Daze_Chance",
-        "Stun_Chance",
-        "Immob_Chance",
-        "Stagger_Chance",
-    ],
-    "吸血回复": ["Lifesteal", "Manasteal"],
-    "生存属性": [
-        "max_hp",
-        "Health_Restoration",
-        "Healing_Received",
-        "Crit_Avoid",
-        "Damage_Received",
-    ],
-    "精力相关": ["MP", "MP_Restoration"],
-    "能量消耗": [
-        "Abilities_Energy_Cost",
-        "Skills_Energy_Cost",
-        "Spells_Energy_Cost",
-        "Cooldown_Reduction",
-    ],
-    "魔法属性": ["Magic_Power", "Miscast_Chance", "Miracle_Chance", "Miracle_Power"],
-    "元素法力": [
-        "Pyromantic_Power",
-        "Geomantic_Power",
-        "Venomantic_Power",
-        "Cryomantic_Power",
-        "Electromantic_Power",
-        "Arcanistic_Power",
-        "Astromantic_Power",
-        "Psimantic_Power",
-    ],
-    "距离相关": ["Bonus_Range"],
-    "其他": ["Fatigue_Gain"],
+# 消耗品专属属性（用于区分混合物品的消耗品属性和装备属性）
+CONSUMABLE_ATTRIBUTES = {
+    "Hunger", "Hunger_Change", "Hunger_Resistance", "Thirsty", "Thirst_Change",
+    "Intoxication", "Toxicity_Change", "Toxicity_Resistance", "Pain", "Pain_Resistance",
+    "Pain_Change", "Pain_Limit", "Sanity", "Sanity_Change", "Morale", "Morale_Change",
+    "max_mp_res", "MP_Restoration", "max_hp_res", "Health_Restoration", "Healing_Received",
+    "Condition", "Immunity", "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
+    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
+    "Fire_Resistance", "Shock_Resistance", "Poison_Resistance", "Caustic_Resistance",
+    "Frost_Resistance", "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance",
+    "Psionic_Resistance", "Bleeding_Resistance", "Fatigue_Change", "Fatigue",
+    "Fatigue_Gain", "Cooldown_Reduction", "VSN", "Knockback_Resistance", "Stun_Resistance",
+    "Received_XP", "Immunity_Change", "Weapon_Damage", "Hit_Chance", "FMB", "CRTD",
+    "max_mp", "max_hp", "Fortitude", "Nausea_Chance", "Poisoning_Chance", "MP_turn",
+    "HP_turn", "Magic_Power", "SanitySituational", "MoraleSituational",
+    "MoraleDiet", "MoraleTemporary", "Duration"
 }
 
-# 护甲属性分组
-ARMOR_ATTRIBUTE_GROUPS = {
-    "防护属性": ["DEF", "PRR", "Block_Power", "Block_Recovery", "EVS", "Crit_Avoid"],
-    "战斗属性": [
-        "FMB",
-        "Hit_Chance",
-        "Weapon_Damage",
-        "Armor_Piercing",
-        "Armor_Damage",
-        "CRT",
-        "CRTD",
-        "CTA",
+# 伤害类型属性（用于武器伤害计算）
+DAMAGE_ATTRIBUTES = {
+    "Slashing_Damage", "Piercing_Damage", "Blunt_Damage", "Rending_Damage",
+    "Fire_Damage", "Shock_Damage", "Poison_Damage", "Caustic_Damage",
+    "Frost_Damage", "Arcane_Damage", "Unholy_Damage", "Sacred_Damage", "Psionic_Damage",
+}
+
+# ============== 消耗品属性分组 ==============
+# 消耗品有独立的分组逻辑（基于 scr_consum_use.gml 的 duration 依赖）
+# 不使用通用的 ATTRIBUTE_TO_GROUP
+
+CONSUMABLE_ATTRIBUTE_GROUPS = {
+    # 即时效果（有独立case处理，不需要duration）
+    "即时效果（生理）": [
+        "Hunger", "Thirsty", "Intoxication", "Pain", "Fatigue",
     ],
-    "生存属性": [
-        "Damage_Received",
-        "Fortitude",
-        "max_hp",
-        "Health_Restoration",
-        "Healing_Received",
-        "Lifesteal",
-        "Manasteal",
+    "即时效果（心理）": [
+        "SanitySituational", "MoraleSituational", "MoraleDiet",
     ],
-    "精力相关": [
-        "MP",
-        "MP_Restoration",
-        "Abilities_Energy_Cost",
-        "Skills_Energy_Cost",
-        "Spells_Energy_Cost",
+    "即时效果（恢复）": [
+        "max_hp_res", "max_mp_res", "Immunity", "Condition",
     ],
-    "魔法属性": [
-        "Magic_Power",
-        "Miscast_Chance",
-        "Miracle_Chance",
-        "Miracle_Power",
+    "即时效果（负面几率）": [
+        "Poisoning_Chance", "Nausea_Chance",
+    ],
+    
+    # 持续效果（走default分支，需要duration > 0）
+    "持续效果（战斗增益）": [
+        "Weapon_Damage", "Hit_Chance", "CRT", "CRTD", "FMB",
+        "max_hp", "max_mp", "Fortitude", "Magic_Power",
         "Cooldown_Reduction",
     ],
-    "元素法力": [
-        "Pyromantic_Power",
-        "Geomantic_Power",
-        "Venomantic_Power",
-        "Electromantic_Power",
-        "Cryomantic_Power",
-        "Arcanistic_Power",
-        "Astromantic_Power",
-        "Psimantic_Power",
+    "持续效果（抗性）": [
+        "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
+        "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
+        "Fire_Resistance", "Shock_Resistance", "Poison_Resistance", "Caustic_Resistance",
+        "Frost_Resistance", "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", "Psionic_Resistance",
+        "Bleeding_Resistance", "Knockback_Resistance", "Stun_Resistance",
     ],
-    "状态抗性": [
-        "Bleeding_Resistance",
-        "Knockback_Resistance",
-        "Stun_Resistance",
-        "Pain_Resistance",
-        "Fatigue_Gain",
+    "持续效果（恢复）": [
+        "Health_Restoration", "MP_Restoration", "HP_turn", "MP_turn",
     ],
-    "物理伤害抗性": [
-        "Physical_Resistance",
-        "Slashing_Resistance",
-        "Piercing_Resistance",
-        "Blunt_Resistance",
-        "Rending_Resistance",
+    "持续效果（其他）": [
+        "VSN", "Received_XP", "Immunity_Change",
     ],
-    "元素伤害抗性": [
-        "Fire_Resistance",
-        "Shock_Resistance",
-        "Poison_Resistance",
-        "Caustic_Resistance",
-        "Frost_Resistance",
-    ],
-    "魔法伤害抗性": [
-        "Nature_Resistance",
-        "Magic_Resistance",
-        "Arcane_Resistance",
-        "Unholy_Resistance",
-        "Sacred_Resistance",
-        "Psionic_Resistance",
-    ],
-    "其他": ["VSN", "Bonus_Range", "Received_XP", "Damage_Returned"],
 }
+
+# 消耗品浮点数属性（基于 items_stats.json 分析）
+# 这些属性在游戏数据中存在小数值，编辑器应使用 float 输入
+CONSUMABLE_FLOAT_ATTRIBUTES = {
+    "Condition",
+    "Health_Restoration",
+    "Immunity_Change",
+    "MoraleDiet",
+}
+
+# 效果持续时间属性（控制其他属性是否生效的核心属性）
+# 独立提取以便在编辑器中突出显示
+CONSUMABLE_DURATION_ATTRIBUTE = "Duration"
+
+# 消耗品分组前缀（用于自动区分即时效果和持续效果）
+# 基于 CONSUMABLE_ATTRIBUTE_GROUPS 的命名约定
+CONSUMABLE_INSTANT_GROUP_PREFIX = "即时效果"
+CONSUMABLE_DURATION_GROUP_PREFIX = "持续效果"
+
+
+# ============== 统一属性分组映射 ==============
+# 每个属性只有一个分组归属（单一来源）
+# 基于游戏逻辑：
+#   - 抗性层级来自 scr_atr_calc.gml
+#   - 属性归类基于功能用途
+
+ATTRIBUTE_TO_GROUP = {
+    # === 伤害类型 ===
+    "Slashing_Damage": "伤害类型",
+    "Piercing_Damage": "伤害类型",
+    "Blunt_Damage": "伤害类型",
+    "Rending_Damage": "伤害类型",
+    "Fire_Damage": "伤害类型",
+    "Shock_Damage": "伤害类型",
+    "Poison_Damage": "伤害类型",
+    "Caustic_Damage": "伤害类型",
+    "Frost_Damage": "伤害类型",
+    "Arcane_Damage": "伤害类型",
+    "Unholy_Damage": "伤害类型",
+    "Sacred_Damage": "伤害类型",
+    "Psionic_Damage": "伤害类型",
+    
+    # === 状态效果（施加） ===
+    "Bleeding_Chance": "状态效果",
+    "Knockback_Chance": "状态效果",
+    "Daze_Chance": "状态效果",
+    "Stun_Chance": "状态效果",
+    "Immob_Chance": "状态效果",
+    "Stagger_Chance": "状态效果",
+    
+    # === 防护属性 ===
+    "DEF": "防护属性",
+    "PRR": "防护属性",
+    "Block_Power": "防护属性",
+    "Block_Recovery": "防护属性",
+    "BlockPowerBonus": "防护属性",
+    "EVS": "防护属性",
+    "Crit_Avoid": "防护属性",
+    "Fortitude": "防护属性",
+    
+    # === 战斗属性 ===
+    "Hit_Chance": "战斗属性",
+    "CRT": "战斗属性",
+    "CRTD": "战斗属性",
+    "CTA": "战斗属性",
+    "FMB": "战斗属性",
+    "Weapon_Damage": "战斗属性",
+    "Armor_Piercing": "战斗属性",
+    "Armor_Damage": "战斗属性",
+    "Bodypart_Damage": "战斗属性",
+    "Mainhand_Efficiency": "战斗属性",
+    "Offhand_Efficiency": "战斗属性",
+    
+    # === 生存属性 ===
+    "max_hp": "生存属性",
+    "HP": "生存属性",
+    "Health_Restoration": "生存属性",
+    "Healing_Received": "生存属性",
+    "Health_Threshold": "生存属性",
+    "Pain_Limit": "生存属性",
+    "Damage_Received": "生存属性",
+    "Damage_Returned": "生存属性",
+    "Lifesteal": "生存属性",
+    "Manasteal": "生存属性",
+    
+    # === 精力相关 ===
+    "max_mp": "精力相关",
+    "MP": "精力相关",
+    "MP_Restoration": "精力相关",
+    "Max_Energy_Threshold": "精力相关",
+    "Abilities_Energy_Cost": "精力相关",
+    "Skills_Energy_Cost": "精力相关",
+    "Spells_Energy_Cost": "精力相关",
+    "Cooldown_Reduction": "精力相关",
+    "Fatigue_Gain": "精力相关",
+    "Swimming_Cost": "精力相关",
+    
+    # === 魔法属性 ===
+    "Magic_Power": "魔法属性",
+    "Miscast_Chance": "魔法属性",
+    "Miracle_Chance": "魔法属性",
+    "Miracle_Power": "魔法属性",
+    "Backfire_Damage": "魔法属性",
+    "Backfire_Damage_Change": "魔法属性",
+    
+    # === 元素法力 ===
+    "Pyromantic_Power": "元素法力",
+    "Geomantic_Power": "元素法力",
+    "Venomantic_Power": "元素法力",
+    "Electromantic_Power": "元素法力",
+    "Cryomantic_Power": "元素法力",
+    "Arcanistic_Power": "元素法力",
+    "Astromantic_Power": "元素法力",
+    "Psimantic_Power": "元素法力",
+    
+    # === 元素法力失误 ===
+    "Pyromantic_Miscast_Chance": "元素法力失误",
+    "Geomantic_Miscast_Chance": "元素法力失误",
+    "Venomantic_Miscast_Chance": "元素法力失误",
+    "Electromantic_Miscast_Chance": "元素法力失误",
+    "Cryomantic_Miscast_Chance": "元素法力失误",
+    "Arcanistic_Miscast_Chance": "元素法力失误",
+    "Astromantic_Miscast_Chance": "元素法力失误",
+    "Psimantic_Miscast_Chance": "元素法力失误",
+    
+    # === 抗性（综合）- 基于 scr_atr_calc.gml ===
+    "Physical_Resistance": "抗性（综合）",
+    "Nature_Resistance": "抗性（综合）",
+    "Magic_Resistance": "抗性（综合）",
+    
+    # === 抗性（物理）===
+    "Slashing_Resistance": "抗性（物理）",
+    "Piercing_Resistance": "抗性（物理）",
+    "Blunt_Resistance": "抗性（物理）",
+    "Rending_Resistance": "抗性（物理）",
+    
+    # === 抗性（元素）===
+    "Fire_Resistance": "抗性（元素）",
+    "Frost_Resistance": "抗性（元素）",
+    "Shock_Resistance": "抗性（元素）",
+    "Caustic_Resistance": "抗性（元素）",
+    "Poison_Resistance": "抗性（元素）",
+    
+    # === 抗性（魔法）===
+    "Arcane_Resistance": "抗性（魔法）",
+    "Unholy_Resistance": "抗性（魔法）",
+    "Sacred_Resistance": "抗性（魔法）",
+    "Psionic_Resistance": "抗性（魔法）",
+    
+    # === 抗性（状态）===
+    "Bleeding_Resistance": "抗性（状态）",
+    "Knockback_Resistance": "抗性（状态）",
+    "Stun_Resistance": "抗性（状态）",
+    "Pain_Resistance": "抗性（状态）",
+    
+    # === 生理变化 ===
+    "Hunger_Change": "生理变化",
+    "Hunger_Resistance": "生理变化",
+    "Thirst_Change": "生理变化",
+    "Toxicity_Change": "生理变化",
+    "Toxicity_Resistance": "生理变化",
+    "Pain_Change": "生理变化",
+    "Immunity_Change": "生理变化",
+    "Immunity_Influence": "生理变化",
+    
+    # === 心理变化 ===
+    "Sanity_Change": "心理变化",
+    "Morale_Change": "心理变化",
+    "MoraleTemporary": "心理变化",
+    
+    # === 角色属性 ===
+    "STR": "角色属性",
+    "AGL": "角色属性",
+    "PRC": "角色属性",
+    "Vitality": "角色属性",
+    "WIL": "角色属性",
+    
+    # === 其他 ===
+    "VSN": "其他",
+    "Bonus_Range": "其他",
+    "Range": "其他",
+    "Received_XP": "其他",
+    "Noise_Produced": "其他",
+    "ReputationGainContract": "其他",
+    "ReputationGainGlobal": "其他",
+}
+
+
+# ============== 各编辑器支持的属性列表 ==============
+
+# 武器属性（来自 C# API）
+WEAPON_ATTRIBUTES = [
+    # 伤害类型
+    "Slashing_Damage", "Piercing_Damage", "Blunt_Damage", "Rending_Damage",
+    "Fire_Damage", "Shock_Damage", "Poison_Damage", "Caustic_Damage",
+    "Frost_Damage", "Arcane_Damage", "Unholy_Damage", "Sacred_Damage", "Psionic_Damage",
+    # 战斗属性
+    "Hit_Chance", "CRT", "CRTD", "CTA", "PRR", "Block_Power", "Block_Recovery", "FMB",
+    "Armor_Piercing", "Armor_Damage", "Bodypart_Damage",
+    # 状态效果
+    "Bleeding_Chance", "Knockback_Chance", "Daze_Chance", "Stun_Chance", "Immob_Chance", "Stagger_Chance",
+    # 生存属性
+    "max_hp", "Health_Restoration", "Healing_Received", "Crit_Avoid", "Damage_Received", "Lifesteal", "Manasteal",
+    # 精力相关
+    "MP", "MP_Restoration", "Abilities_Energy_Cost", "Skills_Energy_Cost", "Spells_Energy_Cost", "Cooldown_Reduction",
+    # 魔法属性
+    "Magic_Power", "Miscast_Chance", "Miracle_Chance", "Miracle_Power",
+    # 元素法力
+    "Pyromantic_Power", "Geomantic_Power", "Venomantic_Power", "Cryomantic_Power",
+    "Electromantic_Power", "Arcanistic_Power", "Astromantic_Power", "Psimantic_Power",
+    # 其他
+    "Bonus_Range", "Fatigue_Gain",
+]
+
+# 护甲属性（来自 C# API）
+ARMOR_ATTRIBUTES = [
+    # 防护属性
+    "DEF", "PRR", "Block_Power", "Block_Recovery", "EVS", "Crit_Avoid",
+    # 战斗属性
+    "FMB", "Hit_Chance", "Weapon_Damage", "Armor_Piercing", "Armor_Damage", "CRT", "CRTD", "CTA",
+    # 生存属性
+    "Damage_Received", "Fortitude", "max_hp", "Health_Restoration", "Healing_Received", "Lifesteal", "Manasteal", "Damage_Returned",
+    # 精力相关
+    "MP", "MP_Restoration", "Abilities_Energy_Cost", "Skills_Energy_Cost", "Spells_Energy_Cost",
+    # 魔法属性
+    "Magic_Power", "Miscast_Chance", "Miracle_Chance", "Miracle_Power", "Cooldown_Reduction",
+    # 元素法力
+    "Pyromantic_Power", "Geomantic_Power", "Venomantic_Power", "Electromantic_Power",
+    "Cryomantic_Power", "Arcanistic_Power", "Astromantic_Power", "Psimantic_Power",
+    # 抗性（状态）
+    "Bleeding_Resistance", "Knockback_Resistance", "Stun_Resistance", "Pain_Resistance", "Fatigue_Gain",
+    # 抗性（综合）
+    "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
+    # 抗性（物理）
+    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
+    # 抗性（元素）
+    "Fire_Resistance", "Shock_Resistance", "Poison_Resistance", "Caustic_Resistance", "Frost_Resistance",
+    # 抗性（魔法）
+    "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", "Psionic_Resistance",
+    # 其他
+    "VSN", "Bonus_Range", "Received_XP",
+]
+
+# 被动属性（来自 reference/check_inventory_data）
+PASSIVE_ATTRIBUTES = [
+    # 防护属性
+    "PRR", "Block_Power", "Block_Recovery", "BlockPowerBonus", "EVS", "Crit_Avoid", "Fortitude",
+    # 战斗属性
+    "CTA", "Mainhand_Efficiency", "Offhand_Efficiency",
+    # 生存属性
+    "max_hp", "HP", "Health_Restoration", "Healing_Received", "Health_Threshold",
+    "Damage_Received", "Damage_Returned", "Pain_Limit",
+    # 精力相关
+    "max_mp", "MP", "MP_Restoration", "Max_Energy_Threshold",
+    "Abilities_Energy_Cost", "Skills_Energy_Cost", "Spells_Energy_Cost",
+    "Cooldown_Reduction", "Fatigue_Gain", "Swimming_Cost",
+    # 魔法属性
+    "Magic_Power", "Miscast_Chance", "Miracle_Chance", "Miracle_Power",
+    "Backfire_Damage", "Backfire_Damage_Change",
+    # 元素法力
+    "Pyromantic_Power", "Geomantic_Power", "Venomantic_Power",
+    "Electromantic_Power", "Cryomantic_Power", "Arcanistic_Power",
+    "Astromantic_Power", "Psimantic_Power",
+    # 元素法力失误
+    "Pyromantic_Miscast_Chance", "Geomantic_Miscast_Chance", "Venomantic_Miscast_Chance",
+    "Electromantic_Miscast_Chance", "Cryomantic_Miscast_Chance", "Arcanistic_Miscast_Chance",
+    "Astromantic_Miscast_Chance", "Psimantic_Miscast_Chance",
+    # 抗性（综合）
+    "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
+    # 抗性（物理）
+    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
+    # 抗性（元素）
+    "Fire_Resistance", "Frost_Resistance", "Shock_Resistance", "Caustic_Resistance", "Poison_Resistance",
+    # 抗性（魔法）
+    "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", "Psionic_Resistance",
+    # 抗性（状态）
+    "Bleeding_Resistance", "Knockback_Resistance", "Stun_Resistance", "Pain_Resistance",
+    # 生理变化
+    "Hunger_Change", "Hunger_Resistance", "Thirst_Change",
+    "Toxicity_Change", "Toxicity_Resistance", "Pain_Change", "Immunity_Change", "Immunity_Influence",
+    # 心理变化
+    "Sanity_Change", "Morale_Change", "MoraleTemporary",
+    # 角色属性
+    "STR", "AGL", "PRC", "Vitality", "WIL",
+    # 其他
+    "VSN", "Received_XP", "Noise_Produced", "Range", "Bonus_Range",
+    "ReputationGainContract", "ReputationGainGlobal",
+]
+
+
+def get_attribute_groups(attr_list: list, group_order: list = None) -> dict:
+    """根据属性列表动态生成分组
+    
+    Args:
+        attr_list: 属性名列表
+        group_order: 可选的分组排序列表
+        
+    Returns:
+        {分组名: [属性列表]}，按 group_order 排序（如提供）
+    """
+    groups = {}
+    for attr in attr_list:
+        group = ATTRIBUTE_TO_GROUP.get(attr, "其他")
+        groups.setdefault(group, []).append(attr)
+    
+    # 如果提供了排序，按顺序返回
+    if group_order:
+        sorted_groups = {}
+        for group in group_order:
+            if group in groups:
+                sorted_groups[group] = groups.pop(group)
+        # 添加剩余未排序的组
+        sorted_groups.update(groups)
+        return sorted_groups
+    
+    return groups
+
+
+# 推荐的分组顺序
+DEFAULT_GROUP_ORDER = [
+    "伤害类型", "状态效果", "防护属性", "战斗属性", "生存属性", "精力相关",
+    "魔法属性", "元素法力", "元素法力失误",
+    "抗性（综合）", "抗性（物理）", "抗性（元素）", "抗性（魔法）", "抗性（状态）",
+    "生理变化", "心理变化", "角色属性", "其他",
+]
+
+
 
 # ============== 拆解材料 ==============
+
 
 ARMOR_FRAGMENT_LABELS = {
     "fragment_cloth01": "布料碎片 1",
@@ -667,115 +803,6 @@ HYBRID_ARMOR_CLASSES = {
     "Heavy": "重甲",
 }
 
-# 混合物品属性分组（综合武器和护甲属性）
-HYBRID_ATTRIBUTE_GROUPS = {
-    "战斗属性": [
-        "Hit_Chance",
-        "CRT",
-        "CRTD",
-        "CTA",
-        "PRR",
-        "Block_Power",
-        "Block_Recovery",
-        "FMB",
-        "EVS",
-        "Crit_Avoid",
-        "Weapon_Damage",
-        "Armor_Piercing",
-        "Armor_Damage",
-        "Bodypart_Damage",
-    ],
-    "伤害类型": [
-        "Slashing_Damage",
-        "Piercing_Damage",
-        "Blunt_Damage",
-        "Rending_Damage",
-        "Fire_Damage",
-        "Shock_Damage",
-        "Poison_Damage",
-        "Caustic_Damage",
-        "Frost_Damage",
-        "Arcane_Damage",
-        "Unholy_Damage",
-        "Sacred_Damage",
-        "Psionic_Damage",
-    ],
-    "状态效果": [
-        "Bleeding_Chance",
-        "Knockback_Chance",
-        "Daze_Chance",
-        "Stun_Chance",
-        "Immob_Chance",
-        "Stagger_Chance",
-    ],
-    "生存属性": [
-        "max_hp",
-        "Health_Restoration",
-        "Healing_Received",
-        "Lifesteal",
-        "Manasteal",
-        "Damage_Received",
-        "Damage_Returned",
-        "Fortitude",
-        "DEF",
-    ],
-    "精力相关": [
-        "MP",
-        "MP_Restoration",
-        "Abilities_Energy_Cost",
-        "Skills_Energy_Cost",
-        "Spells_Energy_Cost",
-        "Fatigue_Gain",
-    ],
-    "魔法属性": [
-        "Magic_Power",
-        "Miscast_Chance",
-        "Miracle_Chance",
-        "Miracle_Power",
-        "Cooldown_Reduction",
-        "Bonus_Range",
-    ],
-    "元素法力": [
-        "Pyromantic_Power",
-        "Geomantic_Power",
-        "Venomantic_Power",
-        "Electromantic_Power",
-        "Cryomantic_Power",
-        "Arcanistic_Power",
-        "Astromantic_Power",
-        "Psimantic_Power",
-    ],
-    "抗性（综合）": [
-        "Physical_Resistance",
-        "Nature_Resistance",
-        "Magic_Resistance",
-    ],
-    "抗性（元素）": [
-        "Slashing_Resistance",
-        "Piercing_Resistance",
-        "Blunt_Resistance",
-        "Rending_Resistance",
-        "Fire_Resistance",
-        "Shock_Resistance",
-        "Poison_Resistance",
-        "Caustic_Resistance",
-        "Frost_Resistance",
-        "Arcane_Resistance",
-        "Unholy_Resistance",
-        "Sacred_Resistance",
-        "Psionic_Resistance",
-    ],
-    "状态抗性": [
-        "Bleeding_Resistance",
-        "Knockback_Resistance",
-        "Stun_Resistance",
-        "Pain_Resistance",
-    ],
-    "其他": [
-        "VSN",
-        "Received_XP",
-    ],
-}
 
 # 常用技能对象 ID
 HYBRID_SKILL_IDS = {
@@ -928,25 +955,13 @@ ITEM_TYPE_CONFIG = {
     "weapon": {
         "type_name": "武器",
         "slot_labels": SLOT_LABELS,
-        "material_labels": WEAPON_MATERIAL_LABELS,
-        "tag_labels": TAG_LABELS,
-        "rarity_labels": RARITY_LABELS,
-        "attributes_config": WEAPON_ATTRIBUTE_GROUPS,
     },
     "armor": {
         "type_name": "装备",
         "slot_labels": ARMOR_SLOT_LABELS,
-        "material_labels": ARMOR_MATERIAL_LABELS,
-        "tag_labels": TAG_LABELS,
-        "rarity_labels": RARITY_LABELS,
-        "attributes_config": ARMOR_ATTRIBUTE_GROUPS,
     },
     "hybrid": {
         "type_name": "混合物品",
         "slot_labels": HYBRID_SLOT_LABELS,
-        "material_labels": HYBRID_MATERIALS,
-        "tag_labels": TAG_LABELS,
-        "rarity_labels": RARITY_LABELS,
-        "attributes_config": HYBRID_ATTRIBUTE_GROUPS,
     },
 }

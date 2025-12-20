@@ -41,14 +41,19 @@ except ImportError:
 
 # 导入拆分后的模块
 from constants import (
-    ARMOR_ATTRIBUTE_GROUPS,
+    # 属性分组系统
+    WEAPON_ATTRIBUTES,
+    ARMOR_ATTRIBUTES,
+    PASSIVE_ATTRIBUTES,
+    get_attribute_groups,
+    DEFAULT_GROUP_ORDER,
+    # 其他常量
     ARMOR_CLASS_LABELS,
     ARMOR_FRAGMENT_LABELS,
     ARMOR_PREVIEW_HEIGHT,
     ARMOR_PREVIEW_WIDTH,
     ARMOR_SLOT_LABELS,
     ARMOR_SLOTS_MULTI_POSE,
-    ATTRIBUTE_DESCRIPTIONS,
     BYTE_ATTRIBUTES,
     CHARACTER_MODEL_LABELS,
     CHARACTER_MODELS,
@@ -68,7 +73,6 @@ from constants import (
     VALID_AREA_SIZE,
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
-    WEAPON_ATTRIBUTE_GROUPS,
     WEAPON_MATERIAL_LABELS,
     ARMOR_MATERIAL_LABELS,
     get_model_key,
@@ -81,13 +85,18 @@ from constants import (
     HYBRID_ARMOR_TYPES,
     HYBRID_ARMOR_MATERIALS,
     HYBRID_ARMOR_CLASSES,
-    HYBRID_ATTRIBUTE_GROUPS,
     HYBRID_SKILL_IDS,
     HYBRID_PICKUP_SOUNDS,
     HYBRID_DROP_SOUNDS,
     HYBRID_DURABILITY_POLICIES,
+    # 消耗品属性常量
+    CONSUMABLE_ATTRIBUTE_GROUPS,
+    CONSUMABLE_FLOAT_ATTRIBUTES,
+    CONSUMABLE_DURATION_ATTRIBUTE,
+    CONSUMABLE_INSTANT_GROUP_PREFIX,
+    CONSUMABLE_DURATION_GROUP_PREFIX,
 )
-from generator import CodeGenerator, copy_item_textures, copy_hybrid_item_textures, CONSUMABLE_ATTRIBUTES
+from generator import CodeGenerator, copy_item_textures
 from models import (
     Armor,
     HybridItem,
@@ -96,7 +105,28 @@ from models import (
     validate_item,
     validate_hybrid_item,
 )
+from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
 
+
+def get_attr_display(attr: str, lang: str = "Chinese") -> tuple[str, str]:
+    """获取属性的本地化显示名称和说明
+    
+    Args:
+        attr: 属性键名 (如 "Hit_Chance")
+        lang: 语言 (默认 "Chinese")，可选: Chinese, English, Russian, German, Spanish, French, Italian, Portuguese, Polish, Turkish, Japanese, Korean
+    
+    Returns:
+        (显示名称, 详细说明) 元组
+    """
+    # 获取属性翻译名称
+    trans = ATTRIBUTE_TRANSLATIONS.get(attr, {})
+    name = trans.get(lang) or trans.get("Chinese") or trans.get("English") or attr
+    
+    # 获取属性说明
+    desc_dict = ATTRIBUTE_DESCRIPTIONS.get(attr, {})
+    desc = desc_dict.get(lang) or desc_dict.get("Chinese") or desc_dict.get("English") or ""
+    
+    return (name, desc)
 
 class ModGeneratorGUI:
     """主 GUI 类"""
@@ -163,6 +193,11 @@ class ModGeneratorGUI:
         self.show_error_popup = False
         self.show_save_popup = False
         self.show_success_popup = False
+
+        # 缓存属性分组（避免每帧重复计算）
+        self._weapon_attr_groups = get_attribute_groups(WEAPON_ATTRIBUTES, DEFAULT_GROUP_ORDER)
+        self._armor_attr_groups = get_attribute_groups(ARMOR_ATTRIBUTES, DEFAULT_GROUP_ORDER)
+        self._passive_attr_groups = get_attribute_groups(PASSIVE_ATTRIBUTES, DEFAULT_GROUP_ORDER)
 
     # ==================== 配置管理 ====================
 
@@ -1122,7 +1157,7 @@ class ModGeneratorGUI:
             imgui.tree_pop()
 
         if imgui.tree_node("武器属性", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_attributes_editor(weapon, WEAPON_ATTRIBUTE_GROUPS, "weapon")
+            self._draw_attributes_editor(weapon, self._weapon_attr_groups, "weapon")
             imgui.tree_pop()
 
         if imgui.tree_node("武器名称与本地化", flags=imgui.TREE_NODE_FRAMED):
@@ -1149,7 +1184,7 @@ class ModGeneratorGUI:
             imgui.tree_pop()
 
         if imgui.tree_node("装备属性", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_attributes_editor(armor, ARMOR_ATTRIBUTE_GROUPS, "armor")
+            self._draw_attributes_editor(armor, self._armor_attr_groups, "armor")
             imgui.tree_pop()
 
         # 项链、戒指、盾牌不允许拆解材料
@@ -1378,24 +1413,40 @@ class ModGeneratorGUI:
 
     def _draw_hybrid_feature_settings(self, hybrid: HybridItem):
         """绘制混合物品功能设置"""
-        # 功能开关
+        # 物品类型选择（单选）
         imgui.text("物品类型")
-
-        changed, hybrid.init_weapon_stats = imgui.checkbox("武器类##hybrid", hybrid.init_weapon_stats)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("初始化武器类型、伤害类型、材料等\n将物品作为武器处理")
-        if changed and hybrid.init_weapon_stats:
-            hybrid.init_armor_stats = False  # 互斥
-            hybrid.has_passive = False  # 武器不允许被动效果
-
-        imgui.same_line(spacing=20)
-        changed, hybrid.init_armor_stats = imgui.checkbox("护甲类##hybrid", hybrid.init_armor_stats)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("初始化护甲类型、防御等\n将物品作为护甲处理")
-        if changed and hybrid.init_armor_stats:
-            hybrid.init_weapon_stats = False  # 互斥
-            hybrid.has_passive = False  # 护甲不允许被动效果
-
+            imgui.set_tooltip(
+                "选择物品的类型，决定属性编辑器显示哪些字段：\n"
+                "• 无：纯消耗品，不显示属性编辑器\n"
+                "• 武器类：显示武器相关属性（伤害、状态几率等）\n"
+                "• 护甲饰品类：显示护甲相关属性（防护、抗性等）\n"
+                "• 被动类：显示被动属性（放在背包即可生效）"
+            )
+        
+        # 计算当前选中的类型索引
+        # 0=无, 1=武器, 2=护甲, 3=被动
+        if hybrid.init_weapon_stats:
+            current_type = 1
+        elif hybrid.init_armor_stats:
+            current_type = 2
+        elif hybrid.has_passive:
+            current_type = 3
+        else:
+            current_type = 0
+        
+        type_labels = ["无 (纯消耗品)", "武器类", "护甲饰品类", "被动类"]
+        
+        # 使用 radio_button 实现单选
+        for i, label in enumerate(type_labels):
+            if i > 0:
+                imgui.same_line(spacing=15)
+            if imgui.radio_button(f"{label}##hybrid_type", current_type == i):
+                # 更新类型状态
+                hybrid.init_weapon_stats = (i == 1)
+                hybrid.init_armor_stats = (i == 2)
+                hybrid.has_passive = (i == 3)
+        
         # 自动设置 is_weapon（不向用户显示）
         # is_weapon = true 当且仅当是武器类型且槽位为手持
         hybrid.mark_as_weapon = hybrid.init_weapon_stats and hybrid.slot == "hand"
@@ -1425,21 +1476,6 @@ class ModGeneratorGUI:
         else:
             # 未勾选使用次数时，显示提示（重置已在使用次数区块集中处理）
             self.text_secondary('（需要先勾选"拥有使用次数"才能设置主动技能）')
-
-        # 被动效果（仅当不是武器也不是护甲时显示）
-        if not hybrid.init_weapon_stats and not hybrid.init_armor_stats:
-            imgui.same_line(spacing=20)
-            changed, hybrid.has_passive = imgui.checkbox("拥有被动效果##hybrid", hybrid.has_passive)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip(
-                    "物品是否拥有被动效果 (check_inventory_data)\n"
-                    "放在背包中即可生效的属性加成\n\n"
-                    "注意：武器/护甲类物品不允许设置被动效果，\n"
-                    "因为装备后属性会被统计两次（背包+已装备）"
-                )
-        else:
-            # 武器/护甲强制关闭被动效果
-            hybrid.has_passive = False
 
         self.draw_indented_separator()
 
@@ -1739,9 +1775,9 @@ class ModGeneratorGUI:
                 imgui.set_column_width(0, input_col_width)
 
                 for attr in attributes:
-                    desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
-                    desc_name = desc_info[0] if desc_info[0] else attr
-                    desc_detail = desc_info[1] if len(desc_info) > 1 else ""
+                    desc_name, desc_detail = get_attr_display(attr)
+                    if not desc_name:
+                        desc_name = attr
 
                     val = hybrid.attributes.get(attr, 0)
 
@@ -1777,7 +1813,15 @@ class ModGeneratorGUI:
             del hybrid.attributes[k]
 
     def _draw_hybrid_consumable_attributes_editor(self, hybrid: HybridItem):
-        """绘制混合物品消耗品属性编辑器"""
+        """绘制混合物品消耗品属性编辑器
+        
+        使用 CONSUMABLE_ATTRIBUTE_GROUPS 中的分组定义，通过分组名称前缀
+        (CONSUMABLE_INSTANT_GROUP_PREFIX / CONSUMABLE_DURATION_GROUP_PREFIX)
+        自动区分即时效果和持续效果属性。
+        
+        核心控制属性：CONSUMABLE_DURATION_ATTRIBUTE (Duration)
+        - Duration > 0 时，持续效果分组的属性才会生效
+        """
         if not hybrid.has_charges:
             return
 
@@ -1785,184 +1829,135 @@ class ModGeneratorGUI:
         if imgui.collapsing_header("消耗品属性 (Consumable Attributes)")[0]:
             imgui.indent()
             
-            # 1. 持续时间 (控制依赖属性)
-            changed, new_dur = imgui.drag_float(
-                "效果持续时间 (Duration)",
-                hybrid.consumable_attributes.get("Duration", 0.0),
-                change_speed=1.0,
-                min_value=0.0,
-                format="%.0f"
+            # 1. 持续时间 (CONSUMABLE_DURATION_ATTRIBUTE - 控制依赖属性)
+            duration_attr = CONSUMABLE_DURATION_ATTRIBUTE
+            duration_val = hybrid.consumable_attributes.get(duration_attr, 0)
+            
+            imgui.push_item_width(120)
+            changed, new_dur = imgui.input_int(
+                f"效果持续时间 ({duration_attr})##consum_duration",
+                int(duration_val),
+                step=1,
+                step_fast=10
             )
+            imgui.pop_item_width()
             if changed:
-                hybrid.consumable_attributes["Duration"] = new_dur
+                hybrid.consumable_attributes[duration_attr] = max(0, new_dur)
             
             if imgui.is_item_hovered():
-                imgui.set_tooltip("部分属性(如回复/Buff)只有在持续时间 > 0 时生效")
+                imgui.set_tooltip('部分属性(如回复/Buff)只有在持续时间 > 0 时生效\n以"持续效果"开头的分组需要此值 > 0')
 
             imgui.dummy(0, 5)
 
-            # 2. 独立属性 (Instant / Special) - 始终可用
+            # 按前缀分离即时效果和持续效果分组
+            instant_groups = {}
+            duration_groups = {}
+            for group_name, attrs in CONSUMABLE_ATTRIBUTE_GROUPS.items():
+                if group_name.startswith(CONSUMABLE_INSTANT_GROUP_PREFIX):
+                    instant_groups[group_name] = attrs
+                elif group_name.startswith(CONSUMABLE_DURATION_GROUP_PREFIX):
+                    duration_groups[group_name] = attrs
+
+            def draw_attr_group(group_name: str, attr_list: list, enabled: bool = True):
+                """绘制属性分组，使用两列布局（与其他编辑器一致）"""
+                # 显示分组名称（去掉前缀，只保留括号内容）
+                display_name = group_name
+                if "（" in group_name:
+                    display_name = group_name.split("（", 1)[1].rstrip("）")
+                
+                if imgui.tree_node(f"{display_name}##consum_{group_name}"):
+                    if not enabled:
+                        imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+                    
+                    # 使用两列布局：输入框 | 属性名
+                    imgui.columns(2, f"consum_cols_{group_name}", border=False)
+                    input_col_width = 120 + (self.font_size - 14) * 6
+                    imgui.set_column_width(0, input_col_width)
+                    
+                    for attr in attr_list:
+                        attr_name, attr_desc = get_attr_display(attr)
+                        if not attr_name:
+                            attr_name = attr
+                        
+                        val = hybrid.consumable_attributes.get(attr, 0)
+                        is_float_attr = attr in CONSUMABLE_FLOAT_ATTRIBUTES
+                        
+                        # 第一列：输入框
+                        imgui.push_item_width(-1)
+                        input_id = f"##{attr}_consum"
+                        
+                        if enabled:
+                            if is_float_attr:
+                                changed, new_val = imgui.input_float(
+                                    input_id,
+                                    float(val),
+                                    step=0.1,
+                                    step_fast=1.0,
+                                    format="%.2f"
+                                )
+                            else:
+                                changed, new_val = imgui.input_int(
+                                    input_id,
+                                    int(val),
+                                    step=1,
+                                    step_fast=10
+                                )
+                            if changed:
+                                hybrid.consumable_attributes[attr] = new_val
+                        else:
+                            # 禁用时显示只读文本
+                            display_val = f"{val:.2f}" if is_float_attr else str(int(val))
+                            imgui.text(display_val)
+                        
+                        imgui.pop_item_width()
+                        
+                        # 第二列：属性名称
+                        imgui.next_column()
+                        imgui.text(attr_name)
+                        
+                        if attr_desc and imgui.is_item_hovered():
+                            imgui.set_tooltip(attr_desc)
+                        
+                        imgui.next_column()
+                    
+                    imgui.columns(1)
+                    
+                    if not enabled:
+                        imgui.pop_style_var()
+                    
+                    imgui.tree_pop()
+
+            # 2. 绘制即时效果属性 (始终可用)
             imgui.text_colored("独立/即时效果 (Independent)", *self.theme_colors["accent"])
+            self.text_secondary("这些属性不需要设置持续时间即可生效")
             
-            independent_groups = [
-                ("基础状态", ["Hunger", "Thirsty", "Intoxication", "Pain", "Fatigue", "Condition"]),
-                ("精神/士气", ["SanitySituational", "MoraleSituational", "MoraleDiet"]),
-                ("特殊", ["Immunity", "max_mp_res", "max_hp_res", "Poisoning_Chance", "Nausea_Chance"])
-            ]
-
-            # 3. 依赖属性 (Duration Dependent) - 持续时间 > 0 时可用
-            dependent_groups = [
-                ("生命/能量回复", ["Health_Restoration", "MP_Restoration", "MP_turn", "HP_turn"]),
-                ("战斗属性", ["Weapon_Damage", "Hit_Chance", "FMB", "CRTD", "Fortitude", "Magic_Power", "Cooldown_Reduction"]),
-                ("抗性", ["Physical_Resistance", "Magic_Resistance", "Bleeding_Resistance", "Toxicity_Resistance", "Pain_Resistance", "Hunger_Resistance"]),
-                ("其他", ["Received_XP", "VSN"])
-            ]
-
-            def draw_attr_grid(attr_list, enabled=True):
-                 if not enabled:
-                     imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-                 
-                 columns = 2
-                 for i, attr in enumerate(attr_list):
-                    if i % columns == 0:
-                        imgui.columns(columns, f"consum_grid_{attr}", False)
-                    
-                    val = hybrid.consumable_attributes.get(attr, 0.0)
-                    
-                    # 如果禁用，显示 simple text 而不是 input
-                    # 或者使用 flags=imgui.INPUT_TEXT_READ_ONLY ? drag_float 没有 read_only flag
-                    # 直接不处理 changed 即可
-                    
-                    label = f"{ATTRIBUTE_DESCRIPTIONS.get(attr, attr)}##consum_{attr}"
-                    if enabled:
-                        changed, new_val = imgui.drag_float(
-                            label,
-                            val,
-                            change_speed=0.1 if attr in ["HP_turn", "MP_turn"] else 1.0,
-                            format="%.1f"
-                        )
-                        if changed:
-                            hybrid.consumable_attributes[attr] = new_val
-                    else:
-                        imgui.text(f"{ATTRIBUTE_DESCRIPTIONS.get(attr, attr)}: {val}")
-
-                    imgui.next_column()
-                 imgui.columns(1)
-                 
-                 if not enabled:
-                     imgui.pop_style_var()
-
-            # 绘制独立属性
-            for group_name, attrs in independent_groups:
-                imgui.text_secondary(f"- {group_name}")
-                draw_attr_grid(attrs, enabled=True)
-                imgui.dummy(0, 2)
+            for group_name, attrs in instant_groups.items():
+                draw_attr_group(group_name, attrs, enabled=True)
             
             imgui.separator()
             
-            # 绘制依赖属性
-            duration_valid = hybrid.consumable_attributes.get("Duration", 0) > 0
+            # 3. 绘制持续效果属性 (需要 Duration > 0)
+            duration_valid = hybrid.consumable_attributes.get(duration_attr, 0) > 0
             
             header_text = "持续性效果 (Duration Dependent)"
             if not duration_valid:
                 header_text += " [需设置持续时间]"
                 
-            imgui.text_colored(header_text, *self.theme_colors["accent" if duration_valid else "text_disabled"])
+            imgui.text_colored(header_text, *self.theme_colors["accent" if duration_valid else "text_secondary"])
             
             if not duration_valid:
                 imgui.text_colored("警告: 这些属性需要设置 '效果持续时间' 才能生效。", 1.0, 0.5, 0.0)
             
-            if duration_valid or imgui.tree_node("查看被禁用的属性"):
-                for group_name, attrs in dependent_groups:
-                     imgui.text_secondary(f"- {group_name}")
-                     draw_attr_grid(attrs, enabled=duration_valid)
-                     imgui.dummy(0, 2)
+            if duration_valid or imgui.tree_node("查看被禁用的属性##consum_disabled"):
+                for group_name, attrs in duration_groups.items():
+                    draw_attr_group(group_name, attrs, enabled=duration_valid)
                 if not duration_valid:
                     imgui.tree_pop()
                 
             imgui.unindent()
 
-    def _get_passive_attribute_groups(self) -> dict:
-        """获取被动效果物品适用的属性分组
-        
-        被动物品可以提供的属性加成（参考 HYBRID_ITEM_TEMPLATE.gml.hbs）
-        """
-        return {
-            "战斗属性": [
-                "Hit_Chance",
-                "CRT",
-                "CRTD",
-                "CTA",
-                "PRR",
-                "Block_Power",
-                "Block_Recovery",
-                "FMB",
-                "Weapon_Damage",
-                "Armor_Piercing",
-                "Armor_Damage",
-                "Bodypart_Damage",
-            ],
-            "生存属性": [
-                "max_hp",
-                "Health_Restoration",
-                "Healing_Received",
-                "Lifesteal",
-                "Manasteal",
-                "Fatigue_Gain",
-            ],
-            "魔法属性": [
-                "MP",
-                "MP_Restoration",
-                "Magic_Power",
-                "Cooldown_Reduction",
-                "Miscast_Chance",
-                "Miracle_Chance",
-                "Miracle_Power",
-                "Abilities_Energy_Cost",
-                "Skills_Energy_Cost",
-                "Spells_Energy_Cost",
-                "Bonus_Range",
-            ],
-            "法术系加成": [
-                "Pyromantic_Power",
-                "Geomantic_Power",
-                "Venomantic_Power",
-                "Electromantic_Power",
-                "Cryomantic_Power",
-                "Arcanistic_Power",
-                "Astromantic_Power",
-                "Psimantic_Power",
-            ],
-            "抗性（综合）": [
-                "Physical_Resistance",
-                "Nature_Resistance",
-                "Magic_Resistance",
-            ],
-            "抗性（元素）": [
-                "Slashing_Resistance",
-                "Piercing_Resistance",
-                "Blunt_Resistance",
-                "Rending_Resistance",
-                "Fire_Resistance",
-                "Shock_Resistance",
-                "Poison_Resistance",
-                "Caustic_Resistance",
-                "Frost_Resistance",
-                "Arcane_Resistance",
-                "Unholy_Resistance",
-                "Sacred_Resistance",
-                "Psionic_Resistance",
-            ],
-            "状态抗性": [
-                "Bleeding_Resistance",
-                "Knockback_Resistance",
-                "Stun_Resistance",
-                "Pain_Resistance",
-            ],
-        }
-
     def _get_hybrid_attribute_groups(self, hybrid: HybridItem) -> dict:
-        """根据类型获取可编辑属性分组（模板映射），并清理无效属性"""
+        """根据类型获取可编辑属性分组，并清理无效属性"""
         result: dict[str, list[str]] = {}
 
         def merge(src: dict):
@@ -1974,11 +1969,11 @@ class ModGeneratorGUI:
                         result[k].append(attr)
 
         if hybrid.init_weapon_stats:
-            merge(self._get_weapon_attribute_groups())
+            merge(self._weapon_attr_groups)
         if hybrid.init_armor_stats:
-            merge(self._get_armor_attribute_groups())
+            merge(self._armor_attr_groups)
         if hybrid.has_passive:
-            merge(self._get_passive_attribute_groups())
+            merge(self._passive_attr_groups)
 
         # 清理不再允许的属性
         if result:
@@ -2014,154 +2009,6 @@ class ModGeneratorGUI:
                 comps.append((k, v))
         return comps
 
-    def _get_weapon_attribute_groups(self) -> dict:
-        """模板武器段落可选属性"""
-        return {
-            "基础战斗": [
-                "Range",
-                "Bodypart_Damage",
-                "Armor_Piercing",
-                "Armor_Damage",
-            ],
-            "伤害": [
-                "Slashing_Damage",
-                "Piercing_Damage",
-                "Blunt_Damage",
-                "Rending_Damage",
-                "Fire_Damage",
-                "Shock_Damage",
-                "Poison_Damage",
-                "Caustic_Damage",
-                "Frost_Damage",
-                "Arcane_Damage",
-                "Unholy_Damage",
-                "Sacred_Damage",
-                "Psionic_Damage",
-            ],
-            "状态几率": [
-                "Bleeding_Chance",
-                "Daze_Chance",
-                "Stun_Chance",
-                "Knockback_Chance",
-                "Immob_Chance",
-                "Stagger_Chance",
-            ],
-            "命中/暴击": [
-                "Hit_Chance",
-                "CRT",
-                "CRTD",
-                "CTA",
-                "FMB",
-            ],
-            "格挡/护甲": [
-                "PRR",
-                "Block_Power",
-                "Block_Recovery",
-            ],
-            "魔法/能量": [
-                "MP",
-                "MP_Restoration",
-                "Cooldown_Reduction",
-                "Abilities_Energy_Cost",
-                "Skills_Energy_Cost",
-                "Spells_Energy_Cost",
-                "Magic_Power",
-                "Miscast_Chance",
-                "Miracle_Chance",
-                "Miracle_Power",
-                "Bonus_Range",
-            ],
-            "生存/其他": [
-                "max_hp",
-                "Health_Restoration",
-                "Healing_Received",
-                "Crit_Avoid",
-                "Fatigue_Gain",
-                "Lifesteal",
-                "Manasteal",
-                "Damage_Received",
-            ],
-            "元素法力": [
-                "Pyromantic_Power",
-                "Geomantic_Power",
-                "Venomantic_Power",
-                "Electromantic_Power",
-                "Cryomantic_Power",
-                "Arcanistic_Power",
-                "Astromantic_Power",
-                "Psimantic_Power",
-            ],
-        }
-
-    def _get_armor_attribute_groups(self) -> dict:
-        """模板护甲段落可选属性"""
-        return {
-            "主属性": ["DEF"],
-            "战斗/防御": [
-                "PRR",
-                "Block_Power",
-                "Block_Recovery",
-                "EVS",
-                "Crit_Avoid",
-                "Damage_Received",
-                "Damage_Returned",
-                "Fortitude",
-                "FMB",
-                "Hit_Chance",
-                "Weapon_Damage",
-                "Armor_Piercing",
-                "Armor_Damage",
-                "CRT",
-                "CRTD",
-                "CTA",
-                "VSN",
-            ],
-            "生存/回复": [
-                "max_hp",
-                "Health_Restoration",
-                "Healing_Received",
-                "Lifesteal",
-                "Manasteal",
-                "Fatigue_Gain",
-                "Received_XP",
-            ],
-            "抗性（综合）": [
-                "Physical_Resistance",
-                "Nature_Resistance",
-                "Magic_Resistance",
-            ],
-            "抗性（元素）": [
-                "Slashing_Resistance",
-                "Piercing_Resistance",
-                "Blunt_Resistance",
-                "Rending_Resistance",
-                "Fire_Resistance",
-                "Shock_Resistance",
-                "Poison_Resistance",
-                "Caustic_Resistance",
-                "Frost_Resistance",
-                "Arcane_Resistance",
-                "Unholy_Resistance",
-                "Sacred_Resistance",
-                "Psionic_Resistance",
-            ],
-            "状态抗性": [
-                "Bleeding_Resistance",
-                "Knockback_Resistance",
-                "Stun_Resistance",
-                "Pain_Resistance",
-            ],
-            "魔法/能量": [
-                "MP",
-                "MP_Restoration",
-                "Magic_Power",
-                "Cooldown_Reduction",
-                "Miscast_Chance",
-                "Miracle_Chance",
-                "Miracle_Power",
-                "Bonus_Range",
-            ],
-        }
 
     def _draw_hybrid_textures_editor(self, hybrid: HybridItem):
         """绘制混合物品贴图编辑器"""
@@ -2438,9 +2285,9 @@ class ModGeneratorGUI:
                 imgui.set_column_width(0, input_col_width)
 
                 for attr in attributes:
-                    desc_info = ATTRIBUTE_DESCRIPTIONS.get(attr, ("", ""))
-                    desc_name = desc_info[0] if desc_info[0] else attr
-                    desc_detail = desc_info[1] if len(desc_info) > 1 else ""
+                    desc_name, desc_detail = get_attr_display(attr)
+                    if not desc_name:
+                        desc_name = attr
 
                     val = item.attributes.get(attr, 0)
 
@@ -4455,12 +4302,13 @@ class ModGeneratorGUI:
 
             # 复制混合物品贴图
             for hybrid in self.project.hybrid_items:
-                errs = copy_hybrid_item_textures(
+                errs = copy_item_textures(
                     item_id=hybrid.id,
                     textures=hybrid.textures,
                     sprites_dir=sprites_dir,
                     copy_char=hybrid.needs_char_texture(),
                     copy_left=hybrid.needs_left_texture(),
+                    is_multi_pose_armor=False,
                 )
                 texture_errors.extend(errs)
 
