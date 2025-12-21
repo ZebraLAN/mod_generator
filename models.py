@@ -789,6 +789,7 @@ class ModProject:
             "tags": item.tags,
             "rarity": item.rarity,
             "attributes": item.attributes,
+            "consumable_attributes": item.consumable_attributes,
             "textures": self._serialize_textures(item.textures, project_dir),
         }
 
@@ -1047,6 +1048,7 @@ class ModProject:
             tags=item_data.get("tags", "special exc"),
             rarity=item_data.get("rarity", ""),
             attributes=item_data.get("attributes", {}),
+            consumable_attributes=item_data.get("consumable_attributes", {}),
         )
         
         item.localization = ItemLocalization(

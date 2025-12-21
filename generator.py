@@ -328,12 +328,27 @@ def copy_item_textures(
 
 
 def format_description(text: str) -> str:
-    """处理描述文本：strip -> splitlines -> join('##') -> 转移双引号"""
+    """处理描述文本：strip -> splitlines -> join('#') -> 转义双引号
+    
+    用于通过 C# 接口注入的物品描述（普通武器/护甲）
+    """
     if not text:
         return ""
     lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
-    joined = "##".join(lines)
+    joined = "#".join(lines)
     return joined.replace('"', '\\"')
+
+
+def format_description_gml(text: str) -> str:
+    """处理描述文本：仅转义双引号
+    
+    用于直接写入 GML 的物品描述（混合物品），不需要换行转译
+    GML 中 # 本身就是换行符，用户可以直接在描述中使用 # 换行
+    """
+    if not text:
+        return ""
+    # 只转义引号，不处理换行（用户直接使用 # 作为换行符）
+    return text.strip().replace('"', '\\"')
 
 
 # ============== C# 代码生成器 ==============
@@ -742,8 +757,8 @@ popz.v"""
         
         # 获取描述
         description = item.localization.get_description(PRIMARY_LANGUAGE) or ""
-        # 处理描述：转义引号并替换换行为 ##
-        desc_formatted = format_description(description)
+        # 处理描述：转义引号并替换换行为 # (混合物品直接写入 GML，不需额外转译)
+        desc_formatted = format_description_gml(description)
         lines.append(f'desc = \"{desc_formatted}\";')
         
         lines.append('ds_map_replace(data, "idName", idName);')
@@ -819,6 +834,20 @@ popz.v"""
             lines.append(f"max_charge = {item.charge};")
             lines.append(f"draw_charges = {'true' if item.draw_charges else 'false'};")
             lines.append("")
+            
+            # 消耗品属性初始化 (attributes_data)
+            # attributes_data 在 o_inv_consum.Create_0 中已创建，可以直接添加
+            lines.append("// 消耗品属性 (attributes_data)")
+            
+            has_consum_attr = False
+            for attr, value in item.consumable_attributes.items():
+                if attr in CONSUMABLE_ATTRIBUTES and value != 0:
+                    lines.append(f'ds_map_add(attributes_data, "{attr}", {value});')
+                    has_consum_attr = True
+            
+            if not has_consum_attr:
+                lines.append("// 无消耗品属性")
+            lines.append("")
         
         # 耐久与删除
         lines.append(f"duration_change = {item.duration_change};")
@@ -854,19 +883,6 @@ popz.v"""
         lines.append("rest_char_sprite = -4;")
         lines.append("rest_char_upper_sprite = -4;")
 
-
-        
-        # 强制修复 GUI 交互系统
-        # MSL 添加的对象可能无法通过 object_is_ancestor 检查
-        # 导致 scr_guiInit 中 guiType 不会被设置为 1
-        # 这会导致物品无法响应鼠标事件！
-        lines.append("")
-        lines.append("// 强制修复 GUI 交互系统（MSL 对象继承链可能不被 object_is_ancestor 识别）")
-        lines.append("// 必须设置 guiType = 1 才能让物品响应鼠标事件")
-        lines.append("guiType = 1;")
-        lines.append("scr_guiInteractiveEventUpdate(id, 3);")
-        lines.append("scr_guiInteractiveStateUpdate(id, 0, 1, 2, 5);")
-        
         return "\n".join(lines)
     
     def _generate_hybrid_step_gml(self, item: HybridItem) -> str:
@@ -954,22 +970,6 @@ popz.v"""
         # 冷却初始化
         if item.has_cooldown:
             lines.append("    ds_map_replace(data, \"use_kd\", 0);")
-
-        # 消耗品属性初始化 (attributes_data)
-        # 需求: 在 Alarm_0 中初始化 attributes_data (Map 已在父级 Create 中创建)
-        if item.has_charges:
-            lines.append("")
-            lines.append("    // 消耗品属性 (attributes_data)")
-            
-            has_consum_attr = False
-            for attr, value in item.consumable_attributes.items():
-                if attr in CONSUMABLE_ATTRIBUTES and value != 0:
-                    lines.append(f'    ds_map_add(attributes_data, "{attr}", {value});')
-                    has_consum_attr = True
-            
-            if not has_consum_attr:
-                lines.append("    // 无消耗品属性")
-
         
         # 武器伤害初始化（伤害来自 attributes 的伤害键；DMG=总和，DamageType=最大伤类型）
         if item.init_weapon_stats:
