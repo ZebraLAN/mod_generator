@@ -1341,67 +1341,7 @@ class ModGeneratorGUI:
         imgui.pop_item_width()
         imgui.columns(1)
 
-        self.draw_indented_separator()
-
-        # 装备设置（先于槽位）
-        imgui.text("装备设置")
-
-        old_equipable = hybrid.equipable
-        changed, hybrid.equipable = imgui.checkbox("可装备##hybrid", hybrid.equipable)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("物品是否可以装备到对应槽位")
-
-        # 可装备状态改变时调整槽位
-        if changed:
-            if not hybrid.equipable:
-                # 不可装备时锁定为背包道具
-                hybrid.slot = "heal"
-            elif hybrid.slot == "heal":
-                # 从不可装备变为可装备时，默认设为手持
-                hybrid.slot = "hand"
-
-        # 槽位选择
-        imgui.same_line(spacing=20)
-        imgui.text("槽位:")
-        imgui.same_line()
-        imgui.push_item_width(150)
-        
-        if hybrid.equipable:
-            # 可装备时，排除 heal 选项
-            equipable_slots = {k: v for k, v in HYBRID_SLOT_LABELS.items() if k != "heal"}
-            new_slot = self._draw_enum_combo(
-                "##slot_hybrid",
-                hybrid.slot,
-                list(equipable_slots.keys()),
-                equipable_slots,
-            )
-        else:
-            # 不可装备：固定为 heal，兼容老版本 imgui（无 begin_disabled）
-            self._draw_enum_combo(
-                "##slot_hybrid",
-                "heal",
-                ["heal"],
-                {"heal": "背包道具"},
-            )
-            new_slot = "heal"
-        
-        imgui.pop_item_width()
-        
-        if new_slot != hybrid.slot:
-            hybrid.slot = new_slot
-
-        # 手数（仅手持槽位且可装备时显示）
-        if hybrid.equipable and hybrid.slot == "hand":
-            imgui.same_line(spacing=20)
-            imgui.text("手数:")
-            imgui.same_line()
-            imgui.push_item_width(120)
-            changed, hybrid.hands = imgui.input_int("##hands_hybrid", hybrid.hands, step=1, step_fast=1)
-            if changed:
-                hybrid.hands = max(1, min(2, hybrid.hands))
-            imgui.pop_item_width()
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("装备时占用的手数 (1 或 2)")
+        # 装备设置由物品类型自动推断（在功能设置中处理）
 
     def _update_hybrid_rarity_from_quality(self, hybrid: HybridItem):
         """根据品质自动更新稀有度"""
@@ -1446,6 +1386,22 @@ class ModGeneratorGUI:
                 hybrid.init_weapon_stats = (i == 1)
                 hybrid.init_armor_stats = (i == 2)
                 hybrid.has_passive = (i == 3)
+                
+                # 自动推断装备设置
+                if i == 1:  # 武器类
+                    hybrid.equipable = True
+                    hybrid.slot = "hand"
+                    # 手数由武器类型决定，在武器设置中处理
+                elif i == 2:  # 护甲饰品类
+                    hybrid.equipable = True
+                    # 槽位由护甲类型决定
+                    if hybrid.armor_type == "shield":
+                        hybrid.slot = "hand"
+                    else:
+                        hybrid.slot = hybrid.armor_type
+                else:  # 纯消耗品(i==0) 或 被动类(i==3)
+                    hybrid.equipable = False
+                    hybrid.slot = "heal"
         
         # 自动设置 is_weapon（不向用户显示）
         # is_weapon = true 当且仅当是武器类型且槽位为手持
@@ -1661,6 +1617,11 @@ class ModGeneratorGUI:
             list(HYBRID_WEAPON_TYPES.keys()),
             HYBRID_WEAPON_TYPES,
         )
+        
+        # 根据武器类型自动设置手数
+        # 双手武器：2hsword, 2haxe, 2hmace, 2hStaff, bow, crossbow, spear
+        two_handed_types = {"2hsword", "2haxe", "2hmace", "2hStaff", "bow", "crossbow", "spear"}
+        hybrid.hands = 2 if hybrid.weapon_type in two_handed_types else 1
 
         # 伤害汇总（不区分主/额外，全部在属性里填）
         damage_components = self._compute_weapon_damage_components(hybrid)
@@ -1721,6 +1682,9 @@ class ModGeneratorGUI:
             list(HYBRID_ARMOR_TYPES.keys()),
             HYBRID_ARMOR_TYPES,
         )
+        
+        # 根据护甲类型自动设置槽位
+        hybrid.slot = "hand" if hybrid.armor_type == "shield" else hybrid.armor_type
 
         imgui.text("护甲材料")
         hybrid.armor_material = self._draw_enum_combo(
@@ -1825,8 +1789,7 @@ class ModGeneratorGUI:
         if not hybrid.has_charges:
             return
 
-        imgui.dummy(0, 5)
-        if imgui.collapsing_header("消耗品属性 (Consumable Attributes)")[0]:
+        if imgui.collapsing_header("消耗品属性")[0]:
             imgui.indent()
             
             # 1. 持续时间 (CONSUMABLE_DURATION_ATTRIBUTE - 控制依赖属性)
@@ -1835,7 +1798,7 @@ class ModGeneratorGUI:
             
             imgui.push_item_width(120)
             changed, new_dur = imgui.input_int(
-                f"效果持续时间 ({duration_attr})##consum_duration",
+                "效果持续时间##consum_duration",
                 int(duration_val),
                 step=1,
                 step_fast=10
@@ -1928,7 +1891,7 @@ class ModGeneratorGUI:
                     imgui.tree_pop()
 
             # 2. 绘制即时效果属性 (始终可用)
-            imgui.text_colored("独立/即时效果 (Independent)", *self.theme_colors["accent"])
+            imgui.text_colored("独立/即时效果", *self.theme_colors["accent"])
             self.text_secondary("这些属性不需要设置持续时间即可生效")
             
             for group_name, attrs in instant_groups.items():
@@ -1939,7 +1902,7 @@ class ModGeneratorGUI:
             # 3. 绘制持续效果属性 (需要 Duration > 0)
             duration_valid = hybrid.consumable_attributes.get(duration_attr, 0) > 0
             
-            header_text = "持续性效果 (Duration Dependent)"
+            header_text = "持续性效果"
             if not duration_valid:
                 header_text += " [需设置持续时间]"
                 
