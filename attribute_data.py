@@ -65,6 +65,14 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "秘術耐性",
         "Korean": "미지 저항력",
     },
+    "Arcanistic_Distance": {
+        "Chinese": "秘术距离",
+        "English": "Arcanistic Distance",
+    },
+    "Arcanistic_Miscast_Chance": {
+        "Chinese": "秘术失误几率",
+        "English": "Arcanistic Miscast Chance",
+    },
     "Arcanistic_Power": {
         "Chinese": "秘术法力",
         "English": "Arcanistic Power",
@@ -107,6 +115,24 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "アーマー貫通",
         "Korean": "방어구 관통력",
     },
+    "Arms_DEF": {
+        "Chinese": "上肢防护",
+        "English": "Arms Protection",
+        "Russian": "Защита рук",
+        "German": "Armschutz",
+        "Spanish": "Protección de los brazos",
+        "French": "Protection des bras",
+        "Italian": "Protezione (Braccia)",
+        "Portuguese": "Proteção para Braços",
+        "Polish": "Ochrona rąk",
+        "Turkish": "Kol Koruması",
+        "Japanese": "腕部防御",
+        "Korean": "팔 방호력",
+    },
+    "Astromantic_Miscast_Chance": {
+        "Chinese": "星术失误几率",
+        "English": "Astromantic Miscast Chance",
+    },
     "Astromantic_Power": {
         "Chinese": "星术法力",
         "English": "Astromantic Power",
@@ -120,6 +146,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Kozmos Büyüsü Gücü",
         "Japanese": "占星術力",
         "Korean": "점성 마법력",
+    },
+    "Avoiding_Trap": {
+        "Chinese": "陷阱闪避",
+        "English": "Trap Evasion",
     },
     "Backfire_Damage": {
         "Chinese": "失误伤害",
@@ -163,6 +193,14 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "出血確率",
         "Korean": "출혈 확률",
     },
+    "Bleeding_Chance_Main": {
+        "Chinese": "主手出血几率",
+        "English": "Main Hand Bleed Chance",
+    },
+    "Bleeding_Chance_Off": {
+        "Chinese": "副手出血几率",
+        "English": "Off Hand Bleed Chance",
+    },
     "Bleeding_Resistance": {
         "Chinese": "出血抗性",
         "English": "Bleed Resistance",
@@ -176,6 +214,26 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Kanama Direnci",
         "Japanese": "出血耐性",
         "Korean": "출혈 저항력",
+    },
+    "Bleeding_Resistance_Hands": {
+        "Chinese": "手臂出血抗性",
+        "English": "Arms Bleed Resistance",
+    },
+    "Bleeding_Resistance_Head": {
+        "Chinese": "头部出血抗性",
+        "English": "Head Bleed Resistance",
+    },
+    "Bleeding_Resistance_Legs": {
+        "Chinese": "腿部出血抗性",
+        "English": "Legs Bleed Resistance",
+    },
+    "Bleeding_Resistance_Tors": {
+        "Chinese": "躯干出血抗性",
+        "English": "Torso Bleed Resistance",
+    },
+    "BlockPowerBonus": {
+        "Chinese": "格挡力量加成",
+        "English": "Block Power Bonus",
     },
     "Block_Power": {
         "Chinese": "格挡力量",
@@ -233,6 +291,20 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "衝撃耐性",
         "Korean": "타격 저항력",
     },
+    "Body_DEF": {
+        "Chinese": "躯干防护",
+        "English": "Body Protection",
+        "Russian": "Защита торса",
+        "German": "Körperschutz",
+        "Spanish": "Protección del cuerpo",
+        "French": "Protection du corps",
+        "Italian": "Protezione (Torace)",
+        "Portuguese": "Proteção para Corpo",
+        "Polish": "Ochrona tułowia",
+        "Turkish": "Vücut Koruması",
+        "Japanese": "胴体防御",
+        "Korean": "몸통 방호력",
+    },
     "Bodypart_Damage": {
         "Chinese": "肢体伤害",
         "English": "Bodypart Damage",
@@ -289,6 +361,22 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "クリティカル倍率",
         "Korean": "치명타 효율성",
     },
+    "CRTD_Main": {
+        "Chinese": "主手暴击效果",
+        "English": "Main Hand Crit Efficiency",
+    },
+    "CRTD_Off": {
+        "Chinese": "副手暴击效果",
+        "English": "Off Hand Crit Efficiency",
+    },
+    "CRT_Main": {
+        "Chinese": "主手暴击几率",
+        "English": "Main Hand Crit Chance",
+    },
+    "CRT_Off": {
+        "Chinese": "副手暴击几率",
+        "English": "Off Hand Crit Chance",
+    },
     "CTA": {
         "Chinese": "反击几率",
         "English": "Counter Chance",
@@ -331,6 +419,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "腐食耐性",
         "Korean": "부식 저항력",
     },
+    "Charge_Distance": {
+        "Chinese": "冲锋距离",
+        "English": "Charge Distance",
+    },
     "Condition": {
         "Chinese": "治伤",
         "English": "Injury Treatment",
@@ -372,6 +464,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Kritikten Sıyrılma",
         "Japanese": "クリティカル回避",
         "Korean": "치명타 회피율",
+    },
+    "Cryomantic_Miscast_Chance": {
+        "Chinese": "冰术失误几率",
+        "English": "Cryomantic Miscast Chance",
     },
     "Cryomantic_Power": {
         "Chinese": "冰术法力",
@@ -443,6 +539,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "眩惑確率",
         "Korean": "진탕 확률",
     },
+    "Duration_Resistance": {
+        "Chinese": "持续效果抗性",
+        "English": "Duration Resistance",
+    },
     "EVS": {
         "Chinese": "闪躲几率",
         "English": "Dodge Chance",
@@ -456,6 +556,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Sıyrılma Şansı",
         "Japanese": "回避率",
         "Korean": "회피율",
+    },
+    "Electromantic_Miscast_Chance": {
+        "Chinese": "电术失误几率",
+        "English": "Electromantic Miscast Chance",
     },
     "Electromantic_Power": {
         "Chinese": "电术法力",
@@ -597,6 +701,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "氷結耐性",
         "Korean": "빙결 저항력",
     },
+    "Geomantic_Miscast_Chance": {
+        "Chinese": "地术失误几率",
+        "English": "Geomantic Miscast Chance",
+    },
     "Geomantic_Power": {
         "Chinese": "地术法力",
         "English": "Geomantic Power",
@@ -624,6 +732,24 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Can",
         "Japanese": "体力",
         "Korean": "체력",
+    },
+    "HP_turn": {
+        "Chinese": "每回合生命",
+        "English": "Health per Turn",
+    },
+    "Head_DEF": {
+        "Chinese": "头部防护",
+        "English": "Head Protection",
+        "Russian": "Защита головы",
+        "German": "Kopfschutz",
+        "Spanish": "Protección de la cabeza",
+        "French": "Protection de la tête",
+        "Italian": "Protezione (Testa)",
+        "Portuguese": "Proteção para Cabeça",
+        "Polish": "Ochrona głowy",
+        "Turkish": "Kafa Koruması",
+        "Japanese": "頭部防御",
+        "Korean": "머리 방호력",
     },
     "Healing_Received": {
         "Chinese": "治疗效果",
@@ -765,6 +891,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "免疫力変化量",
         "Korean": "면역력 변화율",
     },
+    "Immunity_Influence": {
+        "Chinese": "免疫影响",
+        "English": "Immunity Influence",
+    },
     "Intoxication": {
         "Chinese": "迷醉",
         "English": "Intoxication",
@@ -806,6 +936,20 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Hareket Direnci",
         "Japanese": "移動耐性",
         "Korean": "이동 저항력",
+    },
+    "Legs_DEF": {
+        "Chinese": "下肢防护",
+        "English": "Legs Protection",
+        "Russian": "Защита ног",
+        "German": "Beinschutz",
+        "Spanish": "Protección de las piernas",
+        "French": "Protection des jambes",
+        "Italian": "Protezione (Gambe)",
+        "Portuguese": "Proteção para Pernas",
+        "Polish": "Ochrona nóg",
+        "Turkish": "Bacak Koruması",
+        "Japanese": "脚部防御",
+        "Korean": "다리 방호력",
     },
     "Lifesteal": {
         "Chinese": "生命吸取",
@@ -1269,6 +1413,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "毒確率",
         "Korean": "중독 확률",
     },
+    "Psimantic_Miscast_Chance": {
+        "Chinese": "灵术失误几率",
+        "English": "Psimantic Miscast Chance",
+    },
     "Psimantic_Power": {
         "Chinese": "灵术法力",
         "English": "Psimantic Power",
@@ -1310,6 +1458,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Psişik Direnci",
         "Japanese": "精神耐性",
         "Korean": "염력 저항력",
+    },
+    "Pyromantic_Miscast_Chance": {
+        "Chinese": "火术失误几率",
+        "English": "Pyromantic Miscast Chance",
     },
     "Pyromantic_Power": {
         "Chinese": "炎术法力",
@@ -1381,6 +1533,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "断裂耐性",
         "Korean": "파열 저항력",
     },
+    "ReputationGainContract": {
+        "Chinese": "契约声望加成",
+        "English": "Contract Reputation Gain",
+    },
     "ReputationGainGlobal": {
         "Chinese": "声誉收益",
         "English": "Reputation Gain",
@@ -1394,6 +1550,20 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "İtibar Kazanımı",
         "Japanese": "獲得評判",
         "Korean": "획득하는 명성",
+    },
+    "STL": {
+        "Chinese": "潜行",
+        "English": "Stealth",
+        "Russian": "Скрытность",
+        "German": "Schleichen",
+        "Spanish": "Sigilo",
+        "French": "Furtivité",
+        "Italian": "Furtività",
+        "Portuguese": "Furtividade",
+        "Polish": "Ukrycie",
+        "Turkish": "Gizlilik",
+        "Japanese": "隠密性",
+        "Korean": "은신",
     },
     "STR": {
         "Chinese": "力量",
@@ -1478,6 +1648,20 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Akıl Sağlığı Değişimi",
         "Japanese": "状況起因正気度変化量",
         "Korean": "상황 이성 변화율",
+    },
+    "Savvy": {
+        "Chinese": "开锁与拆除陷阱",
+        "English": "Lock-picking & Disarming",
+        "Russian": "Взлом и обезвреживание",
+        "German": "Schlossknacken & Entschärfen",
+        "Spanish": "Cerraduras y trampas",
+        "French": "Crochetage et Désamorçage",
+        "Italian": "Scassinamento & Disarmo",
+        "Portuguese": "Arrombar e Desarmar",
+        "Polish": "Otwieranie zamków i rozbrajanie",
+        "Turkish": "Kilit kırma ve Etkisizleştirme",
+        "Japanese": "開錠と罠解除",
+        "Korean": "개봉 및 분해",
     },
     "Shock_Damage": {
         "Chinese": "电击伤害",
@@ -1675,6 +1859,20 @@ ATTRIBUTE_TRANSLATIONS = {
         "Japanese": "中毒耐性",
         "Korean": "중독 저항력",
     },
+    "Trade_Favorability": {
+        "Chinese": "交易划算程度",
+        "English": "Trade Favorability",
+        "Russian": "Выгодность торговли",
+        "German": "Handelseignung",
+        "Spanish": "Favorabilidad de precios",
+        "French": "Disposition commerciale",
+        "Italian": "Redditività di Scambio",
+        "Portuguese": "Trade Favorability",
+        "Polish": "Korzystność handlu",
+        "Turkish": "Ticaret Elverişliği",
+        "Japanese": "取引好感度",
+        "Korean": "거래 호감도",
+    },
     "Unholy_Damage": {
         "Chinese": "邪术伤害",
         "English": "Unholy Damage",
@@ -1716,6 +1914,10 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Görüş Alanı",
         "Japanese": "視界",
         "Korean": "시야",
+    },
+    "Venomantic_Miscast_Chance": {
+        "Chinese": "毒术失误几率",
+        "English": "Venomantic Miscast Chance",
     },
     "Venomantic_Power": {
         "Chinese": "毒术法力",
@@ -1772,6 +1974,14 @@ ATTRIBUTE_TRANSLATIONS = {
         "Turkish": "Silah Hasarı",
         "Japanese": "武器ダメージ",
         "Korean": "무기 피해",
+    },
+    "Weapon_Damage_Main": {
+        "Chinese": "主手兵器伤害",
+        "English": "Main Hand Weapon Damage",
+    },
+    "Weapon_Damage_Off": {
+        "Chinese": "副手兵器伤害",
+        "English": "Off Hand Weapon Damage",
     },
     "max_hp": {
         "Chinese": "生命上限",
@@ -1875,6 +2085,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Japanese": "キャラクターが受ける全ての~p~秘術ダメージ~/~を緩和する割合",
         "Korean": "당신이 받은 모든 ~p~미지 피해~/~가 얼마나 감소하는지를 나타냅니다.",
     },
+    "Arcanistic_Distance": {
+        "Chinese": "增加秘术系技能的施法距离。",
+        "English": "Increases the casting range of Arcanistic skills.",
+    },
     "Armor_Damage": {
         "Chinese": "你的攻击还会对敌人的护甲造成这么多破坏。",
         "English": "The coefficient of damage to enemy Armor dealt by your attacks.",
@@ -1902,6 +2116,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "Saldırılarında, hedefte göz ardı edilen zırh yüzdesi.",
         "Japanese": "攻撃時に無視する敵の防御の割合",
         "Korean": "당신이 적을 공격했을 때 무시하는 방호력의 비율입니다.",
+    },
+    "Avoiding_Trap": {
+        "Chinese": "触发陷阱时的闪避几率。基于公式：(25 + 闪躲 + buff) × 倍率计算。",
+        "English": "Chance to evade traps when triggered. Calculated as (25 + EVS + buff) × multiplier.",
     },
     "Backfire_Damage": {
         "Chinese": "你施法失误会对自己造成这么多伤害。##伤害具体的数值等于相应咒法精力消耗乘以这个百分比的结果，伤害的类别与相应咒法相同。##可以受到以下行动影响:##每次催动法咒~r~+30%~/~#跳过回合~lg~-10%~/~#待在原地~lg~-10%~/~",
@@ -1944,6 +2162,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "Düşmanın yetenek ve saldırılarından gelen ~r~Kanama~/~ etkisinden kaçınma şansı.",
         "Japanese": "敵の攻撃とアビリティによる~r~出血~/~を防ぐ確率",
         "Korean": "적의 공격 및 능력에 의한 ~r~출혈~/~을 피할 확률입니다.",
+    },
+    "BlockPowerBonus": {
+        "Chinese": "作为百分比乘法加成格挡力量。例如：20表示格挡力量增加20%。",
+        "English": "Percentage bonus to Block Power. E.g., 20 means +20% Block Power.",
     },
     "Block_Power": {
         "Chinese": "你的格挡当前和最多分别可以吸收这么多伤害。##每次格挡成功，格挡力量都会相应变小，后续每个回合会逐渐恢复。##如果格挡的是近身攻击所造成的~w~魔法伤害~/~或~w~自然伤害~/~，那么效果减弱~r~50%~/~。##基础格挡力量的上限与~sy~力量~/~有关。",
@@ -2071,6 +2293,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Japanese": "キャラクターが受ける全ての~cg~腐食ダメージ~/~を緩和する割合",
         "Korean": "당신이 받은 모든 ~cg~부식 피해~/~가 얼마나 감소하는지를 나타냅니다.",
     },
+    "Charge_Distance": {
+        "Chinese": "增加冲锋类技能的施放距离。",
+        "English": "Increases the range of Charge-type skills.",
+    },
     "Cooldown_Reduction": {
         "Chinese": "这是所有能力实际冷却时间与其正常冷却时间的比值。##~w~兵器双持~/~会对这个属性产生负面影响。",
         "English": "The coefficient for the amount of time required to refresh all your abilities.##Negatively affected by ~w~dual wielding~/~.",
@@ -2154,6 +2380,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "Saldırılarının hedefi ~w~Afallatma~/~şansı.##~w~Afallama~/~, etkilenen hedefin yetenek kullanmasını engeller.",
         "Japanese": "攻撃によって対象に~w~眩惑~/~を与える確率##~w~眩惑~/~状態の対象はアビリティを使用できなくなる。",
         "Korean": "공격하여 ~w~진탕~/~에 빠트릴 확률입니다.##~w~진탕~/~에 걸린 목표물은 능력을 사용할 수 없으며 이동 및 통제 저항력이 감소합니다.",
+    },
+    "Duration_Resistance": {
+        "Chinese": "减少敌方持续效果的作用时长。",
+        "English": "Reduces the duration of enemy debuffs.",
     },
     "EVS": {
         "Chinese": "你有这么大的几率部分闪躲一次成功的近身攻击，将其变成失手攻击，也有这么大的几率躲开一次失手攻击，完全无视其原本可以造成的伤害。##如果对方是物理投射或魔法投射，你的闪躲几率~r~减半~/~，如果依然成功闪躲，则可以完全无视其原本可以造成的伤害。##如果闪躲几率为~w~负数~/~，对方攻击的准度将相应提高。",
@@ -2266,6 +2496,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "~rÖlmeden~/~ önce alabileceğin Hasar miktarı.",
         "Japanese": "~r~死亡~/~してしまうまでに受けられるダメージ量",
         "Korean": "~r~사망~/~하기 전까지 입을 수 있는 피해의 양입니다.",
+    },
+    "HP_turn": {
+        "Chinese": "每回合固定恢复或损失的生命值。正值恢复，负值损失。仅在脱战时生效。",
+        "English": "Health gained or lost per turn. Positive heals, negative damages. Only works out of combat.",
     },
     "Healing_Received": {
         "Chinese": "生命各类恢复手段实际恢复的比例。",
@@ -2392,6 +2626,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "Çeşitli hastalıklara karşı direnç.#Ayrıca Zehirlenmeden pasif iyileşme oranını da etkiler.",
         "Japanese": "さまざまな疾病に対する抵抗力#また、中毒の自然回復率にも影響する。",
         "Korean": "여러 질병에 저항하는 능력입니다.#또한 중독의 기본적인 회복률에 영향을 끼칩니다.",
+    },
+    "Immunity_Influence": {
+        "Chinese": "加速迷醉消退速度。值范围1-10。",
+        "English": "Speeds up intoxication decay. Range: 1-10.",
     },
     "Intoxication": {
         "Chinese": "你迷醉的程度。#不断加剧，速度取决于你的活动和行为。##迷醉程度一旦达到~r~/*PERCENT_LIMIT1*/%~/~、~r~/*PERCENT_LIMIT2*/%~/~和~r~/*PERCENT_LIMIT3*/%~/~，就会产生负面影响。",
@@ -2799,6 +3037,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Japanese": "キャラクターが受ける全ての~w~断裂ダメージ~/~を緩和する割合",
         "Korean": "당신이 받은 모든 ~w~파열 피해~/~가 얼마나 감소하는지를 나타냅니다.",
     },
+    "ReputationGainContract": {
+        "Chinese": "完成契约任务时获得的声望加成（百分比）。",
+        "English": "Percentage bonus to reputation gained from completing contracts.",
+    },
     "ReputationGainGlobal": {
         "Chinese": "影响你各种渠道的声誉收益。",
         "English": "The coefficient of Reputation received from all sources.",
@@ -2812,6 +3054,20 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "Tüm kaynaklardan kazanılan İtibar katsayısı.",
         "Japanese": "全ての発生源から獲得する評判に掛かる係数",
         "Korean": "모든 출처에서 획득한 명성의 계수입니다.",
+    },
+    "STL": {
+        "Chinese": "潜行模式的效果。~r~[测试版本不可用]~/~",
+        "English": "The effectiveness of the Stealth mode. ~r~[Not available in Beta]~/~",
+        "Russian": "Эффективность режима скрытности. ~r~[Недоступно в бете]~/~",
+        "German": "Die Effektivität im Schleichmodus. ~r~[In der Beta nicht verfügbar]~/~",
+        "Spanish": "La efectividad del modo Sigilo. ~r~[No disponible en la versión Beta]~/~",
+        "French": "L'efficacité du Mode Furtivité. ~r~[Indisponible dans la Bêta]~/~",
+        "Italian": "Determina l'efficienza della Mod. Furtiva.  ~r~[Non disponibile nella versione Beta] ~/~",
+        "Portuguese": "A eficácia do modo de Furtividade.~r~[Indisponível no Beta]~/~",
+        "Polish": "Skuteczność trybu ukrycia. ~r~[Niedostępne w becie]~/~",
+        "Turkish": "Gizlilik modu etkinliği. ~r~[Betada yok]~/~",
+        "Japanese": "ステルスモードの効率 ~r~[ベータでは未実装]~/~",
+        "Korean": "은신 상태의 효용성입니다. ~r~[베타 버전에선 사용 불가]~/~",
     },
     "STR": {
         "Chinese": "~sy~力量~/~影响你主要的战斗实力。除此之外，这一属性还会提升基础格挡力量以及投掷物品的伤害和距离，也会提升徒手伤害。##每一点~sy~力量~/~会令兵器伤害~lg~+1.5%~/~、格挡几率~lg~+1.5%~/~。##力量若达到~w~15~/~、~w~20~/~、~w~25~/~、~w~30~/~，还会额外令##肢体伤害~lg~+7.5%~/~#暴击效果~lg~+10%~/~#护甲破坏~lg~+15%~/~##~sy~力量~/~~w~30~/~点封顶。",
@@ -2868,6 +3124,20 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "Akıl Sağlığı oranının tur başına ne kadar değişeceğini gösterir.",
         "Japanese": "毎ターンの正気度の変化量",
         "Korean": "이성이 턴마다 얼마나 변화하는지를 나타냅니다.",
+    },
+    "Savvy": {
+        "Chinese": "你有这么大的几率成功拆除陷阱或打开锁具。",
+        "English": "The chance to successfully disarm a trap or to pick a lock.",
+        "Russian": "Вероятность обезвредить ловушку или вскрыть запертый замок.",
+        "German": "Die Chance, erfolgreich ein Schloss zu knacken, oder eine Falle zu entschärfen.",
+        "Spanish": "La probabilidad de éxito al abrir una cerradura o desarmar una trampa.",
+        "French": "Les chances de réussir à désarmer un piège ou à crocheter une serrure.",
+        "Italian": "La tua probabilità di disarmare trappole o scassinare serrature con successo.",
+        "Portuguese": "A chance em desarmar com sucesso uma armadilha ou arrombar uma fechadura.",
+        "Polish": "Szansa na skuteczne rozbrojenie pułapki lub otwarcie zamka wytrychem.",
+        "Turkish": "Başarılı bir şekilde bir tuzağı etkisizleştirme veya bir kilidi açma şansı.",
+        "Japanese": "罠解除もしくは開錠に成功する確率",
+        "Korean": "함정이나 자물쇠를 성공적으로 해제 및 개봉할 확률입니다.",
     },
     "Shock_Resistance": {
         "Chinese": "你所受到的~w~电击伤害~/~会减少这么多百分点。",
@@ -3022,6 +3292,10 @@ ATTRIBUTE_DESCRIPTIONS = {
         "Turkish": "İntoksikasyon artışı oranını değiştirir.",
         "Japanese": "中毒の増減の変化率",
         "Korean": "중독 발생률을 변화시킵니다.",
+    },
+    "Trade_Favorability": {
+        "Chinese": "交易好感度，作为折扣影响商店售价。正值降低价格，负值提高价格。",
+        "English": "Trade discount affecting shop prices. Positive lowers prices, negative raises them.",
     },
     "Unholy_Resistance": {
         "Chinese": "你所受到的~w~邪术伤害~/~会减少这么多百分点。",

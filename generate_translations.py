@@ -63,6 +63,8 @@ ATTRIBUTES_TO_EXTRACT = {
     "Mainhand_Efficiency", "Offhand_Efficiency", "BlockPowerBonus",
     "Immunity_Change", "Immunity_Influence",
     "ReputationGainContract", "ReputationGainGlobal",
+    "STL", "Savvy", "Trade_Favorability",
+    "Head_DEF", "Body_DEF", "Arms_DEF", "Legs_DEF",
     
     # 消耗品专用
     "Hunger", "Hunger_Change", "Hunger_Resistance", "Thirsty", "Thirst_Change",
@@ -75,6 +77,88 @@ ATTRIBUTES_TO_EXTRACT = {
     
     # 角色属性
     "STR", "AGL", "PRC", "Vitality", "WIL",
+}
+
+# JSON 中不存在的属性的手动翻译（仅中英文，其他语言保持英文）
+# 这些属性在游戏代码中存在，但官方翻译文件中没有
+MANUAL_TRANSLATIONS = {
+    "Arcanistic_Distance": {"Chinese": "秘术距离", "English": "Arcanistic Distance"},
+    "Arcanistic_Miscast_Chance": {"Chinese": "秘术失误几率", "English": "Arcanistic Miscast Chance"},
+    "Astromantic_Miscast_Chance": {"Chinese": "星术失误几率", "English": "Astromantic Miscast Chance"},
+    "Avoiding_Trap": {"Chinese": "陷阱闪避", "English": "Trap Evasion"},
+    "Bleeding_Chance_Main": {"Chinese": "主手出血几率", "English": "Main Hand Bleed Chance"},
+    "Bleeding_Chance_Off": {"Chinese": "副手出血几率", "English": "Off Hand Bleed Chance"},
+    "Bleeding_Resistance_Hands": {"Chinese": "手臂出血抗性", "English": "Arms Bleed Resistance"},
+    "Bleeding_Resistance_Head": {"Chinese": "头部出血抗性", "English": "Head Bleed Resistance"},
+    "Bleeding_Resistance_Legs": {"Chinese": "腿部出血抗性", "English": "Legs Bleed Resistance"},
+    "Bleeding_Resistance_Tors": {"Chinese": "躯干出血抗性", "English": "Torso Bleed Resistance"},
+    "BlockPowerBonus": {"Chinese": "格挡力量加成", "English": "Block Power Bonus"},
+    "CRT_Main": {"Chinese": "主手暴击几率", "English": "Main Hand Crit Chance"},
+    "CRT_Off": {"Chinese": "副手暴击几率", "English": "Off Hand Crit Chance"},
+    "CRTD_Main": {"Chinese": "主手暴击效果", "English": "Main Hand Crit Efficiency"},
+    "CRTD_Off": {"Chinese": "副手暴击效果", "English": "Off Hand Crit Efficiency"},
+    "Charge_Distance": {"Chinese": "冲锋距离", "English": "Charge Distance"},
+    "Cryomantic_Miscast_Chance": {"Chinese": "冰术失误几率", "English": "Cryomantic Miscast Chance"},
+    "Duration_Resistance": {"Chinese": "持续效果抗性", "English": "Duration Resistance"},
+    "Electromantic_Miscast_Chance": {"Chinese": "电术失误几率", "English": "Electromantic Miscast Chance"},
+    "Geomantic_Miscast_Chance": {"Chinese": "地术失误几率", "English": "Geomantic Miscast Chance"},
+    "HP_turn": {"Chinese": "每回合生命", "English": "Health per Turn"},
+    "Immunity_Influence": {"Chinese": "免疫影响", "English": "Immunity Influence"},
+    "Psimantic_Miscast_Chance": {"Chinese": "灵术失误几率", "English": "Psimantic Miscast Chance"},
+    "Pyromantic_Miscast_Chance": {"Chinese": "火术失误几率", "English": "Pyromantic Miscast Chance"},
+    "ReputationGainContract": {"Chinese": "契约声望加成", "English": "Contract Reputation Gain"},
+    "Venomantic_Miscast_Chance": {"Chinese": "毒术失误几率", "English": "Venomantic Miscast Chance"},
+    "Weapon_Damage_Main": {"Chinese": "主手兵器伤害", "English": "Main Hand Weapon Damage"},
+    "Weapon_Damage_Off": {"Chinese": "副手兵器伤害", "English": "Off Hand Weapon Damage"},
+}
+
+# JSON 中不存在的属性的手动描述（仅中英文）
+# 对应 MANUAL_TRANSLATIONS 中的属性
+MANUAL_DESCRIPTIONS = {
+    "Arcanistic_Distance": {
+        "Chinese": "增加秘术系技能的施法距离。",
+        "English": "Increases the casting range of Arcanistic skills.",
+    },
+    "Avoiding_Trap": {
+        "Chinese": "触发陷阱时的闪避几率。基于公式：(25 + 闪躲 + buff) × 倍率计算。",
+        "English": "Chance to evade traps when triggered. Calculated as (25 + EVS + buff) × multiplier.",
+    },
+    "BlockPowerBonus": {
+        "Chinese": "作为百分比乘法加成格挡力量。例如：20表示格挡力量增加20%。",
+        "English": "Percentage bonus to Block Power. E.g., 20 means +20% Block Power.",
+    },
+    "Charge_Distance": {
+        "Chinese": "增加冲锋类技能的施放距离。",
+        "English": "Increases the range of Charge-type skills.",
+    },
+    "Duration_Resistance": {
+        "Chinese": "减少敌方持续效果的作用时长。",
+        "English": "Reduces the duration of enemy debuffs.",
+    },
+    "HP_turn": {
+        "Chinese": "每回合固定恢复或损失的生命值。正值恢复，负值损失。仅在脱战时生效。",
+        "English": "Health gained or lost per turn. Positive heals, negative damages. Only works out of combat.",
+    },
+    "Immunity_Influence": {
+        "Chinese": "加速迷醉消退速度。值范围1-10。",
+        "English": "Speeds up intoxication decay. Range: 1-10.",
+    },
+    "ReputationGainContract": {
+        "Chinese": "完成契约任务时获得的声望加成（百分比）。",
+        "English": "Percentage bonus to reputation gained from completing contracts.",
+    },
+    "STL": {
+        "Chinese": "隐匿值，影响潜行时敌人发现你的速度。正值降低发现速度，负值增加。",
+        "English": "Stealth. Affects how quickly enemies detect you while sneaking. Positive reduces detection, negative increases it.",
+    },
+    "Savvy": {
+        "Chinese": "机敏，影响撬锁和拆卸陷阱的成功率。",
+        "English": "Savvy. Affects success rate of lockpicking and disarming traps.",
+    },
+    "Trade_Favorability": {
+        "Chinese": "交易好感度，作为折扣影响商店售价。正值降低价格，负值提高价格。",
+        "English": "Trade discount affecting shop prices. Positive lowers prices, negative raises them.",
+    },
 }
 
 # 语言映射 (JSON 中的语言名 -> 我们使用的语言名)  
@@ -206,6 +290,32 @@ def main():
     
     print(f"成功提取 {len(translations)} 个属性的翻译")
     print(f"成功提取 {len(descriptions)} 个属性的描述")
+    
+    # 合并手动翻译
+    print(f"合并 {len(MANUAL_TRANSLATIONS)} 个手动翻译...")
+    for attr, trans in MANUAL_TRANSLATIONS.items():
+        if attr not in translations:
+            translations[attr] = trans
+        else:
+            # 合并但不覆盖已有的翻译
+            for lang, text in trans.items():
+                if lang not in translations[attr]:
+                    translations[attr][lang] = text
+    
+    print(f"最终共 {len(translations)} 个属性翻译")
+    
+    # 合并手动描述
+    print(f"合并 {len(MANUAL_DESCRIPTIONS)} 个手动描述...")
+    for attr, desc in MANUAL_DESCRIPTIONS.items():
+        if attr not in descriptions:
+            descriptions[attr] = desc
+        else:
+            # 合并但不覆盖已有的描述
+            for lang, text in desc.items():
+                if lang not in descriptions[attr]:
+                    descriptions[attr][lang] = text
+    
+    print(f"最终共 {len(descriptions)} 个属性描述")
     
     code = generate_python_module(translations, descriptions)
     

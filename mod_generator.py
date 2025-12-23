@@ -44,7 +44,6 @@ from constants import (
     # 属性分组系统
     WEAPON_ATTRIBUTES,
     ARMOR_ATTRIBUTES,
-    PASSIVE_ATTRIBUTES,
     get_attribute_groups,
     DEFAULT_GROUP_ORDER,
     # 其他常量
@@ -89,12 +88,15 @@ from constants import (
     HYBRID_PICKUP_SOUNDS,
     HYBRID_DROP_SOUNDS,
     HYBRID_DURABILITY_POLICIES,
+    HYBRID_WEIGHT_LABELS,
     # 消耗品属性常量
-    CONSUMABLE_ATTRIBUTE_GROUPS,
     CONSUMABLE_FLOAT_ATTRIBUTES,
     CONSUMABLE_DURATION_ATTRIBUTE,
     CONSUMABLE_INSTANT_GROUP_PREFIX,
-    CONSUMABLE_DURATION_GROUP_PREFIX,
+    # 混合物品槽位属性
+    get_hybrid_attrs_for_slot,
+    get_consumable_duration_attrs,
+    CONSUMABLE_INSTANT_ATTRS,
 )
 from generator import CodeGenerator, copy_item_textures
 from models import (
@@ -197,7 +199,6 @@ class ModGeneratorGUI:
         # 缓存属性分组（避免每帧重复计算）
         self._weapon_attr_groups = get_attribute_groups(WEAPON_ATTRIBUTES, DEFAULT_GROUP_ORDER)
         self._armor_attr_groups = get_attribute_groups(ARMOR_ATTRIBUTES, DEFAULT_GROUP_ORDER)
-        self._passive_attr_groups = get_attribute_groups(PASSIVE_ATTRIBUTES, DEFAULT_GROUP_ORDER)
 
     # ==================== 配置管理 ====================
 
@@ -1338,6 +1339,18 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip("物品等级 (1-7)，用于商人筛选和悬浮提示显示")
 
+        # Weight 选择（仅非护甲类型需要手动设置，护甲由 armor_class 自动推断）
+        if not hybrid.init_armor_stats:
+            imgui.text("重量")
+            hybrid.weight = self._draw_enum_combo(
+                "##weight_hybrid",
+                hybrid.weight,
+                list(HYBRID_WEIGHT_LABELS.keys()),
+                HYBRID_WEIGHT_LABELS,
+            )
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("物品重量分类，影响游泳等行为")
+
         imgui.pop_item_width()
         imgui.columns(1)
 
@@ -1810,16 +1823,31 @@ class ModGeneratorGUI:
             if imgui.is_item_hovered():
                 imgui.set_tooltip('部分属性(如回复/Buff)只有在持续时间 > 0 时生效\n以"持续效果"开头的分组需要此值 > 0')
 
+            # 2. 中毒持续时间（仅当 Poisoning_Chance > 0 时显示）
+            poisoning_chance = hybrid.consumable_attributes.get("Poisoning_Chance", 0)
+            if poisoning_chance > 0:
+                imgui.push_item_width(120)
+                changed, hybrid.poison_duration = imgui.input_int(
+                    "中毒持续时间##poison_dur",
+                    hybrid.poison_duration,
+                    step=1,
+                    step_fast=10
+                )
+                imgui.pop_item_width()
+                if changed:
+                    hybrid.poison_duration = max(0, hybrid.poison_duration)
+                
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("中毒持续回合数 (仅当设置了中毒几率时生效)")
+
             imgui.dummy(0, 5)
 
-            # 按前缀分离即时效果和持续效果分组
-            instant_groups = {}
-            duration_groups = {}
-            for group_name, attrs in CONSUMABLE_ATTRIBUTE_GROUPS.items():
-                if group_name.startswith(CONSUMABLE_INSTANT_GROUP_PREFIX):
-                    instant_groups[group_name] = attrs
-                elif group_name.startswith(CONSUMABLE_DURATION_GROUP_PREFIX):
-                    duration_groups[group_name] = attrs
+            # 即时效果分组（独立定义）和持续效果分组（复用装备属性分组）
+            instant_groups = CONSUMABLE_INSTANT_ATTRS
+            
+            # 持续效果分组：复用装备属性分组
+            duration_attrs = get_consumable_duration_attrs()
+            duration_groups = get_attribute_groups(duration_attrs, DEFAULT_GROUP_ORDER)
 
             def draw_attr_group(group_name: str, attr_list: list, enabled: bool = True):
                 """绘制属性分组，使用两列布局（与其他编辑器一致）"""
@@ -1920,33 +1948,17 @@ class ModGeneratorGUI:
             imgui.unindent()
 
     def _get_hybrid_attribute_groups(self, hybrid: HybridItem) -> dict:
-        """根据类型获取可编辑属性分组，并清理无效属性"""
-        result: dict[str, list[str]] = {}
-
-        def merge(src: dict):
-            for k, v in src.items():
-                if k not in result:
-                    result[k] = []
-                for attr in v:
-                    if attr not in result[k]:
-                        result[k].append(attr)
-
-        if hybrid.init_weapon_stats:
-            merge(self._weapon_attr_groups)
-        if hybrid.init_armor_stats:
-            merge(self._armor_attr_groups)
-        if hybrid.has_passive:
-            merge(self._passive_attr_groups)
-
+        """根据槽位获取可编辑属性分组"""
+        # 获取该槽位的属性列表（被动携带物品需要额外抗性属性）
+        attrs = get_hybrid_attrs_for_slot(hybrid.slot, hybrid.has_passive)
+        result = get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
+        
         # 清理不再允许的属性
         if result:
-            allowed = set()
-            for attrs in result.values():
-                allowed.update(attrs)
-            to_delete = [k for k in hybrid.attributes.keys() if k not in allowed]
-            for k in to_delete:
+            allowed = {a for attr_list in result.values() for a in attr_list}
+            for k in [k for k in hybrid.attributes if k not in allowed]:
                 del hybrid.attributes[k]
-
+        
         return result
 
     def _compute_weapon_damage_components(self, hybrid: HybridItem) -> list[tuple[str, int]]:
@@ -4245,6 +4257,20 @@ class ModGeneratorGUI:
             print("生成空的 .csproj 文件...")
             with open(mod_dir / f"{mod_name}.csproj", "w", encoding="utf-8"):
                 pass
+
+            # 如果有混合物品，生成 Codes 文件夹和 GML 脚本
+            if self.project.hybrid_items:
+                codes_dir = mod_dir / "Codes"
+                codes_dir.mkdir(exist_ok=True)
+                print("生成 hover 辅助脚本...")
+                
+                # 生成 scr_hoversEnsureExtendedOrderLists.gml
+                with open(codes_dir / "scr_hoversEnsureExtendedOrderLists.gml", "w", encoding="utf-8") as f:
+                    f.write(generator._generate_ensure_extended_order_lists_gml())
+                
+                # 生成 scr_hoversDrawHybridConsumAttributes.gml
+                with open(codes_dir / "scr_hoversDrawHybridConsumAttributes.gml", "w", encoding="utf-8") as f:
+                    f.write(generator._generate_draw_hybrid_consum_attrs_gml())
 
             print("复制贴图文件...")
             texture_errors = []

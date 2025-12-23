@@ -435,6 +435,10 @@ class HybridItem:
     # ====== 元数据 ======
     tags: str = "special exc"  # 固定为 "special exc"
     rarity: str = ""  # 稀有度（由品质自动决定）
+    weight: str = "Light"  # Light/Medium/VeryLight/Heavy（护甲由 armor_class 自动决定）
+    
+    # ====== 消耗品特殊属性 ======
+    poison_duration: int = 0  # 中毒持续时间（仅当 Poisoning_Chance > 0 时有效）
     
     # ====== 属性 ======
     attributes: Dict[str, Any] = field(default_factory=dict)
@@ -788,6 +792,8 @@ class ModProject:
             "pickup_sound": item.pickup_sound,
             "tags": item.tags,
             "rarity": item.rarity,
+            "weight": item.weight,
+            "poison_duration": item.poison_duration,
             "attributes": item.attributes,
             "consumable_attributes": item.consumable_attributes,
             "textures": self._serialize_textures(item.textures, project_dir),
@@ -1047,6 +1053,8 @@ class ModProject:
             pickup_sound=item_data.get("pickup_sound", 907),
             tags=item_data.get("tags", "special exc"),
             rarity=item_data.get("rarity", ""),
+            weight=item_data.get("weight", "Light"),
+            poison_duration=item_data.get("poison_duration", 0),
             attributes=item_data.get("attributes", {}),
             consumable_attributes=item_data.get("consumable_attributes", {}),
         )

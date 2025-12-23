@@ -18,8 +18,9 @@ except ImportError:
 from constants import (
     ARMOR_PREVIEW_HEIGHT,
     ARMOR_PREVIEW_WIDTH,
-    CONSUMABLE_ATTRIBUTES,
+    CONSUMABLE_INSTANT_ATTRS,
     DAMAGE_ATTRIBUTES,
+    EXTRA_ORDER_ATTRS,
     GAME_FPS,
     GML_ANCHOR_X,
     GML_ANCHOR_Y,
@@ -394,8 +395,10 @@ public class {code_namespace} : Mod
     {{
 """
 
-        # 如果有混合物品，先注入 o_hoverHybrid（只需要一次）
+        # 如果有混合物品，先注入辅助脚本和 o_hoverHybrid（只需要一次）
         if self.project.hybrid_items:
+            code += "        // 注入 hover 辅助脚本（仅执行一次）\n"
+            code += "        EnsureHoverScriptsExist();\n"
             code += "        // 注入混合物品专用 hover 对象（仅执行一次）\n"
             code += "        EnsureHoverHybridExists();\n\n"
 
@@ -408,8 +411,9 @@ public class {code_namespace} : Mod
 
         code += "    }\n\n"
 
-        # 生成 o_hoverHybrid 注入方法（如果有混合物品）
+        # 生成 hover 辅助脚本注入方法和 o_hoverHybrid 注入方法（如果有混合物品）
         if self.project.hybrid_items:
+            code += self._generate_hover_scripts_injection_method()
             code += self._generate_hover_hybrid_method()
 
         for item in self.project.weapons + self.project.armors:
@@ -662,6 +666,44 @@ popz.v"""
         loot_sprite = f"s_loot_{item.id}"
         loot_parent = item.get_loot_parent()
         
+        # 确定材质（武器用 material，护甲用 armor_material，否则默认 organic）
+        if item.init_weapon_stats:
+            mat = item.material.lower()
+        elif item.init_armor_stats:
+            mat = item.armor_material.lower()
+        else:
+            mat = "organic"
+        
+        # 确定 Weight（护甲由 armor_class 自动推断，其他使用用户设置）
+        # 注意：ItemStatsWeight 枚举使用 PascalCase (Light, Medium, VeryLight, Heavy)
+        from constants import ARMOR_CLASS_TO_WEIGHT
+        if item.init_armor_stats:
+            weight_value = ARMOR_CLASS_TO_WEIGHT.get(item.armor_class, "Light")
+        else:
+            weight_value = item.weight
+        
+        # 确定 tier 映射
+        tier_map = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
+        tier_value = tier_map.get(item.tier, "none")
+        
+        # 生成本地化字典（确保至少有 English 条目）
+        languages = item.localization.languages
+        if "English" not in languages:
+            languages = {"English": {"name": "", "description": ""}, **languages}
+        
+        localization_entries = []
+        for lang, data in languages.items():
+            name = data.get("name", "").replace('"', '\\"')
+            localization_entries.append(f'                    {{ModLanguage.{lang}, "{name}"}}')
+        
+        localization_desc_entries = []
+        for lang, data in languages.items():
+            desc = format_description(data.get("description", ""))
+            localization_desc_entries.append(f'                    {{ModLanguage.{lang}, "{desc}"}}')
+        
+        name_dict = ",\n".join(localization_entries)
+        desc_dict = ",\n".join(localization_desc_entries)
+        
         code = f"""        // 创建 Inventory 对象
         UndertaleGameObject {inv_obj_name} = Msl.AddObject(
             name: "{inv_obj_name}",
@@ -682,8 +724,38 @@ popz.v"""
             isAwake: true
         );
 
+        // 注入物品元数据（scr_consum_atr 依赖 global.consum_stat_data）
+        Msl.InjectTableItemStats(
+            id: "{item.id}",
+            Price: {item.base_price},
+            tier: Msl.ItemStatsTier.{tier_value},
+            Cat: Msl.ItemStatsCategory.none,
+            Subcat: Msl.ItemStatsSubcategory.none,
+            Material: Msl.ItemStatsMaterial.{mat},
+            Weight: Msl.ItemStatsWeight.{weight_value},
+            tags: Msl.ItemStatsTags.special,
+            dropsOnce: false
+        );
+
+        // 注入本地化
+        Msl.InjectTableItemsLocalization(
+            new LocalizationItem(
+                id: "{item.id}",
+                name: new Dictionary<ModLanguage, string>() {{
+{name_dict}
+                }},
+                effect: new Dictionary<ModLanguage, string>() {{
+                    {{ModLanguage.English, ""}}
+                }},
+                description: new Dictionary<ModLanguage, string>() {{
+{desc_dict}
+                }}
+            )
+        );
+
 """
         return code
+
 
     def _generate_hybrid_events_code(self, item: HybridItem) -> str:
         """生成混合物品的事件代码"""
@@ -748,21 +820,18 @@ popz.v"""
         lines = []
         lines.append("event_inherited();")
         lines.append("")
-        lines.append("// 基础信息（简化，仿 o_inv_antivenom：继承后手写必要字段）")
-        lines.append(f'idName = \"{item.id}\";')
         
-        # 获取显示名称
-        display_name = item.localization.get_name(PRIMARY_LANGUAGE) or item.name
-        lines.append(f'name = \"{display_name}\";')
+        # 使用 scr_consum_atr 从 global.consum_stat_data 初始化基础属性
+        lines.append("// 从 global.consum_stat_data 初始化基础属性")
+        lines.append(f'scr_consum_atr("{item.id}");')
+        lines.append("")
         
-        # 获取描述
-        description = item.localization.get_description(PRIMARY_LANGUAGE) or ""
-        # 处理描述：转义引号并替换换行为 # (混合物品直接写入 GML，不需额外转译)
-        desc_formatted = format_description_gml(description)
-        lines.append(f'desc = \"{desc_formatted}\";')
+        # poison_duration（仅当 Poisoning_Chance > 0 时设置）
+        poisoning_chance = item.consumable_attributes.get("Poisoning_Chance", 0)
+        if poisoning_chance > 0 and item.poison_duration > 0:
+            lines.append(f"poison_duration = {item.poison_duration};")
+            lines.append("")
         
-        lines.append('ds_map_replace(data, "idName", idName);')
-        lines.append('ds_map_replace(data, "Name", name);')
         lines.append("empty = false;")
         lines.append("")
         
@@ -789,13 +858,13 @@ popz.v"""
         
         # 槽位与装备
         if item.equipable:
-            lines.append(f'slot = \"{item.slot}\";')
+            lines.append(f'slot = "{item.slot}";')
             lines.append("can_equip = true;")
             if item.slot == "hand":
                 lines.append(f"hands = {item.hands};")
                 lines.append(f"character_sprite_hands = {item.hands};")
         else:
-            lines.append('slot = \"heal\";')
+            lines.append('slot = "heal";')
             lines.append("can_equip = false;")
         lines.append("")
         
@@ -804,22 +873,17 @@ popz.v"""
             lines.append("is_weapon = true;")
             lines.append("")
         
-        # 武器数值初始化（描述类：不在 Create_0 写入伤害，伤害统一在 Alarm_0 初始化）
+        # 武器数值初始化（Tier 已通过 InjectTableItemStats 设置）
         if item.init_weapon_stats:
-            lines.append("// 武器数值（伤害来自 attributes 的伤害键；DMG=总和，DamageType=最大伤类型）")
-            lines.append(f'type = \"{item.weapon_type}\";')
-            lines.append(f'Material = \"{item.material}\";')
-            lines.append(f"Tier = {item.tier};")
+            lines.append("// 武器数值（伤害来自 attributes 的伤害键）")
+            lines.append(f'type = "{item.weapon_type}";')
             lines.append(f"Balance = {item.balance};")
             lines.append("")
         
-        # 护甲数值初始化
+        # 护甲数值初始化（Tier 已通过 InjectTableItemStats 设置）
         if item.init_armor_stats:
             lines.append("// 护甲数值")
-            lines.append(f'type = \"{item.armor_type}\";')
-            lines.append(f'Material = \"{item.armor_material}\";')
-            lines.append(f'Weight = \"{item.armor_class}\";')
-            lines.append(f"Tier = {item.tier};")  # 必须设置 Tier 实例变量！
+            lines.append(f'type = "{item.armor_type}";')
             lines.append("")
         
         # 技能
@@ -836,12 +900,11 @@ popz.v"""
             lines.append("")
             
             # 消耗品属性初始化 (attributes_data)
-            # attributes_data 在 o_inv_consum.Create_0 中已创建，可以直接添加
             lines.append("// 消耗品属性 (attributes_data)")
             
             has_consum_attr = False
             for attr, value in item.consumable_attributes.items():
-                if attr in CONSUMABLE_ATTRIBUTES and value != 0:
+                if value != 0:
                     lines.append(f'ds_map_add(attributes_data, "{attr}", {value});')
                     has_consum_attr = True
             
@@ -1408,6 +1471,140 @@ popz.v"""
 """
         return code
 
+    # ============== Hover 辅助脚本生成 ==============
+
+    def _generate_ensure_extended_order_lists_gml(self) -> str:
+        """生成 scr_hoversEnsureExtendedOrderLists.gml 脚本内容
+        
+        惰性初始化扩展的属性排序列表
+        """
+        # 按 ATTRIBUTE_TO_GROUP 的分组顺序排列额外属性（而非字母顺序）
+        from constants import ATTRIBUTE_TO_GROUP, DEFAULT_GROUP_ORDER
+        
+        # 创建分组索引
+        group_order_map = {g: i for i, g in enumerate(DEFAULT_GROUP_ORDER)}
+        
+        def get_sort_key(attr):
+            group = ATTRIBUTE_TO_GROUP.get(attr, "其他")
+            return group_order_map.get(group, len(DEFAULT_GROUP_ORDER))
+        
+        sorted_attrs = sorted(EXTRA_ORDER_ATTRS, key=get_sort_key)
+        extra_attrs_str = ", ".join(f'"{attr}"' for attr in sorted_attrs)
+        
+        return f'''function scr_hoversEnsureExtendedOrderLists() {{
+    // 额外属性列表（ATTRIBUTE_TO_GROUP 中不在游戏 order lists 的）
+    if (!variable_global_exists("attribute_order_extra")) {{
+        global.attribute_order_extra = ds_list_create();
+        ds_list_add(global.attribute_order_extra, {extra_attrs_str});
+    }}
+    
+    // 扩展 order_all（包含伤害）
+    if (!variable_global_exists("attribute_order_all_extended")) {{
+        global.attribute_order_all_extended = ds_list_create();
+        var _size = ds_list_size(global.attribute_order_all);
+        for (var _i = 0; _i < _size; _i++)
+            ds_list_add(global.attribute_order_all_extended, ds_list_find_value(global.attribute_order_all, _i));
+        ds_list_add(global.attribute_order_all_extended, global.attribute_order_extra);
+    }}
+    
+    // 扩展 order_all_without_damage
+    if (!variable_global_exists("attribute_order_all_without_damage_extended")) {{
+        global.attribute_order_all_without_damage_extended = ds_list_create();
+        var _size = ds_list_size(global.attribute_order_all_without_damage);
+        for (var _i = 0; _i < _size; _i++)
+            ds_list_add(global.attribute_order_all_without_damage_extended, ds_list_find_value(global.attribute_order_all_without_damage, _i));
+        ds_list_add(global.attribute_order_all_without_damage_extended, global.attribute_order_extra);
+    }}
+}}
+'''
+
+    def _generate_draw_hybrid_consum_attrs_gml(self) -> str:
+        """生成 scr_hoversDrawHybridConsumAttributes.gml 脚本内容
+        
+        用于绘制消耗品属性，为非即时效果属性显示持续时间
+        """
+        # 收集所有即时效果属性
+        instant_attrs = []
+        for attrs in CONSUMABLE_INSTANT_ATTRS.values():
+            instant_attrs.extend(attrs)
+        instant_attrs_str = ", ".join(f'"{attr}"' for attr in instant_attrs)
+        
+        return f'''function scr_hoversDrawHybridConsumAttributes() {{
+    // 使用 GML 内置 argument0-argument7 避免 bytecode 歧义
+    var _x = argument0;
+    var _y = argument1;
+    var _width = argument2;
+    var _lineHeight = argument3;
+    var _spaceHeight = argument4;
+    var _attributesArray = argument5;
+    var _duration = argument6;
+    var _textScale = argument7;
+    
+    // 即时效果属性列表（不显示持续时间）
+    var _instantAttrs = [{instant_attrs_str}];
+    
+    var _arrLen = array_length(_attributesArray);
+    var _durationStr = "N/A";
+    var _offsetY = 0;
+    
+    if (_duration > 0) {{
+        var _space = scr_actionsLogGetSpace();
+        var _open = scr_actionsLogGetSymbol("openRoundBracket");
+        var _close = scr_actionsLogGetSymbol("closeRoundBracket");
+        _durationStr = _space + _open + string(_duration) + _space + ds_list_find_value(global.other_hover, 57) + _close;
+    }}
+    
+    for (var _i = 0; _i < _arrLen; _i++) {{
+        var _part = _attributesArray[_i];
+        var _partLen = array_length(_part);
+        
+        for (var _j = 0; _j < _partLen; _j += 2) {{
+            var _key = _part[_j];
+            var _val = scr_hoversGetAttributeValue(_key, _part[_j + 1]);
+            var _name = scr_hoversGetAttributeName(_key);
+            var _valStr = scr_hoversGetAttributeString(_key, _val);
+            var _color = scr_hoversGetAttributeColor(_key, _val, make_colour_rgb(114, 222, 142), make_colour_rgb(158, 27, 49), 16777215);
+            
+            scr_drawText(_x, _y + _offsetY, _name, 16777215, 0, 0, global.f_dmg, _textScale);
+            
+            // 检查是否为即时效果属性
+            var _isInstant = false;
+            for (var _k = 0; _k < array_length(_instantAttrs); _k++) {{
+                if (_instantAttrs[_k] == _key) {{ _isInstant = true; break; }}
+            }}
+            
+            if (_duration > 0 && !_isInstant)
+                scr_draw_text_doublecolor(_x + _width, _y + _offsetY, _valStr, _durationStr, _color, 16777215, 2, 0, _textScale);
+            else
+                scr_drawText(_x + _width, _y + _offsetY, _valStr, _color, 2, 0, global.f_dmg, _textScale);
+            
+            _offsetY += _lineHeight;
+        }}
+        _offsetY += _spaceHeight;
+    }}
+}}
+'''
+
+
+    def _generate_hover_scripts_injection_method(self) -> str:
+        """生成注入 hover 辅助脚本的 C# 方法"""
+        return '''    private void EnsureHoverScriptsExist()
+    {
+        // 注入 scr_hoversEnsureExtendedOrderLists
+        if (DataLoader.data.Code.FirstOrDefault(c => c.Name.Content == "gml_GlobalScript_scr_hoversEnsureExtendedOrderLists") == null)
+        {
+            Msl.AddFunction(ModFiles.GetCode("scr_hoversEnsureExtendedOrderLists.gml"), "scr_hoversEnsureExtendedOrderLists");
+        }
+        
+        // 注入 scr_hoversDrawHybridConsumAttributes
+        if (DataLoader.data.Code.FirstOrDefault(c => c.Name.Content == "gml_GlobalScript_scr_hoversDrawHybridConsumAttributes") == null)
+        {
+            Msl.AddFunction(ModFiles.GetCode("scr_hoversDrawHybridConsumAttributes.gml"), "scr_hoversDrawHybridConsumAttributes");
+        }
+    }
+
+'''
+
     # ============== o_hoverHybrid 对象生成 ==============
 
     def _generate_hover_hybrid_method(self) -> str:
@@ -1533,6 +1730,10 @@ priceHeight = 0;
         智能从 owner 获取数据，同时支持武器和消耗品特性
         """
         return """event_inherited();
+
+// 确保扩展的 order lists 存在
+scr_hoversEnsureExtendedOrderLists();
+
 var _linesHeight = lineHeight;
 
 with (owner)
@@ -1563,7 +1764,7 @@ with (owner)
     
     // 普通属性（仅显示 data 中的属性 - 武器/装备属性）
     // 需求1：来自 data 的数据用 scr_hoversDrawWeaponAttributes，来自 attributes_data 的数据用 scr_hoversDrawConsumAttributes
-    other.attributesArray = scr_hoversGetAttributes(data, global.attribute_order_all_without_damage, [other.cursedAttributesArray, other.enchantedAttributesArray]);
+    other.attributesArray = scr_hoversGetAttributes(data, global.attribute_order_all_without_damage_extended, [other.cursedAttributesArray, other.enchantedAttributesArray]);
     
     // 消耗品属性（仅显示 attributes_data 中的属性）
     if (variable_instance_exists(id, "attributes_data") && ds_exists(attributes_data, ds_type_map))
@@ -1584,7 +1785,7 @@ with (owner)
             ds_map_replace(attributes_data, "MoraleDiet", _moraleDiet + _diet_penalty);
         }
 
-        other.consumAttributesArray = scr_hoversGetAttributes(attributes_data, global.attribute_order_all_without_damage, [other.cursedAttributesArray, other.enchantedAttributesArray]);
+        other.consumAttributesArray = scr_hoversGetAttributes(attributes_data, global.attribute_order_all_extended, [other.cursedAttributesArray, other.enchantedAttributesArray]);
         
         // 还原 MoraleDiet
         if (!is_undefined(_moraleDiet))
@@ -1878,7 +2079,7 @@ if (consumAttributesHeight)
     // 但原逻辑 attributesHeight += spaceHeight 处理了间距。
     
     with (owner)
-        scr_hoversDrawConsumAttributes(other.contentX, other.contentY + _offsetY, other.contentWidth, other.fontDmgHeight, other.spaceHeight, other.consumAttributesArray, other.attributesDuration, other.textScale);
+        scr_hoversDrawHybridConsumAttributes(other.contentX, other.contentY + _offsetY, other.contentWidth, other.fontDmgHeight, other.spaceHeight, other.consumAttributesArray, other.attributesDuration, other.textScale);
     _offsetY += consumAttributesHeight;
 }
 

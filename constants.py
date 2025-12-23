@@ -197,69 +197,11 @@ NEGATIVE_ATTRIBUTES = {
     "Damage_Received",
 }
 
-# 消耗品专属属性（用于区分混合物品的消耗品属性和装备属性）
-CONSUMABLE_ATTRIBUTES = {
-    "Hunger", "Hunger_Change", "Hunger_Resistance", "Thirsty", "Thirst_Change",
-    "Intoxication", "Toxicity_Change", "Toxicity_Resistance", "Pain", "Pain_Resistance",
-    "Pain_Change", "Pain_Limit", "Sanity", "Sanity_Change", "Morale", "Morale_Change",
-    "max_mp_res", "MP_Restoration", "max_hp_res", "Health_Restoration", "Healing_Received",
-    "Condition", "Immunity", "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
-    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
-    "Fire_Resistance", "Shock_Resistance", "Poison_Resistance", "Caustic_Resistance",
-    "Frost_Resistance", "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance",
-    "Psionic_Resistance", "Bleeding_Resistance", "Fatigue_Change", "Fatigue",
-    "Fatigue_Gain", "Cooldown_Reduction", "VSN", "Knockback_Resistance", "Stun_Resistance",
-    "Received_XP", "Immunity_Change", "Weapon_Damage", "Hit_Chance", "FMB", "CRTD",
-    "max_mp", "max_hp", "Fortitude", "Nausea_Chance", "Poisoning_Chance", "MP_turn",
-    "HP_turn", "Magic_Power", "SanitySituational", "MoraleSituational",
-    "MoraleDiet", "MoraleTemporary", "Duration"
-}
-
 # 伤害类型属性（用于武器伤害计算）
 DAMAGE_ATTRIBUTES = {
     "Slashing_Damage", "Piercing_Damage", "Blunt_Damage", "Rending_Damage",
     "Fire_Damage", "Shock_Damage", "Poison_Damage", "Caustic_Damage",
     "Frost_Damage", "Arcane_Damage", "Unholy_Damage", "Sacred_Damage", "Psionic_Damage",
-}
-
-# ============== 消耗品属性分组 ==============
-# 消耗品有独立的分组逻辑（基于 scr_consum_use.gml 的 duration 依赖）
-# 不使用通用的 ATTRIBUTE_TO_GROUP
-
-CONSUMABLE_ATTRIBUTE_GROUPS = {
-    # 即时效果（有独立case处理，不需要duration）
-    "即时效果（生理）": [
-        "Hunger", "Thirsty", "Intoxication", "Pain", "Fatigue",
-    ],
-    "即时效果（心理）": [
-        "SanitySituational", "MoraleSituational", "MoraleDiet",
-    ],
-    "即时效果（恢复）": [
-        "max_hp_res", "max_mp_res", "Immunity", "Condition",
-    ],
-    "即时效果（负面几率）": [
-        "Poisoning_Chance", "Nausea_Chance",
-    ],
-    
-    # 持续效果（走default分支，需要duration > 0）
-    "持续效果（战斗增益）": [
-        "Weapon_Damage", "Hit_Chance", "CRT", "CRTD", "FMB",
-        "max_hp", "max_mp", "Fortitude", "Magic_Power",
-        "Cooldown_Reduction",
-    ],
-    "持续效果（抗性）": [
-        "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
-        "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
-        "Fire_Resistance", "Shock_Resistance", "Poison_Resistance", "Caustic_Resistance",
-        "Frost_Resistance", "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", "Psionic_Resistance",
-        "Bleeding_Resistance", "Knockback_Resistance", "Stun_Resistance",
-    ],
-    "持续效果（恢复）": [
-        "Health_Restoration", "MP_Restoration", "HP_turn", "MP_turn",
-    ],
-    "持续效果（其他）": [
-        "VSN", "Received_XP", "Immunity_Change",
-    ],
 }
 
 # 消耗品浮点数属性（基于 items_stats.json 分析）
@@ -279,6 +221,21 @@ CONSUMABLE_DURATION_ATTRIBUTE = "Duration"
 # 基于 CONSUMABLE_ATTRIBUTE_GROUPS 的命名约定
 CONSUMABLE_INSTANT_GROUP_PREFIX = "即时效果"
 CONSUMABLE_DURATION_GROUP_PREFIX = "持续效果"
+
+# 混合物品 Weight 选项
+HYBRID_WEIGHT_LABELS = {
+    "Light": "轻",
+    "Medium": "中",
+    "VeryLight": "非常轻",
+    "Heavy": "重",
+}
+
+# 护甲类型到 Weight 的映射（自动推断）
+ARMOR_CLASS_TO_WEIGHT = {
+    "Light": "Light",
+    "Medium": "Medium",
+    "Heavy": "Heavy",
+}
 
 
 # ============== 统一属性分组映射 ==============
@@ -446,6 +403,34 @@ ATTRIBUTE_TO_GROUP = {
     "Noise_Produced": "其他",
     "ReputationGainContract": "其他",
     "ReputationGainGlobal": "其他",
+    "STL": "其他",
+    "Savvy": "其他",
+    
+    # === Buff专属（仅消耗品持续效果可用）===
+    "HP_turn": "Buff专属",
+    "MP_turn": "Buff专属",
+    "Fatigue_Change": "Buff专属",
+    "Charge_Distance": "Buff专属",
+    "Arcanistic_Distance": "Buff专属",
+    "Duration_Resistance": "Buff专属",
+    "Avoiding_Trap": "Buff专属",
+    "Trade_Favorability": "Buff专属",
+    "Head_DEF": "Buff专属",
+    "Body_DEF": "Buff专属",
+    "Arms_DEF": "Buff专属",
+    "Legs_DEF": "Buff专属",
+    "CRTD_Main": "Buff专属",
+    "CRTD_Off": "Buff专属",
+    "CRT_Main": "Buff专属",
+    "CRT_Off": "Buff专属",
+    "Weapon_Damage_Main": "Buff专属",
+    "Weapon_Damage_Off": "Buff专属",
+    "Bleeding_Chance_Main": "Buff专属",
+    "Bleeding_Chance_Off": "Buff专属",
+    "Bleeding_Resistance_Head": "Buff专属",
+    "Bleeding_Resistance_Tors": "Buff专属",
+    "Bleeding_Resistance_Hands": "Buff专属",
+    "Bleeding_Resistance_Legs": "Buff专属",
 }
 
 
@@ -504,51 +489,125 @@ ARMOR_ATTRIBUTES = [
     "VSN", "Bonus_Range", "Received_XP",
 ]
 
-# 被动属性（来自 reference/check_inventory_data）
-PASSIVE_ATTRIBUTES = [
-    # 防护属性
-    "PRR", "Block_Power", "Block_Recovery", "BlockPowerBonus", "EVS", "Crit_Avoid", "Fortitude",
-    # 战斗属性
-    "CTA", "Mainhand_Efficiency", "Offhand_Efficiency",
-    # 生存属性
-    "max_hp", "HP", "Health_Restoration", "Healing_Received", "Health_Threshold",
-    "Damage_Received", "Damage_Returned", "Pain_Limit",
-    # 精力相关
+
+# ============== 混合物品槽位属性 ==============
+
+# 所有装备共享的通用属性
+HYBRID_COMMON_ATTRS = [
+    # 基础属性
+    "STR", "AGL", "PRC", "Vitality", "WIL",
+    # 防护
+    "PRR", "Block_Power", "BlockPowerBonus", "Block_Recovery",
+    "EVS", "CTA", "STL", "Savvy", "VSN", "Bonus_Range",
+    # 生存
+    "max_hp", "HP", "Health_Restoration", "Healing_Received",
+    "Damage_Received", "Damage_Returned", "Fortitude", "Pain_Resistance",
+    "Crit_Avoid", "Knockback_Resistance", "Stun_Resistance",
+    # 精力
     "max_mp", "MP", "MP_Restoration", "Max_Energy_Threshold",
     "Abilities_Energy_Cost", "Skills_Energy_Cost", "Spells_Energy_Cost",
     "Cooldown_Reduction", "Fatigue_Gain", "Swimming_Cost",
-    # 魔法属性
+    # 魔法
     "Magic_Power", "Miscast_Chance", "Miracle_Chance", "Miracle_Power",
     "Backfire_Damage", "Backfire_Damage_Change",
     # 元素法力
-    "Pyromantic_Power", "Geomantic_Power", "Venomantic_Power",
-    "Electromantic_Power", "Cryomantic_Power", "Arcanistic_Power",
-    "Astromantic_Power", "Psimantic_Power",
-    # 元素法力失误
+    "Pyromantic_Power", "Geomantic_Power", "Venomantic_Power", "Cryomantic_Power",
+    "Electromantic_Power", "Arcanistic_Power", "Astromantic_Power", "Psimantic_Power",
     "Pyromantic_Miscast_Chance", "Geomantic_Miscast_Chance", "Venomantic_Miscast_Chance",
-    "Electromantic_Miscast_Chance", "Cryomantic_Miscast_Chance", "Arcanistic_Miscast_Chance",
+    "Cryomantic_Miscast_Chance", "Electromantic_Miscast_Chance", "Arcanistic_Miscast_Chance",
     "Astromantic_Miscast_Chance", "Psimantic_Miscast_Chance",
-    # 抗性（综合）
-    "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
-    # 抗性（物理）
-    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
-    # 抗性（元素）
-    "Fire_Resistance", "Frost_Resistance", "Shock_Resistance", "Caustic_Resistance", "Poison_Resistance",
-    # 抗性（魔法）
-    "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", "Psionic_Resistance",
-    # 抗性（状态）
-    "Bleeding_Resistance", "Knockback_Resistance", "Stun_Resistance", "Pain_Resistance",
-    # 生理变化
+    # 生理/心理
     "Hunger_Change", "Hunger_Resistance", "Thirst_Change",
-    "Toxicity_Change", "Toxicity_Resistance", "Pain_Change", "Immunity_Change", "Immunity_Influence",
-    # 心理变化
+    "Toxicity_Change", "Toxicity_Resistance", "Pain_Change",
+    "Immunity_Change", "Immunity_Influence",
     "Sanity_Change", "Morale_Change", "MoraleTemporary",
-    # 角色属性
-    "STR", "AGL", "PRC", "Vitality", "WIL",
     # 其他
-    "VSN", "Received_XP", "Noise_Produced", "Range", "Bonus_Range",
-    "ReputationGainContract", "ReputationGainGlobal",
+    "Mainhand_Efficiency", "Offhand_Efficiency",
+    "Received_XP", "Noise_Produced", "ReputationGainGlobal", "ReputationGainContract",
+    "Range",
 ]
+
+# 武器战斗属性（所有装备都有，但武器有效率加成）
+HYBRID_COMBAT_ATTRS = [
+    "Hit_Chance", "CRT", "CRTD", "FMB", "Weapon_Damage",
+    "Armor_Damage", "Armor_Piercing", "Bodypart_Damage",
+    "Lifesteal", "Manasteal",
+    "Bleeding_Chance", "Daze_Chance", "Stun_Chance",
+    "Knockback_Chance", "Immob_Chance", "Stagger_Chance",
+]
+
+# 伤害类型属性（仅武器槽位）
+HYBRID_DAMAGE_ATTRS = [
+    "Slashing_Damage", "Piercing_Damage", "Blunt_Damage", "Rending_Damage",
+    "Fire_Damage", "Frost_Damage", "Shock_Damage", "Poison_Damage", "Caustic_Damage",
+    "Arcane_Damage", "Unholy_Damage", "Sacred_Damage", "Psionic_Damage",
+]
+
+# 抗性属性
+HYBRID_RESISTANCE_ATTRS = [
+    "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
+    "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
+    "Fire_Resistance", "Frost_Resistance", "Shock_Resistance", "Caustic_Resistance", "Poison_Resistance",
+    "Arcane_Resistance", "Unholy_Resistance", "Sacred_Resistance", "Psionic_Resistance",
+    "Bleeding_Resistance", "Health_Threshold",
+]
+
+# DEF 属性（仅头/胸/手/腿）
+HYBRID_DEF_ATTRS = ["DEF"]
+
+# Buff专属属性（仅消耗品持续效果可用，装备无法提供）
+HYBRID_BUFF_ONLY_ATTRS = [
+    "HP_turn", "MP_turn", "Fatigue_Change",
+    "Charge_Distance", "Arcanistic_Distance",
+    "Duration_Resistance", "Avoiding_Trap", "Trade_Favorability",
+    "DEF", "Head_DEF", "Body_DEF", "Arms_DEF", "Legs_DEF",
+    "CRTD_Main", "CRTD_Off", "CRT_Main", "CRT_Off",
+    "Weapon_Damage_Main", "Weapon_Damage_Off",
+    "Bleeding_Chance_Main", "Bleeding_Chance_Off",
+    "Bleeding_Resistance_Head", "Bleeding_Resistance_Tors",
+    "Bleeding_Resistance_Hands", "Bleeding_Resistance_Legs",
+]
+
+
+def get_hybrid_attrs_for_slot(slot: str, has_passive: bool = False) -> list[str]:
+    """根据槽位返回可编辑的装备属性列表
+    
+    Args:
+        slot: 装备槽位 ("hand", "Head", "Chest", "Arms", "Legs", "Ring", "Amulet", "Waist", "Back", "heal")
+        has_passive: 是否为被动携带物品 (check_inventory_data=true)
+    """
+    result = list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS)
+    
+    if slot == "hand":
+        result.extend(HYBRID_DAMAGE_ATTRS)
+        result.extend(HYBRID_RESISTANCE_ATTRS)
+    elif slot in ("Head", "Chest", "Arms", "Legs"):
+        result.extend(HYBRID_DEF_ATTRS)
+        result.extend(HYBRID_RESISTANCE_ATTRS)
+    elif slot in ("Ring", "Amulet", "Waist", "Back"):
+        result.extend(HYBRID_RESISTANCE_ATTRS)
+    elif slot == "heal" and has_passive:
+        # 被动携带物品：与普通装备相同，可以使用抗性
+        result.extend(HYBRID_RESISTANCE_ATTRS)
+    # else: 纯消耗品 (slot=heal, has_passive=false): 仅通用 + 战斗，不需要更多装备属性
+    
+    return result
+
+
+def get_consumable_duration_attrs() -> list[str]:
+    """获取消耗品持续效果属性 = 装备通用 + 战斗 + 伤害 + 抗性 + Buff专属"""
+    return (list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS) + 
+            list(HYBRID_DAMAGE_ATTRS) + list(HYBRID_RESISTANCE_ATTRS) + 
+            list(HYBRID_BUFF_ONLY_ATTRS))
+
+
+# 即时效果属性（独立case处理，不需要duration）
+CONSUMABLE_INSTANT_ATTRS = {
+    "即时效果（生理）": ["Hunger", "Thirsty", "Intoxication", "Pain", "Fatigue"],
+    "即时效果（心理）": ["SanitySituational", "MoraleSituational", "MoraleDiet"],
+    "即时效果（恢复）": ["max_hp_res", "max_mp_res", "Immunity", "Condition"],
+    "即时效果（负面几率）": ["Poisoning_Chance", "Nausea_Chance"],
+}
 
 
 def get_attribute_groups(attr_list: list, group_order: list = None) -> dict:
@@ -584,10 +643,23 @@ DEFAULT_GROUP_ORDER = [
     "伤害类型", "状态效果", "防护属性", "战斗属性", "生存属性", "精力相关",
     "魔法属性", "元素法力", "元素法力失误",
     "抗性（综合）", "抗性（物理）", "抗性（元素）", "抗性（魔法）", "抗性（状态）",
-    "生理变化", "心理变化", "角色属性", "其他",
+    "生理变化", "心理变化", "角色属性", "Buff专属", "其他",
 ]
 
-
+# ATTRIBUTE_TO_GROUP 中不在游戏 order lists 的额外属性
+# 这些属性需要追加到扩展 order list 中才能在 hover 中显示
+EXTRA_ORDER_ATTRS = (
+    "AGL", "Arcanistic_Distance", "Arcanistic_Miscast_Chance", "Arms_DEF",
+    "Astromantic_Miscast_Chance", "Avoiding_Trap", "Bleeding_Chance_Main",
+    "Bleeding_Chance_Off", "Bleeding_Resistance_Hands", "Bleeding_Resistance_Head",
+    "Bleeding_Resistance_Legs", "Bleeding_Resistance_Tors", "BlockPowerBonus",
+    "Body_DEF", "CRTD_Main", "CRTD_Off", "CRT_Main", "CRT_Off", "Charge_Distance",
+    "Cryomantic_Miscast_Chance", "Duration_Resistance", "Electromantic_Miscast_Chance",
+    "Geomantic_Miscast_Chance", "Head_DEF", "Immunity_Influence", "Legs_DEF",
+    "MoraleTemporary", "PRC", "Psimantic_Miscast_Chance", "Pyromantic_Miscast_Chance",
+    "Range", "STR", "Venomantic_Miscast_Chance", "Vitality", "WIL",
+    "Weapon_Damage_Main", "Weapon_Damage_Off",
+)
 
 # ============== 拆解材料 ==============
 
