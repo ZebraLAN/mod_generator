@@ -1237,37 +1237,9 @@ popz.v"""
         
         # ===== case 1: hover 销毁 =====
         lines.append("    ")
-        lines.append("    case 1:")
-        lines.append("        inmouse = false;")
-        lines.append("        hoverID = scr_hoverDestroy(hoverID);")
-        lines.append("        hoverComparisonID = scr_hoverDestroy(hoverComparisonID);")
-        lines.append("        hoverComparisonIndex = -1;")
-        lines.append("        break;")
-        
-        # ===== case 2: 左键点击（必须有！）=====
-        lines.append("    ")
-        lines.append("    case 2:")
-        lines.append("        event_perform(ev_step, ev_step_normal);")
-        lines.append("        event_perform(ev_mouse, ev_left_press);")
-        lines.append("        ")
-        lines.append("        if (select) {")
-        lines.append("            hoverID = scr_hoverDestroy(hoverID, false);")
-        lines.append("            hoverComparisonID = scr_hoverDestroy(hoverComparisonID, false);")
-        lines.append("            hoverComparisonIndex = -1;")
-        lines.append("        }")
-        lines.append("        break;")
-        
-        # ===== case 5: 右键点击（必须有！）=====
-        lines.append("    ")
-        lines.append("    case 5:")
-        lines.append("        event_perform(ev_mouse, ev_right_press);")
-        lines.append("        break;")
-        
-        # ===== case 37: select 状态 =====
-        lines.append("    ")
-        lines.append("    case 37:")
-        lines.append("        if (select) {")
-        lines.append("        }")
+        # ===== case 1/2/5/37: 复用 o_inv_slot 的实现 =====
+        lines.append("    default:")
+        lines.append("        event_perform_object(o_inv_slot, ev_other, 13);")
         lines.append("        break;")
         
         lines.append("}")
@@ -1283,30 +1255,8 @@ popz.v"""
         if not item.has_durability or not item.equipable:
             return ""
             
-        lines = []
-        lines.append("// 恢复被 o_inv_consum 覆盖的 o_inv_slot 逻辑")
-        lines.append("if (!variable_instance_exists(id, \"slotDestroyed\") || !slotDestroyed)")
-        lines.append("{")
-        lines.append("    var _size = ds_map_size(data);")
-        lines.append("    var _key = ds_map_find_first(data);")
-        lines.append("")
-        lines.append("    for (var i = 0; i < _size; i++)")
-        lines.append("    {")
-        lines.append("        if (!ds_map_find_value_ext(global.attribute_negative, _key, false))")
-        lines.append("        {")
-        lines.append("            if (!is_undefined(ds_map_find_value(global.attribute, _key)))")
-        lines.append("            {")
-        lines.append("                var _value = scr_real_lite(ds_map_find_value(data, _key));")
-        lines.append("")
-        lines.append("                if (_value > 0)")
-        lines.append("                    ds_map_replace(crash_value_map, _key, _value - (_value * DurDecrease));")
-        lines.append("            }")
-        lines.append("        }")
-        lines.append("")
-        lines.append("        _key = ds_map_find_next(data, _key);")
-        lines.append("    }")
-        lines.append("}")
-        return "\n".join(lines)
+        # 直接复用 o_inv_slot 的 Other_16 逻辑
+        return "event_perform_object(o_inv_slot, ev_other, 16);"
 
     def _generate_hybrid_other24_gml(self, item: HybridItem) -> str:
         """生成简化版 Other_24：仿照 o_inv_antivenom 的使用效果
