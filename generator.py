@@ -886,11 +886,6 @@ popz.v"""
             lines.append(f'type = "{item.armor_type}";')
             lines.append("")
         
-        # 技能
-        if item.has_active_skill and item.skill_id != -4:
-            lines.append(f"skill = {item.skill_id};")
-            lines.append("")
-        
         # 使用次数
         if item.has_charges:
             lines.append("// 使用次数")
@@ -1014,8 +1009,81 @@ popz.v"""
                  
                  lines.append("}") # End if maxDuration
         
-        # 如果逻辑为空（没有耐久度），返回空字符串（仅 inherit）会被视为有内容
-        # 如果只有 inheritance，也应该生成，因为父类逻辑需要执行
+        # 使用次数恢复逻辑
+        if item.has_charges and item.has_charge_recovery:
+            lines.append("")
+            lines.append("// 使用次数恢复")
+            lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
+            lines.append("if (!is_undefined(_lastTurn)) {")
+            lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+            lines.append("    var _currentTurn = floor(_totalSec / 30);")
+            lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
+            lines.append("")
+            lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
+            lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
+            lines.append("        charge = min(max_charge, charge + _recoveries);")
+            lines.append('        ds_map_replace(data, "charge", charge);')
+            lines.append("")
+            lines.append("        if (charge >= max_charge) {")
+            lines.append('            ds_map_delete(data, "last_recovery_turn");')
+            lines.append("        } else {")
+            lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
+            lines.append("        }")
+            lines.append("    }")
+            lines.append("}")
+        
+        # 技能释放状态跟踪（仅技能模式有效）
+        if item.active_effect_mode == "skill" and item.skill_object:
+            lines.append("")
+            lines.append("// 技能释放状态跟踪")
+            lines.append('var _active_skill = ds_map_find_value(data, "_active_skill");')
+            lines.append("if (!is_undefined(_active_skill)) {")
+            lines.append("    var _should_cleanup = false;")
+            lines.append("    var _was_successful = false;")
+            lines.append("")
+            lines.append("    if (!instance_exists(_active_skill)) {")
+            lines.append("        // 技能实例已不存在")
+            lines.append("        _should_cleanup = true;")
+            lines.append("    } else if (!_active_skill.is_activate) {")
+            lines.append("        // 技能已停止激活")
+            lines.append("        _should_cleanup = true;")
+            lines.append("        _was_successful = _active_skill.last_activated;")
+            lines.append("    }")
+            lines.append("")
+            lines.append("    if (_should_cleanup) {")
+            if item.has_charges:
+                lines.append("        // 仅成功执行时扣减充能")
+                lines.append("        if (_was_successful) {")
+                lines.append("            charge--;")
+                lines.append('            ds_map_replace(data, "charge", charge);')
+                if item.has_charge_recovery:
+                    lines.append("")
+                    lines.append("            // 记录恢复起始回合")
+                    lines.append('            var _lastRecTurn = ds_map_find_value(data, "last_recovery_turn");')
+                    lines.append("            if (is_undefined(_lastRecTurn)) {")
+                    lines.append('                var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+                    lines.append('                ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
+                    lines.append("            }")
+                if item.delete_on_charge_zero:
+                    lines.append("")
+                    lines.append("            // 充能耗尽后删除")
+                    lines.append("            if (charge <= 0)")
+                    lines.append("                event_user(12);")
+                lines.append("        }")
+            lines.append("")
+            lines.append("        // 销毁技能实例")
+            lines.append('        var _active_ico = ds_map_find_value(data, "_active_ico");')
+            lines.append("        if (instance_exists(_active_ico))")
+            lines.append("            instance_destroy(_active_ico);")
+            lines.append("        if (instance_exists(_active_skill))")
+            lines.append("            instance_destroy(_active_skill);")
+            lines.append("")
+            lines.append("        // 清除引用")
+            lines.append('        ds_map_delete(data, "_active_skill");')
+            lines.append('        ds_map_delete(data, "_active_ico");')
+            lines.append("    }")
+            lines.append("}")
+        
         return "\n".join(lines)
 
     def _generate_hybrid_alarm_gml(self, item: HybridItem) -> str:
@@ -1029,10 +1097,6 @@ popz.v"""
         if item.has_durability:
             lines.append(f"    ds_map_replace(data, \"Duration\", {item.duration_init});")
             lines.append(f"    ds_map_replace(data, \"MaxDuration\", {item.duration_max});")
-        
-        # 冷却初始化
-        if item.has_cooldown:
-            lines.append("    ds_map_replace(data, \"use_kd\", 0);")
         
         # 武器伤害初始化（伤害来自 attributes 的伤害键；DMG=总和，DamageType=最大伤类型）
         if item.init_weapon_stats:
@@ -1150,14 +1214,6 @@ popz.v"""
         """
         lines = []
         
-        # mid_text 仅设置冷却时间（使用次数由 Other_20 的 chargesLeft/Right 显示）
-        if item.has_cooldown:
-            lines.append("// mid_text: 冷却时间")
-            lines.append('var _use_kd = ds_map_find_value_ext(data, "use_kd", 0);')
-            lines.append("if (_use_kd > 0) {")
-            lines.append('    mid_text = ds_list_find_value_ext(global.other_hover, 3, "Cooldown") + ": " + string(_use_kd) + " " + ds_list_find_value_ext(global.other_hover, 4, "hours");')
-            lines.append("}")
-        
         if lines:
             lines.append("")
         
@@ -1259,20 +1315,25 @@ popz.v"""
         return "event_perform_object(o_inv_slot, ev_other, 16);"
 
     def _generate_hybrid_other24_gml(self, item: HybridItem) -> str:
-        """生成简化版 Other_24：仿照 o_inv_antivenom 的使用效果
+        """生成混合物品的 Other_24 (使用效果) GML 代码
         
-        注意：当未勾选使用次数时，返回空白代码（仅含注释）
+        根据 active_effect_mode 生成不同代码：
+        - "none": 无主动效果
+        - "consumable": 消耗品使用效果
+        - "skill": 技能释放
         """
-        # 未勾选使用次数时，生成空白代码
-        if not item.has_charges:
-            return "// 空白 Other_24（未启用使用次数）"
+        # 未勾选使用次数或模式为 none 时，生成空白代码
+        if not item.has_charges or item.active_effect_mode == "none":
+            return "// 空白 Other_24（未启用主动效果）"
         
         lines = []
-        lines.append("// 简化使用效果：仿照 o_inv_antivenom")
-        # 充能检查
+        
+        # 通用充能检查
+        lines.append("// 充能检查")
         lines.append("if (charge <= 0)")
         lines.append("    exit;")
         lines.append("")
+        
         # 耐久消耗前检查（阻止型）与前置变量
         if item.has_durability and item.duration_change > 0:
             lines.append("var _maxd = ds_map_find_value(data, \"MaxDuration\");")
@@ -1283,111 +1344,156 @@ popz.v"""
                 lines.append("if (_dur <= 1)")
                 lines.append("    exit;")
             lines.append("")
-        lines.append('scr_actionsLog("useItem", [scr_id_get_name(o_player), log_text, ds_map_find_value(data, "Name")]);')
-        lines.append("// 使用消耗品效果（仅使用 attributes_data）")
-        lines.append('var _key = ds_map_find_first(attributes_data);')
-        lines.append('var _size = ds_map_size(attributes_data);')
-        lines.append('repeat (_size) {')
-        lines.append('    var _val = ds_map_find_value(attributes_data, _key);')
-        lines.append('    if (is_real(_val)) {')
-        lines.append('        switch(_key) {')
-        lines.append('            // ====== Instant / Independent Effects ======')
-        lines.append('            case "MoraleDiet":')
-        lines.append('                 var _diet_penalty = scr_psy_diet_penalty_get(object_get_name(object_index));')
-        lines.append('                 scr_psy_change("MoraleDiet", _val + _diet_penalty, "consum_morale_diet(penalty:" + string(_diet_penalty) + ")");')
-        lines.append('                 scr_psy_pessimism_delay(_val);')
-        lines.append('                 break;')
-        lines.append('            case "SanitySituational":')
-        lines.append('                 scr_psy_change("SanitySituational", _val, "consum_sanity_sit");')
-        lines.append('                 break;')
-        lines.append('            case "MoraleSituational":')
-        lines.append('                 scr_psy_change("MoraleSituational", _val, "consum_morale_sit");')
-        lines.append('                 scr_psy_pessimism_delay(_val);')
-        lines.append('                 break;')
-        lines.append('            case "Hunger":')
-        lines.append('                 var _stage = 1;')
-        lines.append('                 var _recipeDataMap = ds_map_find_value(global.recipes_food_data, idName);')
-        lines.append('                 if (!is_undefined(_recipeDataMap)) {')
-        lines.append('                     var _satiety_value = ds_map_find_value(_recipeDataMap, "SATIETY");')
-        lines.append('                     if (_satiety_value == "V") _stage = 2;')
-        lines.append('                 }')
-        lines.append('                 scr_hunger_incr(_val, _stage);')
-        lines.append('                 break;')
-        lines.append('            case "Thirsty":')
-        lines.append('            case "Intoxication":')
-        lines.append('            case "Pain":')
-        lines.append('                 scr_atr_incr(_key, _val);')
-        lines.append('                 break;')
-        lines.append('            case "Immunity":')
-        lines.append('                 scr_immunity_change(_val);')
-        lines.append('                 break;')
-        lines.append('            case "max_mp_res":')
-        lines.append('                 scr_restore_mp(o_player, (o_player.max_mp * _val) / 100, ds_map_find_value(data, "Name"));')
-        lines.append('                 break;')
-        lines.append('            case "max_hp_res":')
-        lines.append('                 if (_val < 0)')
-        lines.append('                     scr_pure_damage(o_player, (-o_player.max_hp * _val) / 100);')
-        lines.append('                 else')
-        lines.append('                     scr_restore_hp(o_player, (o_player.max_hp * _val) / 100, ds_map_find_value(data, "Name"));')
-        lines.append('                 break;')
-        lines.append('            case "Condition":')
-        lines.append('                 break;')
-        lines.append('            case "Fatigue":')
-        lines.append('                 scr_fatigue_change(_val, true);')
-        lines.append('                 break;')
-        lines.append('            case "Poisoning_Chance":')
-        lines.append('                 if (scr_chance_value(_val)) scr_effect_create(o_db_poison, poison_duration);')
-        lines.append('                 break;')
-        lines.append('            case "Nausea_Chance":')
-        lines.append('                 if (scr_chance_value(_val)) scr_effect_create(o_db_nause, 1);')
-        lines.append('                 break;')
-        lines.append('            // ====== Duration Dependent Buffs (Default) ======')
-        lines.append('            default:')
-        lines.append('                 var dur = ds_map_find_value(attributes_data, "Duration");') # Use attributes_data for Duration source
-        lines.append('                 if (!is_undefined(dur) && dur > 0)')
-        lines.append('                     scr_temp_effect_update(object_index, o_player, _key, _val, dur, 1);')
-        lines.append('                 break;')
-        lines.append('        }')
-        lines.append('    }')
-        lines.append('    _key = ds_map_find_next(attributes_data, _key);')
-        lines.append('}')
-        lines.append("")
-        lines.append("with (o_player)")
-        lines.append("    scr_guiAnimation(o_b_gamekeeper_brew, 1, 1, 0);")
-        lines.append("")
-        lines.append("audio_play_sound(snd_healing_salve, 3, 0);")
-        lines.append("scr_effect_create(o_db_confuse, 10);")
-        lines.append("")
-        lines.append("with (o_db_poison)")
-        lines.append("{")
-        lines.append("    if (is_player(target))")
-        lines.append("        instance_destroy();")
-        lines.append("}")
-        lines.append("")
-        # 充能扣减
-        if item.has_charges:
-            lines.append("charge--;")
-            lines.append("ds_map_replace(data, \"charge\", charge);")
-        # 耐久扣减与末次使用策略
-        if item.has_durability and item.duration_change > 0:
-            if item.durability_use_policy == "allow_to_one":
-                lines.append("ds_map_replace(data, \"Duration\", max(1, _dur - _cost));")
-            else:  # destroy
-                lines.append("if (_dur <= _cost)")
+        
+        # ====== 根据模式生成不同的效果代码 ======
+        
+        if item.active_effect_mode == "skill":
+            # 技能释放模式
+            lines.append("// 技能释放模式")
+            
+            if item.skill_object:
+                # 创建对应的 _ico 对象作为 owner_skill
+                # 技能对象名格式: o_skill_xxx -> o_skill_xxx_ico
+                ico_object = f"{item.skill_object}_ico"
+                
+                lines.append(f"// 创建对应的技能图标对象作为 owner_skill")
+                lines.append(f"var _owner_skill = instance_create_depth(-10000, -10000, 0, {ico_object});")
+                lines.append("with (_owner_skill) {")
+                lines.append("    owner = o_player;")
+                lines.append("    is_open = true;")
+                lines.append("    persistent = false;  // 不跨房间持久化")
+                lines.append("}")
+                lines.append("")
+                lines.append(f"var _skill = instance_create_depth(o_player.x, o_player.y, 0, {item.skill_object});")
+                lines.append("with (_skill) {")
+                lines.append("    owner = o_player;")
+                lines.append("    aoe_target = o_player;")
+                lines.append("    owner_skill = _owner_skill;")
+                lines.append("    persistent = false;  // 不跨房间持久化")
+                lines.append("    event_user(7);     // 更新技能参数")
+                lines.append("    event_user(0);     // 激活技能（显示范围指示器）")
+                lines.append("}")
+                lines.append("")
+                lines.append("// 保存技能引用供 Step_0 跟踪，充能将在技能成功执行后扣减")
+                lines.append('ds_map_set(data, "_active_skill", _skill);')
+                lines.append('ds_map_set(data, "_active_ico", _owner_skill);')
+            else:
+                lines.append("// 警告：未设置技能对象")
+            
+            # 技能模式：充能扣减移至 Step_0 中技能成功执行后处理
+            
+        else:  # consumable 模式
+            # 消耗品使用效果
+            lines.append('scr_actionsLog("useItem", [scr_id_get_name(o_player), log_text, ds_map_find_value(data, "Name")]);')
+            lines.append("// 使用消耗品效果（仅使用 attributes_data）")
+            lines.append('var _key = ds_map_find_first(attributes_data);')
+            lines.append('var _size = ds_map_size(attributes_data);')
+            lines.append('repeat (_size) {')
+            lines.append('    var _val = ds_map_find_value(attributes_data, _key);')
+            lines.append('    if (is_real(_val)) {')
+            lines.append('        switch(_key) {')
+            lines.append('            // ====== Instant / Independent Effects ======')
+            lines.append('            case "MoraleDiet":')
+            lines.append('                 var _diet_penalty = scr_psy_diet_penalty_get(object_get_name(object_index));')
+            lines.append('                 scr_psy_change("MoraleDiet", _val + _diet_penalty, "consum_morale_diet(penalty:" + string(_diet_penalty) + ")");')
+            lines.append('                 scr_psy_pessimism_delay(_val);')
+            lines.append('                 break;')
+            lines.append('            case "SanitySituational":')
+            lines.append('                 scr_psy_change("SanitySituational", _val, "consum_sanity_sit");')
+            lines.append('                 break;')
+            lines.append('            case "MoraleSituational":')
+            lines.append('                 scr_psy_change("MoraleSituational", _val, "consum_morale_sit");')
+            lines.append('                 scr_psy_pessimism_delay(_val);')
+            lines.append('                 break;')
+            lines.append('            case "Hunger":')
+            lines.append('                 var _stage = 1;')
+            lines.append('                 var _recipeDataMap = ds_map_find_value(global.recipes_food_data, idName);')
+            lines.append('                 if (!is_undefined(_recipeDataMap)) {')
+            lines.append('                     var _satiety_value = ds_map_find_value(_recipeDataMap, "SATIETY");')
+            lines.append('                     if (_satiety_value == "V") _stage = 2;')
+            lines.append('                 }')
+            lines.append('                 scr_hunger_incr(_val, _stage);')
+            lines.append('                 break;')
+            lines.append('            case "Thirsty":')
+            lines.append('            case "Intoxication":')
+            lines.append('            case "Pain":')
+            lines.append('                 scr_atr_incr(_key, _val);')
+            lines.append('                 break;')
+            lines.append('            case "Immunity":')
+            lines.append('                 scr_immunity_change(_val);')
+            lines.append('                 break;')
+            lines.append('            case "max_mp_res":')
+            lines.append('                 scr_restore_mp(o_player, (o_player.max_mp * _val) / 100, ds_map_find_value(data, "Name"));')
+            lines.append('                 break;')
+            lines.append('            case "max_hp_res":')
+            lines.append('                 if (_val < 0)')
+            lines.append('                     scr_pure_damage(o_player, (-o_player.max_hp * _val) / 100);')
+            lines.append('                 else')
+            lines.append('                     scr_restore_hp(o_player, (o_player.max_hp * _val) / 100, ds_map_find_value(data, "Name"));')
+            lines.append('                 break;')
+            lines.append('            case "Condition":')
+            lines.append('                 break;')
+            lines.append('            case "Fatigue":')
+            lines.append('                 scr_fatigue_change(_val, true);')
+            lines.append('                 break;')
+            lines.append('            case "Poisoning_Chance":')
+            lines.append('                 if (scr_chance_value(_val)) scr_effect_create(o_db_poison, poison_duration);')
+            lines.append('                 break;')
+            lines.append('            case "Nausea_Chance":')
+            lines.append('                 if (scr_chance_value(_val)) scr_effect_create(o_db_nause, 1);')
+            lines.append('                 break;')
+            lines.append('            // ====== Duration Dependent Buffs (Default) ======')
+            lines.append('            default:')
+            lines.append('                 var dur = ds_map_find_value(attributes_data, "Duration");')
+            lines.append('                 if (!is_undefined(dur) && dur > 0)')
+            lines.append('                     scr_temp_effect_update(object_index, o_player, _key, _val, dur, 1);')
+            lines.append('                 break;')
+            lines.append('        }')
+            lines.append('    }')
+            lines.append('    _key = ds_map_find_next(attributes_data, _key);')
+            lines.append('}')
+            lines.append("")
+            lines.append("with (o_player)")
+            lines.append("    scr_guiAnimation(o_b_gamekeeper_brew, 1, 1, 0);")
+            lines.append("")
+        
+            # 消耗品模式：充能和耐久扣减
+            if item.has_charges:
+                lines.append("charge--;")
+                lines.append("ds_map_replace(data, \"charge\", charge);")
+                
+                # 记录恢复起始回合
+                if item.has_charge_recovery:
+                    lines.append("")
+                    lines.append("// 记录恢复起始回合")
+                    lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
+                    lines.append("if (is_undefined(_lastTurn)) {")
+                    lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+                    lines.append('    ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
+                    lines.append("}")
+            
+            # 耐久扣减与末次使用策略
+            if item.has_durability and item.duration_change > 0:
+                if item.durability_use_policy == "allow_to_one":
+                    lines.append("ds_map_replace(data, \"Duration\", max(1, _dur - _cost));")
+                else:  # destroy
+                    lines.append("if (_dur <= _cost)")
+                    lines.append("    event_user(12);")
+                    lines.append("else")
+                    lines.append("    ds_map_replace(data, \"Duration\", _dur - _cost);")
+            
+            lines.append("scr_allturn();")
+            lines.append("scr_characterStatsConsumUse();")
+            lines.append("")
+            lines.append("with (o_player)")
+            lines.append("    scr_noise_produce(scr_noise_food(), grid_x, grid_y);")
+            lines.append("")
+            
+            # 充能耗尽后的处理（仅在开启使用次数且开启用尽删除时生成）
+            if item.has_charges and item.delete_on_charge_zero:
+                lines.append("// 充能耗尽后的处理")
+                lines.append("if (charge <= 0)")
                 lines.append("    event_user(12);")
-                lines.append("else")
-                lines.append("    ds_map_replace(data, \"Duration\", _dur - _cost);")
-        lines.append("scr_allturn();")
-        lines.append("scr_characterStatsConsumUse();")
-        lines.append("")
-        lines.append("with (o_player)")
-        lines.append("    scr_noise_produce(scr_noise_food(), grid_x, grid_y);")
-        lines.append("")
-        # 充能耗尽后的处理（仅在开启使用次数且开启用尽删除时生成）
-        if item.has_charges and item.delete_on_charge_zero:
-            lines.append("// 充能耗尽后的处理")
-            lines.append("if (charge <= 0)")
-            lines.append("    event_user(12);")
         
         return "\n".join(lines)
 

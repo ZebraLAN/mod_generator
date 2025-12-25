@@ -403,15 +403,26 @@ class HybridItem:
     armor_class: str = "Light"  # 轻/中/重
     defense: int = 0  # 防御值
     
-    # ====== 技能系统 ======
-    has_active_skill: bool = False  # 是否有主动技能
-    skill_id: int = -4  # 技能对象ID，-4表示无技能
+    # ====== 主动效果模式 ======
+    # "none" = 无主动效果
+    # "consumable" = 消耗品使用效果
+    # "skill" = 技能释放
+    active_effect_mode: str = "none"
+    
+    # ====== 技能释放设置（仅 active_effect_mode="skill" 时使用）======
+    skill_object: str = ""  # 技能对象名称，如 "o_skill_fire_barrage"
+    
+    # ====== 被动效果 ======
     has_passive: bool = False  # 是否有被动效果 (check_inventory_data)
     
     # ====== 使用次数 ======
     has_charges: bool = False  # 是否有使用次数
     charge: int = 0  # 使用次数
     draw_charges: bool = False  # 是否绘制次数条
+    
+    # ====== 使用次数恢复 ======
+    has_charge_recovery: bool = False  # 是否启用使用次数恢复
+    charge_recovery_interval: int = 10  # 恢复间隔（回合数）
     
     # ====== 耐久系统 ======
     has_durability: bool = False  # 是否有自定义耐久度
@@ -422,10 +433,6 @@ class HybridItem:
     delete_on_charge_zero: bool = False  # 使用次数耗尽后是否删除（仅作用于 charge）
     durability_affects_stats: bool = False  # 耐久是否影响属性
     link_charges_to_durability: bool = False  # 次数与耐久挂钩
-    
-    # ====== 冷却系统 ======
-    has_cooldown: bool = False  # 是否有冷却
-    cooldown_hours: int = 1  # 冷却时间（小时）
     
     # ====== 价格与音效 ======
     base_price: int = 100  # 基础价格
@@ -606,8 +613,8 @@ def validate_hybrid_item(
         errors.append("不能同时初始化武器属性和护甲属性")
 
     # 技能检查
-    if item.has_active_skill and item.skill_id == -4:
-        errors.append("WARNING: 启用了主动技能但未设置技能ID")
+    if item.active_effect_mode == "skill" and not item.skill_object:
+        errors.append("WARNING: 启用了技能释放模式但未设置技能对象")
 
     # 使用次数检查
     if item.has_charges and item.charge <= 0:
@@ -619,10 +626,6 @@ def validate_hybrid_item(
             errors.append("耐久度应大于0")
         if item.duration_init > item.duration_max:
             errors.append("初始耐久不应大于最大耐久")
-
-    # 冷却检查
-    if item.has_cooldown and item.cooldown_hours <= 0:
-        errors.append("冷却时间应大于0")
 
     # 贴图检查
     if not item.textures.has_loot():
@@ -771,12 +774,14 @@ class ModProject:
             "armor_material": item.armor_material,
             "armor_class": item.armor_class,
             "defense": item.defense,
-            "has_active_skill": item.has_active_skill,
-            "skill_id": item.skill_id,
+            "active_effect_mode": item.active_effect_mode,
+            "skill_object": item.skill_object,
             "has_passive": item.has_passive,
             "has_charges": item.has_charges,
             "charge": item.charge,
             "draw_charges": item.draw_charges,
+            "has_charge_recovery": item.has_charge_recovery,
+            "charge_recovery_interval": item.charge_recovery_interval,
             "has_durability": item.has_durability,
             "duration_init": item.duration_init,
             "duration_max": item.duration_max,
@@ -785,8 +790,6 @@ class ModProject:
             "delete_on_charge_zero": item.delete_on_charge_zero,
             "durability_affects_stats": item.durability_affects_stats,
             "link_charges_to_durability": item.link_charges_to_durability,
-            "has_cooldown": item.has_cooldown,
-            "cooldown_hours": item.cooldown_hours,
             "base_price": item.base_price,
             "drop_sound": item.drop_sound,
             "pickup_sound": item.pickup_sound,
@@ -1032,12 +1035,14 @@ class ModProject:
             armor_material=item_data.get("armor_material", "Leather"),
             armor_class=item_data.get("armor_class", "Light"),
             defense=item_data.get("defense", 0),
-            has_active_skill=item_data.get("has_active_skill", False),
-            skill_id=item_data.get("skill_id", -4),
+            active_effect_mode=item_data.get("active_effect_mode", "none"),
+            skill_object=item_data.get("skill_object", ""),
             has_passive=item_data.get("has_passive", False),
             has_charges=item_data.get("has_charges", False),
             charge=item_data.get("charge", 1),
             draw_charges=item_data.get("draw_charges", False),
+            has_charge_recovery=item_data.get("has_charge_recovery", False),
+            charge_recovery_interval=item_data.get("charge_recovery_interval", 10),
             has_durability=item_data.get("has_durability", False),
             duration_init=item_data.get("duration_init", 100),
             duration_max=item_data.get("duration_max", 100),
@@ -1046,8 +1051,6 @@ class ModProject:
             delete_on_charge_zero=item_data.get("delete_on_charge_zero", False),
             durability_affects_stats=item_data.get("durability_affects_stats", False),
             link_charges_to_durability=item_data.get("link_charges_to_durability", False),
-            has_cooldown=item_data.get("has_cooldown", False),
-            cooldown_hours=item_data.get("cooldown_hours", 1),
             base_price=item_data.get("base_price", 100),
             drop_sound=item_data.get("drop_sound", 911),
             pickup_sound=item_data.get("pickup_sound", 907),

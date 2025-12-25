@@ -85,6 +85,7 @@ from constants import (
     HYBRID_ARMOR_MATERIALS,
     HYBRID_ARMOR_CLASSES,
     HYBRID_SKILL_IDS,
+    HYBRID_SKILL_OBJECTS,
     HYBRID_PICKUP_SOUNDS,
     HYBRID_DROP_SOUNDS,
     HYBRID_DURABILITY_POLICIES,
@@ -108,6 +109,12 @@ from models import (
     validate_hybrid_item,
 )
 from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
+from skill_constants import (
+    SKILL_OBJECTS,
+    SKILL_BRANCH_TRANSLATIONS,
+    SKILL_BY_BRANCH,
+    SKILL_OBJECT_NAMES,
+)
 
 
 def get_attr_display(attr: str, lang: str = "Chinese") -> tuple[str, str]:
@@ -1253,8 +1260,9 @@ class ModGeneratorGUI:
                 self._draw_hybrid_attributes_editor(hybrid)
                 imgui.tree_pop()
 
-        # 消耗品属性编辑器
-        self._draw_hybrid_consumable_attributes_editor(hybrid)
+        # 消耗品属性编辑器（仅在消耗品主动效果模式下显示）
+        if hybrid.active_effect_mode == "consumable":
+            self._draw_hybrid_consumable_attributes_editor(hybrid)
 
         if imgui.tree_node("名称与本地化##hybrid", flags=imgui.TREE_NODE_FRAMED):
             self._draw_localization_editor(hybrid, "hybrid")
@@ -1422,31 +1430,149 @@ class ModGeneratorGUI:
 
         self.draw_indented_separator()
 
-        # 技能设置（仅在拥有使用次数时可设置主动技能）
-        imgui.text("技能设置")
-
-        if hybrid.has_charges:
-            changed, hybrid.has_active_skill = imgui.checkbox("拥有主动技能##hybrid", hybrid.has_active_skill)
+        # ====== 主动效果模式 ======
+        imgui.text("主动效果模式")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "选择物品使用时触发的效果模式：\n"
+                "• 无：不触发任何效果\n"
+                "• 消耗品使用效果：应用消耗品属性中设置的效果\n"
+                "• 技能释放：释放指定技能（支持目标选择）"
+            )
+        
+        # 主动效果模式选择
+        mode_labels = ["无", "消耗品使用效果", "技能释放"]
+        mode_keys = ["none", "consumable", "skill"]
+        
+        # 获取当前模式索引
+        current_mode_idx = 0
+        if hybrid.active_effect_mode in mode_keys:
+            current_mode_idx = mode_keys.index(hybrid.active_effect_mode)
+        
+        # 使用 radio_button 实现单选
+        for i, label in enumerate(mode_labels):
+            if i > 0:
+                imgui.same_line(spacing=15)
+            if imgui.radio_button(f"{label}##active_effect_mode", current_mode_idx == i):
+                new_mode = mode_keys[i]
+                old_mode = hybrid.active_effect_mode
+                hybrid.active_effect_mode = new_mode
+                
+                # 切换模式时清除不相关的数据
+                if new_mode == "none":
+                    # 切换到"无"时，清空所有主动效果数据
+                    hybrid.skill_object = ""
+                    hybrid.consumable_attributes.clear()
+                elif new_mode == "consumable":
+                    # 切换到"消耗品"时，清空技能
+                    hybrid.skill_object = ""
+                elif new_mode == "skill":
+                    # 切换到"技能"时，清空消耗品属性
+                    hybrid.consumable_attributes.clear()
+        
+        # 技能选择（仅在技能释放模式下显示）
+        if hybrid.active_effect_mode == "skill":
+            imgui.text("技能:")
+            imgui.same_line()
+            imgui.push_item_width(400)
+            
+            # 显示当前选中的技能名称
+            current_skill = hybrid.skill_object
+            if current_skill in SKILL_OBJECT_NAMES:
+                current_label = f"{SKILL_OBJECT_NAMES[current_skill]} ({current_skill})"
+            elif current_skill:
+                current_label = f"自定义: {current_skill}"
+            else:
+                current_label = "-- 选择技能 --"
+            
+            if imgui.begin_combo("##skill_object", current_label):
+                # 无技能选项
+                if imgui.selectable("-- 无 --", current_skill == "")[0]:
+                    hybrid.skill_object = ""
+                
+                imgui.separator()
+                
+                # 按分支分组显示技能
+                for branch in sorted(SKILL_BY_BRANCH.keys()):
+                    branch_label = SKILL_BRANCH_TRANSLATIONS.get(branch, branch)
+                    skills = SKILL_BY_BRANCH[branch]
+                    
+                    # 跳过空分支和特殊分支
+                    if not skills or branch in ("none", "unknown"):
+                        continue
+                    
+                    if imgui.tree_node(f"{branch_label}##branch_{branch}"):
+                        for skill_obj in skills:
+                            skill_info = SKILL_OBJECTS.get(skill_obj, {})
+                            skill_name = skill_info.get("name_chinese", skill_obj)
+                            is_selected = current_skill == skill_obj
+                            
+                            if imgui.selectable(f"{skill_name}##{skill_obj}", is_selected)[0]:
+                                hybrid.skill_object = skill_obj
+                            
+                            if imgui.is_item_hovered():
+                                # 显示技能详情
+                                tip = f"对象名: {skill_obj}\n"
+                                tip += f"英文名: {skill_info.get('name_english', 'N/A')}\n"
+                                tip += f"类型: {skill_info.get('class', 'N/A')}\n"
+                                tip += f"目标: {skill_info.get('target', 'N/A')}"
+                                imgui.set_tooltip(tip)
+                        
+                        imgui.tree_pop()
+                
+                # 特殊分支（敌人技能等）
+                special_branches = ["none", "unknown"]
+                has_special = any(SKILL_BY_BRANCH.get(b) for b in special_branches)
+                if has_special:
+                    imgui.separator()
+                    if imgui.tree_node("其他/特殊技能##branch_special"):
+                        for branch in special_branches:
+                            skills = SKILL_BY_BRANCH.get(branch, [])
+                            for skill_obj in skills:
+                                skill_info = SKILL_OBJECTS.get(skill_obj, {})
+                                skill_name = skill_info.get("name_chinese", skill_obj)
+                                is_selected = current_skill == skill_obj
+                                
+                                if imgui.selectable(f"{skill_name}##{skill_obj}", is_selected)[0]:
+                                    hybrid.skill_object = skill_obj
+                        imgui.tree_pop()
+                
+                imgui.end_combo()
+            
+            imgui.pop_item_width()
+            
             if imgui.is_item_hovered():
-                imgui.set_tooltip("物品是否拥有可触发的主动技能")
-
-            if hybrid.has_active_skill:
-                imgui.same_line(spacing=20)
-                imgui.text("技能ID:")
-                imgui.same_line()
-                imgui.push_item_width(220)
-                current_skill_label = HYBRID_SKILL_IDS.get(hybrid.skill_id, f"自定义 ({hybrid.skill_id})")
-                if imgui.begin_combo("##skill_id_hybrid", current_skill_label):
-                    for skill_id, skill_label in HYBRID_SKILL_IDS.items():
-                        if imgui.selectable(skill_label, skill_id == hybrid.skill_id)[0]:
-                            hybrid.skill_id = skill_id
-                    imgui.end_combo()
-                imgui.pop_item_width()
-        else:
-            # 未勾选使用次数时，显示提示（重置已在使用次数区块集中处理）
-            self.text_secondary('（需要先勾选"拥有使用次数"才能设置主动技能）')
+                imgui.set_tooltip(
+                    "选择物品使用时释放的技能\n"
+                    "技能将以独立 CD 方式释放，不影响玩家已学技能的冷却"
+                )
+        
+        # ====== 原技能设置（已注释，保留用于兼容旧项目）======
+        # imgui.text("技能设置")
+        #
+        # if hybrid.has_charges:
+        #     changed, hybrid.has_active_skill = imgui.checkbox("拥有主动技能##hybrid", hybrid.has_active_skill)
+        #     if imgui.is_item_hovered():
+        #         imgui.set_tooltip("物品是否拥有可触发的主动技能")
+        #
+        #     if hybrid.has_active_skill:
+        #         imgui.same_line(spacing=20)
+        #         imgui.text("技能ID:")
+        #         imgui.same_line()
+        #         imgui.push_item_width(220)
+        #         current_skill_label = HYBRID_SKILL_IDS.get(hybrid.skill_id, f"自定义 ({hybrid.skill_id})")
+        #         if imgui.begin_combo("##skill_id_hybrid", current_skill_label):
+        #             for skill_id, skill_label in HYBRID_SKILL_IDS.items():
+        #                 if imgui.selectable(skill_label, skill_id == hybrid.skill_id)[0]:
+        #                     hybrid.skill_id = skill_id
+        #             imgui.end_combo()
+        #         imgui.pop_item_width()
+        # else:
+        #     # 未勾选使用次数时，显示提示（重置已在使用次数区块集中处理）
+        #     self.text_secondary('（需要先勾选"拥有使用次数"才能设置主动技能）')
 
         self.draw_indented_separator()
+
 
         # 使用次数
         imgui.text("使用次数")
@@ -1469,17 +1595,32 @@ class ModGeneratorGUI:
             changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
             if imgui.is_item_hovered():
                 imgui.set_tooltip("是否在物品图标上显示使用次数")
+            
+            # 使用次数恢复设置
+            changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("启用后，使用次数会随时间自动恢复")
+            
+            if hybrid.has_charge_recovery:
+                imgui.same_line(spacing=20)
+                imgui.text("恢复间隔 (回合):")
+                imgui.same_line()
+                imgui.push_item_width(120)
+                changed, hybrid.charge_recovery_interval = imgui.input_int("##recovery_interval", hybrid.charge_recovery_interval, step=1, step_fast=5)
+                if changed:
+                    hybrid.charge_recovery_interval = max(1, hybrid.charge_recovery_interval)
+                imgui.pop_item_width()
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("每隔多少回合恢复1次使用次数 (1回合=30秒)")
         else:
             # 未勾选使用次数时，清除所有依赖于使用次数的设置
             # 这样可以避免无效数据残留导致的bug
             hybrid.charge = 0
             hybrid.draw_charges = False
-            hybrid.has_active_skill = False
-            hybrid.skill_id = -4
+            hybrid.has_charge_recovery = False
+            hybrid.charge_recovery_interval = 10
             hybrid.duration_change = 0
             hybrid.delete_on_charge_zero = False
-            hybrid.has_cooldown = False
-            hybrid.cooldown_hours = 1
 
         self.draw_indented_separator()
 
@@ -1559,29 +1700,6 @@ class ModGeneratorGUI:
                     tip = HYBRID_DURABILITY_POLICIES.get(hybrid.durability_use_policy, "")
                     if tip:
                         imgui.set_tooltip(tip)
-
-        self.draw_indented_separator()
-
-        # 冷却（仅在拥有使用次数时可设置）
-        imgui.text("冷却设置")
-
-        if hybrid.has_charges:
-            changed, hybrid.has_cooldown = imgui.checkbox("拥有冷却##hybrid", hybrid.has_cooldown)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("使用后是否有冷却时间")
-
-            if hybrid.has_cooldown:
-                imgui.same_line(spacing=20)
-                imgui.text("冷却时间 (小时):")
-                imgui.same_line()
-                imgui.push_item_width(120)
-                changed, hybrid.cooldown_hours = imgui.input_int("##cd_hours", hybrid.cooldown_hours)
-                if changed:
-                    hybrid.cooldown_hours = max(1, hybrid.cooldown_hours)
-                imgui.pop_item_width()
-        else:
-            # 未勾选使用次数时，显示提示（重置已在使用次数区块集中处理）
-            self.text_secondary('（需要先勾选"拥有使用次数"才能设置冷却）')
 
         self.draw_indented_separator()
 

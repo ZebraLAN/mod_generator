@@ -798,6 +798,13 @@ HYBRID_QUALITY_LABELS = {
     7: "文物",
 }
 
+# 主动效果模式
+ACTIVE_EFFECT_MODES = {
+    "none": "无",
+    "consumable": "消耗品使用效果",
+    "skill": "技能释放",
+}
+
 # 混合物品武器类型
 HYBRID_WEAPON_TYPES = {
     "sword": "单手剑",
@@ -876,7 +883,7 @@ HYBRID_ARMOR_CLASSES = {
 }
 
 
-# 常用技能对象 ID
+# 常用技能对象 ID（旧版，保留兼容）
 HYBRID_SKILL_IDS = {
     -4: "无技能",
     6096: "修理工具使用 (o_skill_use_tinker)",
@@ -889,6 +896,13 @@ HYBRID_SKILL_IDS = {
     4509: "打开书籍 (o_open_book)",
     4510: "打开笔记 (o_open_note)",
     138: "灭火/倒水 (o_skill_douse)",
+}
+
+# 技能对象名称（用于技能释放模式）
+# 注意：由于游戏技能系统复杂，此列表仅供参考，用户需手动输入正确的技能对象名
+# 技能对象名可在游戏反编译代码中查找，格式如 o_skill_xxx
+HYBRID_SKILL_OBJECTS = {
+    # 留空，用户通过文本输入
 }
 
 # 混合物品音效选项
