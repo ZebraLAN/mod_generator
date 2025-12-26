@@ -908,7 +908,7 @@ popz.v"""
             lines.append("")
         
         # 耐久与删除
-        lines.append(f"duration_change = {item.duration_change};")
+        lines.append(f"duration_change = {item.wear_per_use};")
         lines.append(f"delete_after_use = {'true' if item.delete_on_charge_zero else 'false'};")
         lines.append("")
         
@@ -1009,28 +1009,53 @@ popz.v"""
                  
                  lines.append("}") # End if maxDuration
         
-        # 使用次数恢复逻辑
-        if item.has_charges and item.has_charge_recovery:
+        # 使用次数恢复逻辑（仅非无消耗模式）
+        if item.has_charges and item.has_charge_recovery and not item.is_unlimited_use:
             lines.append("")
-            lines.append("// 使用次数恢复")
-            lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
-            lines.append("if (!is_undefined(_lastTurn)) {")
-            lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
-            lines.append("    var _currentTurn = floor(_totalSec / 30);")
-            lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
-            lines.append("")
-            lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
-            lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
-            lines.append("        charge = min(max_charge, charge + _recoveries);")
-            lines.append('        ds_map_replace(data, "charge", charge);')
-            lines.append("")
-            lines.append("        if (charge >= max_charge) {")
-            lines.append('            ds_map_delete(data, "last_recovery_turn");')
-            lines.append("        } else {")
-            lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
-            lines.append("        }")
-            lines.append("    }")
-            lines.append("}")
+            
+            # 需求7：若设置了耐久与使用次数绑定且使用次数会自动恢复，则恢复耐久而非次数
+            if item.link_charges_to_durability and item.has_durability:
+                lines.append("// 使用次数恢复（恢复耐久，次数由耐久换算）")
+                lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
+                lines.append("if (!is_undefined(_lastTurn)) {")
+                lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+                lines.append("    var _currentTurn = floor(_totalSec / 30);")
+                lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
+                lines.append("")
+                lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
+                lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
+                lines.append(f"        var _durPerCharge = _maxDuration / {item.charge};")
+                lines.append('        var _dur = ds_map_find_value(data, "Duration");')
+                lines.append("        var _newDur = min(_maxDuration, _dur + (_recoveries * _durPerCharge));")
+                lines.append('        ds_map_replace(data, "Duration", _newDur);')
+                lines.append("")
+                lines.append("        if (_newDur >= _maxDuration) {")
+                lines.append('            ds_map_delete(data, "last_recovery_turn");')
+                lines.append("        } else {")
+                lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
+                lines.append("        }")
+                lines.append("    }")
+                lines.append("}")
+            else:
+                lines.append("// 使用次数恢复")
+                lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
+                lines.append("if (!is_undefined(_lastTurn)) {")
+                lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+                lines.append("    var _currentTurn = floor(_totalSec / 30);")
+                lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
+                lines.append("")
+                lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
+                lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
+                lines.append("        charge = min(max_charge, charge + _recoveries);")
+                lines.append('        ds_map_replace(data, "charge", charge);')
+                lines.append("")
+                lines.append("        if (charge >= max_charge) {")
+                lines.append('            ds_map_delete(data, "last_recovery_turn");')
+                lines.append("        } else {")
+                lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
+                lines.append("        }")
+                lines.append("    }")
+                lines.append("}")
         
         # 技能释放状态跟踪（仅技能模式有效）
         if item.active_effect_mode == "skill" and item.skill_object:
@@ -1334,15 +1359,13 @@ popz.v"""
         lines.append("    exit;")
         lines.append("")
         
-        # 耐久消耗前检查（阻止型）与前置变量
-        if item.has_durability and item.duration_change > 0:
+        # 耐久消耗前检查与前置变量
+        # 需求6：有耐久时允许设置磨损，但不阻止使用
+        if item.has_durability and item.wear_per_use > 0:
             lines.append("var _maxd = ds_map_find_value(data, \"MaxDuration\");")
-            lines.append(f"var _cost = (_maxd * {item.duration_change}) / 100;")
+            lines.append(f"var _cost = (_maxd * {item.wear_per_use}) / 100;")
             lines.append("if (_cost <= 0) _cost = 1;")
             lines.append("var _dur = ds_map_find_value(data, \"Duration\");")
-            if item.durability_use_policy == "allow_to_one":
-                lines.append("if (_dur <= 1)")
-                lines.append("    exit;")
             lines.append("")
         
         # ====== 根据模式生成不同的效果代码 ======
@@ -1458,7 +1481,8 @@ popz.v"""
             lines.append("")
         
             # 消耗品模式：充能和耐久扣减
-            if item.has_charges:
+            # 无消耗模式下跳过充能扣减
+            if item.has_charges and not item.is_unlimited_use:
                 lines.append("charge--;")
                 lines.append("ds_map_replace(data, \"charge\", charge);")
                 
@@ -1472,15 +1496,17 @@ popz.v"""
                     lines.append('    ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
                     lines.append("}")
             
-            # 耐久扣减与末次使用策略
-            if item.has_durability and item.duration_change > 0:
-                if item.durability_use_policy == "allow_to_one":
-                    lines.append("ds_map_replace(data, \"Duration\", max(1, _dur - _cost));")
-                else:  # destroy
+            # 耐久扣减（需求6：磨损不阻止使用）
+            if item.has_durability and item.wear_per_use > 0:
+                if item.destroy_on_durability_zero:
+                    # 需求5：耐久耗尽后删除
                     lines.append("if (_dur <= _cost)")
                     lines.append("    event_user(12);")
                     lines.append("else")
                     lines.append("    ds_map_replace(data, \"Duration\", _dur - _cost);")
+                else:
+                    # 保留1点耐久
+                    lines.append("ds_map_replace(data, \"Duration\", max(1, _dur - _cost));")
             
             lines.append("scr_allturn();")
             lines.append("scr_characterStatsConsumUse();")

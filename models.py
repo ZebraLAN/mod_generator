@@ -416,21 +416,22 @@ class HybridItem:
     has_passive: bool = False  # 是否有被动效果 (check_inventory_data)
     
     # ====== 使用次数 ======
-    has_charges: bool = False  # 是否有使用次数
-    charge: int = 0  # 使用次数
+    # has_charges 改为计算属性（见下方 property）
+    charge: int = 1  # 使用次数
     draw_charges: bool = False  # 是否绘制次数条
+    is_unlimited_use: bool = False  # 无消耗模式（次数固定为1，永不减少）
     
     # ====== 使用次数恢复 ======
     has_charge_recovery: bool = False  # 是否启用使用次数恢复
     charge_recovery_interval: int = 10  # 恢复间隔（回合数）
     
     # ====== 耐久系统 ======
-    has_durability: bool = False  # 是否有自定义耐久度
+    # has_durability 改为计算属性（见下方 property）
     duration_init: int = 100  # 初始耐久
     duration_max: int = 100  # 最大耐久
-    duration_change: int = 0  # 每次使用消耗百分比
-    durability_use_policy: str = "destroy"  # 使用耐久策略：allow_to_one/destroy
-    delete_on_charge_zero: bool = False  # 使用次数耗尽后是否删除（仅作用于 charge）
+    wear_per_use: int = 0  # 每次使用磨损耐久百分比
+    destroy_on_durability_zero: bool = True  # 耐久耗尽时是否删除物品
+    delete_on_charge_zero: bool = False  # 使用次数耗尽后是否删除（仅当有次数、无耐久、非文物时生效）
     durability_affects_stats: bool = False  # 耐久是否影响属性
     link_charges_to_durability: bool = False  # 次数与耐久挂钩
     
@@ -494,6 +495,16 @@ class HybridItem:
         if self.mark_as_weapon or self.init_weapon_stats:
             return "o_weapon_loot"
         return "o_consument_loot"
+    
+    @property
+    def has_durability(self) -> bool:
+        """品质非文物且物品类型为武器/护甲时自动有耐久"""
+        return self.quality != 7 and (self.init_weapon_stats or self.init_armor_stats)
+    
+    @property
+    def has_charges(self) -> bool:
+        """主动效果模式非'无'时自动有使用次数"""
+        return self.active_effect_mode != "none"
 
 
 # ============== 验证函数 ==============
@@ -777,16 +788,17 @@ class ModProject:
             "active_effect_mode": item.active_effect_mode,
             "skill_object": item.skill_object,
             "has_passive": item.has_passive,
-            "has_charges": item.has_charges,
+            # has_charges 现在是计算属性，不需要保存
             "charge": item.charge,
             "draw_charges": item.draw_charges,
+            "is_unlimited_use": item.is_unlimited_use,
             "has_charge_recovery": item.has_charge_recovery,
             "charge_recovery_interval": item.charge_recovery_interval,
-            "has_durability": item.has_durability,
+            # has_durability 现在是计算属性，不需要保存
             "duration_init": item.duration_init,
             "duration_max": item.duration_max,
-            "duration_change": item.duration_change,
-            "durability_use_policy": item.durability_use_policy,
+            "wear_per_use": item.wear_per_use,
+            "destroy_on_durability_zero": item.destroy_on_durability_zero,
             "delete_on_charge_zero": item.delete_on_charge_zero,
             "durability_affects_stats": item.durability_affects_stats,
             "link_charges_to_durability": item.link_charges_to_durability,
@@ -801,6 +813,7 @@ class ModProject:
             "consumable_attributes": item.consumable_attributes,
             "textures": self._serialize_textures(item.textures, project_dir),
         }
+
 
     def _serialize_textures(self, textures: ItemTextures, project_dir: str) -> dict:
         """序列化贴图数据"""
@@ -1013,7 +1026,19 @@ class ModProject:
         return item
 
     def _deserialize_hybrid_item(self, item_data: dict, project_dir: str) -> HybridItem:
-        """反序列化混合物品数据"""
+        """反序列化混合物品数据（支持旧版字段向后兼容）"""
+        
+        # 向后兼容：wear_per_use 旧名为 duration_change
+        wear_per_use = item_data.get("wear_per_use")
+        if wear_per_use is None:
+            wear_per_use = item_data.get("duration_change", 0)
+        
+        # 向后兼容：destroy_on_durability_zero 旧名为 durability_use_policy
+        destroy_on_durability_zero = item_data.get("destroy_on_durability_zero")
+        if destroy_on_durability_zero is None:
+            old_policy = item_data.get("durability_use_policy", "destroy")
+            destroy_on_durability_zero = (old_policy == "destroy")
+        
         item = HybridItem(
             name=item_data.get("name", ""),
             parent_object=item_data.get("parent_object", "o_inv_consum"),
@@ -1038,16 +1063,17 @@ class ModProject:
             active_effect_mode=item_data.get("active_effect_mode", "none"),
             skill_object=item_data.get("skill_object", ""),
             has_passive=item_data.get("has_passive", False),
-            has_charges=item_data.get("has_charges", False),
+            # has_charges 现在是计算属性，不需要加载
             charge=item_data.get("charge", 1),
             draw_charges=item_data.get("draw_charges", False),
+            is_unlimited_use=item_data.get("is_unlimited_use", False),
             has_charge_recovery=item_data.get("has_charge_recovery", False),
             charge_recovery_interval=item_data.get("charge_recovery_interval", 10),
-            has_durability=item_data.get("has_durability", False),
+            # has_durability 现在是计算属性，不需要加载
             duration_init=item_data.get("duration_init", 100),
             duration_max=item_data.get("duration_max", 100),
-            duration_change=item_data.get("duration_change", 0),
-            durability_use_policy=item_data.get("durability_use_policy", "destroy"),
+            wear_per_use=wear_per_use,
+            destroy_on_durability_zero=destroy_on_durability_zero,
             delete_on_charge_zero=item_data.get("delete_on_charge_zero", False),
             durability_affects_stats=item_data.get("durability_affects_stats", False),
             link_charges_to_durability=item_data.get("link_charges_to_durability", False),
@@ -1070,6 +1096,7 @@ class ModProject:
         )
         
         return item
+
 
     def load(self, file_path: str):
         """从文件加载项目"""

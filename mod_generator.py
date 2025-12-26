@@ -1574,65 +1574,76 @@ class ModGeneratorGUI:
         self.draw_indented_separator()
 
 
-        # 使用次数
-        imgui.text("使用次数")
-
-        changed, hybrid.has_charges = imgui.checkbox("拥有使用次数##hybrid", hybrid.has_charges)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("物品是否有使用次数限制")
-
+        # ====== 使用次数区块 ======
+        # has_charges 现在是计算属性（主动效果模式非"无"时自动有使用次数）
         if hybrid.has_charges:
-            imgui.same_line(spacing=20)
-            imgui.text("次数:")
-            imgui.same_line()
-            imgui.push_item_width(120)
-            changed, hybrid.charge = imgui.input_int("##charge_hybrid", hybrid.charge, step=1, step_fast=5)
-            if changed:
-                hybrid.charge = max(1, hybrid.charge)
-            imgui.pop_item_width()
-
-            imgui.same_line(spacing=20)
-            changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
+            imgui.text("使用次数设置")
             if imgui.is_item_hovered():
-                imgui.set_tooltip("是否在物品图标上显示使用次数")
+                imgui.set_tooltip("主动效果模式非\"无\"时自动拥有使用次数")
             
-            # 使用次数恢复设置
-            changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
+            # 无消耗模式
+            changed, hybrid.is_unlimited_use = imgui.checkbox("无消耗（次数永不减少）##hybrid", hybrid.is_unlimited_use)
             if imgui.is_item_hovered():
-                imgui.set_tooltip("启用后，使用次数会随时间自动恢复")
+                imgui.set_tooltip("启用后：\n• 使用次数固定为1\n• 使用后不减少\n• 禁用恢复相关设置")
             
-            if hybrid.has_charge_recovery:
+            if hybrid.is_unlimited_use:
+                # 无消耗模式下强制设置
+                hybrid.charge = 1
+                hybrid.has_charge_recovery = False
                 imgui.same_line(spacing=20)
-                imgui.text("恢复间隔 (回合):")
+                self.text_secondary("（次数固定为 1，永不减少）")
+            else:
+                # 正常模式：次数输入
+                imgui.same_line(spacing=20)
+                imgui.text("次数:")
                 imgui.same_line()
                 imgui.push_item_width(120)
-                changed, hybrid.charge_recovery_interval = imgui.input_int("##recovery_interval", hybrid.charge_recovery_interval, step=1, step_fast=5)
+                changed, hybrid.charge = imgui.input_int("##charge_hybrid", hybrid.charge, step=1, step_fast=5)
                 if changed:
-                    hybrid.charge_recovery_interval = max(1, hybrid.charge_recovery_interval)
+                    hybrid.charge = max(1, hybrid.charge)
                 imgui.pop_item_width()
+
+                imgui.same_line(spacing=20)
+                changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
                 if imgui.is_item_hovered():
-                    imgui.set_tooltip("每隔多少回合恢复1次使用次数 (1回合=30秒)")
+                    imgui.set_tooltip("是否在物品图标上显示使用次数")
+                
+                # 使用次数恢复设置（仅非无消耗模式）
+                changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("启用后，使用次数会随时间自动恢复")
+                
+                if hybrid.has_charge_recovery:
+                    imgui.same_line(spacing=20)
+                    imgui.text("恢复间隔 (回合):")
+                    imgui.same_line()
+                    imgui.push_item_width(120)
+                    changed, hybrid.charge_recovery_interval = imgui.input_int("##recovery_interval", hybrid.charge_recovery_interval, step=1, step_fast=5)
+                    if changed:
+                        hybrid.charge_recovery_interval = max(1, hybrid.charge_recovery_interval)
+                    imgui.pop_item_width()
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("每隔多少回合恢复1次使用次数 (1回合=30秒)")
+
+            self.draw_indented_separator()
         else:
-            # 未勾选使用次数时，清除所有依赖于使用次数的设置
-            # 这样可以避免无效数据残留导致的bug
-            hybrid.charge = 0
+            # 无使用次数时清除相关设置
+            hybrid.charge = 1
             hybrid.draw_charges = False
+            hybrid.is_unlimited_use = False
             hybrid.has_charge_recovery = False
             hybrid.charge_recovery_interval = 10
-            hybrid.duration_change = 0
+            hybrid.wear_per_use = 0
             hybrid.delete_on_charge_zero = False
+            hybrid.link_charges_to_durability = False
 
-        self.draw_indented_separator()
-
-        # 耐久
-        imgui.text("耐久设置")
-
-        changed, hybrid.has_durability = imgui.checkbox("拥有耐久##hybrid", hybrid.has_durability)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("物品是否有耐久度")
-
+        # ====== 耐久区块 ======
+        # has_durability 现在是计算属性（品质非文物且物品类型为武器/护甲时自动有耐久）
         if hybrid.has_durability:
-            imgui.same_line(spacing=20)
+            imgui.text("耐久设置")
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("武器类/护甲饰品类（非文物）自动拥有耐久度")
+            
             imgui.text("初始:")
             imgui.same_line()
             imgui.push_item_width(120)
@@ -1649,59 +1660,52 @@ class ModGeneratorGUI:
             if changed:
                 hybrid.duration_max = max(1, hybrid.duration_max)
             imgui.pop_item_width()
-
-        # 每次使用耐久消耗和耐久耗尽行为（仅在拥有使用次数时可设置）
-        # 每次使用耐久消耗和耐久耗尽行为（仅在拥有使用次数时可设置）
-        if hybrid.has_charges:
-            # 次数与耐久挂钩选项
-            if hybrid.has_durability:
-                changed, hybrid.link_charges_to_durability = imgui.checkbox("次数与耐久挂钩##hybrid", hybrid.link_charges_to_durability)
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("开启后：\n1. 每次使用消耗 = 总耐久 / 总使用次数\n2. 忽略下方'每次使用耐久消耗'设置\n3. 忽略'耐久耗尽行为'，改为由'次数用尽后删除'控制")
-                imgui.same_line(spacing=20)
             
-            # 如果未挂钩，显示常规耐久消耗设置
-            if not hybrid.link_charges_to_durability:
-                imgui.text("每次使用耐久消耗 (%):")
-                imgui.same_line()
-                imgui.push_item_width(120)
-                changed, hybrid.duration_change = imgui.input_int("##dur_change", hybrid.duration_change)
-                if changed:
-                    hybrid.duration_change = max(0, min(100, hybrid.duration_change))
-                imgui.pop_item_width()
-                
-                imgui.same_line(spacing=20)
-
-            # 次数用尽/耐久行为控制
-            # 如果挂钩：控制是归零删除还是留1耐久
-            # 如果未挂钩：控制charge归零是否删除物品
-            label = "次数用尽后删除##hybrid" if not hybrid.link_charges_to_durability else "耐久耗尽后删除物品##hybrid"
-            changed, hybrid.delete_on_charge_zero = imgui.checkbox(label, hybrid.delete_on_charge_zero)
+            # 需求5：有耐久时允许设置是否因耐久耗尽而消失
+            imgui.same_line(spacing=20)
+            changed, hybrid.destroy_on_durability_zero = imgui.checkbox("耐久耗尽后删除##hybrid", hybrid.destroy_on_durability_zero)
             if imgui.is_item_hovered():
-                if hybrid.link_charges_to_durability:
-                    imgui.set_tooltip("开启：最后一次使用后删除物品\n关闭：最后一次使用后保留1点耐久")
-                else:
-                    imgui.set_tooltip("仅作用于使用次数 charge；耐久耗尽由耐久策略决定")
+                imgui.set_tooltip("开启：耐久归零时删除物品\n关闭：耐久最低保留1点")
 
-            if hybrid.has_durability and not hybrid.link_charges_to_durability:
-                if hybrid.durability_use_policy not in HYBRID_DURABILITY_POLICIES:
-                    hybrid.durability_use_policy = "destroy"
-                imgui.text("耐久耗尽行为:")
-                imgui.same_line()
-                imgui.push_item_width(250)
-                hybrid.durability_use_policy = self._draw_enum_combo(
-                    "##dur_policy",
-                    hybrid.durability_use_policy,
-                    list(HYBRID_DURABILITY_POLICIES.keys()),
-                    HYBRID_DURABILITY_POLICIES,
-                )
-                imgui.pop_item_width()
+            # 需求6 & 7：有耐久且有使用次数时的额外设置
+            if hybrid.has_charges and not hybrid.is_unlimited_use:
+                # 需求7：次数与耐久绑定（放在前面，影响 wear_per_use 显示）
+                changed, hybrid.link_charges_to_durability = imgui.checkbox("次数与耐久绑定##hybrid", hybrid.link_charges_to_durability)
                 if imgui.is_item_hovered():
-                    tip = HYBRID_DURABILITY_POLICIES.get(hybrid.durability_use_policy, "")
-                    if tip:
-                        imgui.set_tooltip(tip)
+                    tip = "开启后：\n• 使用次数由剩余耐久换算\n• 每次使用自动消耗 (100/总次数)% 耐久"
+                    if hybrid.has_charge_recovery:
+                        tip += "\n• 恢复时改为恢复相应耐久"
+                    imgui.set_tooltip(tip)
+                
+                # 绑定模式下自动计算 wear_per_use
+                if hybrid.link_charges_to_durability:
+                    if hybrid.charge > 0:
+                        hybrid.wear_per_use = round(100 / hybrid.charge)
+                    imgui.same_line(spacing=20)
+                    self.text_secondary(f"（每次使用磨损 {hybrid.wear_per_use}%）")
+                else:
+                    # 需求6：磨损设置（每次使用造成耐久消耗）
+                    imgui.same_line(spacing=20)
+                    imgui.text("每次使用磨损耐久 (%):")
+                    imgui.same_line()
+                    imgui.push_item_width(120)
+                    changed, hybrid.wear_per_use = imgui.input_int("##wear_per_use", hybrid.wear_per_use)
+                    if changed:
+                        hybrid.wear_per_use = max(0, min(100, hybrid.wear_per_use))
+                    imgui.pop_item_width()
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("每次使用消耗最大耐久的百分比\n无论耐久是否低于消耗都不阻止使用\n物品是否消失取决于\"耐久耗尽后删除\"设置")
 
-        self.draw_indented_separator()
+            self.draw_indented_separator()
+
+        # ====== 需求4：次数耗尽删除物品 ======
+        # 条件：有使用次数、未设置无消耗、没有耐久、非文物
+        if hybrid.has_charges and not hybrid.is_unlimited_use and not hybrid.has_durability and hybrid.quality != 7:
+            changed, hybrid.delete_on_charge_zero = imgui.checkbox("次数耗尽后删除物品##hybrid", hybrid.delete_on_charge_zero)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("开启：使用次数归零时删除物品\n关闭：保留物品（可能需要修理或其他方式恢复次数）")
+            self.draw_indented_separator()
+
 
         # 音效（使用下拉选项）
         imgui.text("音效设置")
