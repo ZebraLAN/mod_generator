@@ -666,21 +666,15 @@ popz.v"""
         loot_sprite = f"s_loot_{item.id}"
         loot_parent = item.get_loot_parent()
         
-        # 确定材质（武器用 material，护甲用 armor_material，否则默认 organic）
-        if item.init_weapon_stats:
+        # 确定材质（武器和护甲共用 material）
+        if item.init_weapon_stats or item.init_armor_stats:
             mat = item.material.lower()
-        elif item.init_armor_stats:
-            mat = item.armor_material.lower()
         else:
             mat = "organic"
         
-        # 确定 Weight（护甲由 armor_class 自动推断，其他使用用户设置）
+        # 确定 Weight（用户设置，护甲类别由 weight 决定）
         # 注意：ItemStatsWeight 枚举使用 PascalCase (Light, Medium, VeryLight, Heavy)
-        from constants import ARMOR_CLASS_TO_WEIGHT
-        if item.init_armor_stats:
-            weight_value = ARMOR_CLASS_TO_WEIGHT.get(item.armor_class, "Light")
-        else:
-            weight_value = item.weight
+        weight_value = item.weight
         
         # 确定 tier 映射
         tier_map = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
@@ -889,8 +883,8 @@ popz.v"""
         # 使用次数
         if item.has_charges:
             lines.append("// 使用次数")
-            lines.append(f"charge = {item.charge};")
-            lines.append(f"max_charge = {item.charge};")
+            lines.append(f"charge = {item.effective_charge};")
+            lines.append(f"max_charge = {item.effective_charge};")
             lines.append(f"draw_charges = {'true' if item.draw_charges else 'false'};")
             lines.append("")
             
@@ -985,77 +979,56 @@ popz.v"""
              lines.append('    ds_map_replace(data, "Duration", _maxDuration);')
              lines.append("}")
 
-             # 关联次数逻辑
-             if item.has_charges and item.link_charges_to_durability:
+             # 关联次数逻辑（linked 模式下验证层已确保 has_durability 为 true）
+             if item.charge_mode == "linked":
                  lines.append("")
                  lines.append("// 次数与耐久挂钩：自动更新 charge")
-                 lines.append("if (_maxDuration > 1) {")
+                 lines.append(f"charge = floor((_duration / _maxDuration) * {item.effective_charge});")
                  
                  if item.delete_on_charge_zero:
-                     # 开启删除：0耐久 = 0次数 = 删除
-                     lines.append(f"    charge = ceil((_duration / _maxDuration) * {item.charge});")
-                     lines.append("    // 0久时删除")
-                     lines.append("    if (_duration <= 0) {")
-                     lines.append("        event_user(12); // 删除事件")
-                     lines.append("    }")
-                 else:
-                     # 不删除：保留1耐久
-                     # 确保 dur >= 1
-                     lines.append("    if (_duration < 1) {")
-                     lines.append('        ds_map_replace(data, "Duration", 1);')
-                     lines.append("        _duration = 1;")
-                     lines.append("    }")
-                     lines.append(f"    charge = ceil(((_duration - 1) / (_maxDuration - 1)) * {item.charge});")
-                 
-                 lines.append("}") # End if maxDuration
+                     lines.append("// 0耐久时删除")
+                     lines.append("if (_duration <= 0)")
+                     lines.append("    event_user(12);")
         
         # 使用次数恢复逻辑（仅非无消耗模式）
-        if item.has_charges and item.has_charge_recovery and not item.is_unlimited_use:
+        if item.has_charge_recovery and not item.is_unlimited_use:
             lines.append("")
             
-            # 需求7：若设置了耐久与使用次数绑定且使用次数会自动恢复，则恢复耐久而非次数
-            if item.link_charges_to_durability and item.has_durability:
-                lines.append("// 使用次数恢复（恢复耐久，次数由耐久换算）")
-                lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
-                lines.append("if (!is_undefined(_lastTurn)) {")
-                lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
-                lines.append("    var _currentTurn = floor(_totalSec / 30);")
-                lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
-                lines.append("")
-                lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
-                lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
-                lines.append(f"        var _durPerCharge = _maxDuration / {item.charge};")
+            # 公共的回合计算逻辑
+            lines.append("// 使用次数恢复")
+            if item.charge_mode == "linked":
+                lines.append("// （恢复耐久，次数由耐久换算）")
+            lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
+            lines.append("if (!is_undefined(_lastTurn)) {")
+            lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+            lines.append("    var _currentTurn = floor(_totalSec / 30);")
+            lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
+            lines.append("")
+            lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
+            lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
+            
+            # 恢复方式分歧
+            if item.charge_mode == "linked":
+                lines.append(f"        var _durPerCharge = _maxDuration / {item.effective_charge};")
                 lines.append('        var _dur = ds_map_find_value(data, "Duration");')
-                lines.append("        var _newDur = min(_maxDuration, _dur + (_recoveries * _durPerCharge));")
-                lines.append('        ds_map_replace(data, "Duration", _newDur);')
-                lines.append("")
-                lines.append("        if (_newDur >= _maxDuration) {")
-                lines.append('            ds_map_delete(data, "last_recovery_turn");')
-                lines.append("        } else {")
-                lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
-                lines.append("        }")
-                lines.append("    }")
-                lines.append("}")
+                lines.append("        var _newVal = min(_maxDuration, _dur + (_recoveries * _durPerCharge));")
+                lines.append('        ds_map_replace(data, "Duration", _newVal);')
+                max_val = "_maxDuration"
             else:
-                lines.append("// 使用次数恢复")
-                lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
-                lines.append("if (!is_undefined(_lastTurn)) {")
-                lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
-                lines.append("    var _currentTurn = floor(_totalSec / 30);")
-                lines.append("    var _turnsPassed = _currentTurn - _lastTurn;")
-                lines.append("")
-                lines.append(f"    if (_turnsPassed >= {item.charge_recovery_interval}) {{")
-                lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
-                lines.append("        charge = min(max_charge, charge + _recoveries);")
+                lines.append("        var _newVal = min(max_charge, charge + _recoveries);")
+                lines.append("        charge = _newVal;")
                 lines.append('        ds_map_replace(data, "charge", charge);')
-                lines.append("")
-                lines.append("        if (charge >= max_charge) {")
-                lines.append('            ds_map_delete(data, "last_recovery_turn");')
-                lines.append("        } else {")
-                lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
-                lines.append("        }")
-                lines.append("    }")
-                lines.append("}")
+                max_val = "max_charge"
+            
+            # 公共的满值检测和回合更新
+            lines.append("")
+            lines.append(f"        if (_newVal >= {max_val}) {{")
+            lines.append('            ds_map_delete(data, "last_recovery_turn");')
+            lines.append("        } else {")
+            lines.append(f'            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));')
+            lines.append("        }")
+            lines.append("    }")
+            lines.append("}")
         
         # 技能释放状态跟踪（仅技能模式有效）
         if item.active_effect_mode == "skill" and item.skill_object:
@@ -1076,25 +1049,25 @@ popz.v"""
             lines.append("    }")
             lines.append("")
             lines.append("    if (_should_cleanup) {")
-            if item.has_charges:
-                lines.append("        // 仅成功执行时扣减充能")
-                lines.append("        if (_was_successful) {")
-                lines.append("            charge--;")
-                lines.append('            ds_map_replace(data, "charge", charge);')
-                if item.has_charge_recovery:
-                    lines.append("")
-                    lines.append("            // 记录恢复起始回合")
-                    lines.append('            var _lastRecTurn = ds_map_find_value(data, "last_recovery_turn");')
-                    lines.append("            if (is_undefined(_lastRecTurn)) {")
-                    lines.append('                var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
-                    lines.append('                ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
-                    lines.append("            }")
-                if item.delete_on_charge_zero:
-                    lines.append("")
-                    lines.append("            // 充能耗尽后删除")
-                    lines.append("            if (charge <= 0)")
-                    lines.append("                event_user(12);")
-                lines.append("        }")
+            # 技能模式下 has_charges 必定为 true，无需再判断
+            lines.append("        // 仅成功执行时扣减充能")
+            lines.append("        if (_was_successful) {")
+            lines.append("            charge--;")
+            lines.append('            ds_map_replace(data, "charge", charge);')
+            if item.has_charge_recovery:
+                lines.append("")
+                lines.append("            // 记录恢复起始回合")
+                lines.append('            var _lastRecTurn = ds_map_find_value(data, "last_recovery_turn");')
+                lines.append("            if (is_undefined(_lastRecTurn)) {")
+                lines.append('                var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
+                lines.append('                ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
+                lines.append("            }")
+            if item.delete_on_charge_zero:
+                lines.append("")
+                lines.append("            // 充能耗尽后删除")
+                lines.append("            if (charge <= 0)")
+                lines.append("                event_user(12);")
+            lines.append("        }")
             lines.append("")
             lines.append("        // 销毁技能实例")
             lines.append('        var _active_ico = ds_map_find_value(data, "_active_ico");')
@@ -1120,7 +1093,7 @@ popz.v"""
         
         # 耐久初始化
         if item.has_durability:
-            lines.append(f"    ds_map_replace(data, \"Duration\", {item.duration_init});")
+            lines.append(f"    ds_map_replace(data, \"Duration\", {item.duration_max});  // 初始=最大")
             lines.append(f"    ds_map_replace(data, \"MaxDuration\", {item.duration_max});")
         
         # 武器伤害初始化（伤害来自 attributes 的伤害键；DMG=总和，DamageType=最大伤类型）
@@ -1130,7 +1103,7 @@ popz.v"""
             lines.append("    var _main = ds_map_find_value(data, \"Main\");")
             damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
             total_dmg = sum(v for _, v in damage_components) if damage_components else 0
-            best_type = item.damage_type or "Slashing_Damage"
+            best_type = "Slashing_Damage"  # 默认伤害类型
             if damage_components:
                 max_val = max(v for _, v in damage_components)
                 ties = [t for t, v in damage_components if v == max_val]
@@ -1142,18 +1115,19 @@ popz.v"""
             lines.append(f"    ds_map_add(data, \"DMG\", {total_dmg});")
             lines.append(f'    DamageType = \"{best_type}\";')
             
-            # 武器属性（非伤害键）
-            if item.weapon_range > 1:
-                lines.append(f'    ds_map_add(data, \"Range\", {item.weapon_range});')
-            
+            # 武器属性（非伤害键，Range 特殊处理写入 Rng 和 Range）
             for attr, value in item.attributes.items():
                 if value != 0 and attr not in DAMAGE_ATTRIBUTES:
-                    lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
+                    if attr == "Range":
+                        # Range 属性同时写入 Rng 和 Range
+                        lines.append(f'    ds_map_add(data, \"Rng\", {value});')
+                        lines.append(f'    ds_map_add(data, \"Range\", {value});')
+                    else:
+                        lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
             
             lines.append("")
             lines.append("    // 武器元数据")
             lines.append('    ds_map_add(data, \"Metatype\", \"Weapon\");')
-            lines.append("    ds_map_add(data, \"Material\", Material);")
         
         # 护甲属性初始化
         if item.init_armor_stats:
@@ -1161,19 +1135,19 @@ popz.v"""
             lines.append("    // 护甲属性初始化")
             lines.append("    var _mainArmor = ds_map_find_value(data, \"Main\");")
             
-            if item.defense > 0:
-                lines.append(f'    ds_map_add(data, \"DEF\", {item.defense});')
-                lines.append(f'    ds_list_add(_mainArmor, \"DEF\", {item.defense});')
-            
-            # 添加属性
+            # 添加属性（DEF 特殊处理：同时写入 _mainArmor 列表）
             for attr, value in item.attributes.items():
                 if value != 0:
-                    lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
+                    if attr == "DEF":
+                        # DEF 同时添加到 data map 和 Main list
+                        lines.append(f'    ds_map_add(data, \"DEF\", {value});')
+                        lines.append(f'    ds_list_add(_mainArmor, \"DEF\", {value});')
+                    else:
+                        lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
             
             lines.append("")
             lines.append("    // 护甲元数据")
             lines.append('    ds_map_add(data, \"Metatype\", \"Armor\");')
-            lines.append("    ds_map_add(data, \"Material\", Material);")
             lines.append("    ds_map_add(data, \"Armor_Type\", Weight);")
             if item.quality != 7:  # 非文物
                 lines.append(f'    ds_map_add(data, \"Tier\", {item.tier});')
@@ -1480,9 +1454,9 @@ popz.v"""
             lines.append("    scr_guiAnimation(o_b_gamekeeper_brew, 1, 1, 0);")
             lines.append("")
         
-            # 消耗品模式：充能和耐久扣减
+            # 消耗品模式：充能和耐久扣减（has_charges 在此代码路径必定为 true）
             # 无消耗模式下跳过充能扣减
-            if item.has_charges and not item.is_unlimited_use:
+            if not item.is_unlimited_use:
                 lines.append("charge--;")
                 lines.append("ds_map_replace(data, \"charge\", charge);")
                 
@@ -1505,8 +1479,8 @@ popz.v"""
                     lines.append("else")
                     lines.append("    ds_map_replace(data, \"Duration\", _dur - _cost);")
                 else:
-                    # 保留1点耐久
-                    lines.append("ds_map_replace(data, \"Duration\", max(1, _dur - _cost));")
+                    # 0耐久不删除，允许0耐久
+                    lines.append("ds_map_replace(data, \"Duration\", max(0, _dur - _cost));")
             
             lines.append("scr_allturn();")
             lines.append("scr_characterStatsConsumUse();")
@@ -1515,8 +1489,8 @@ popz.v"""
             lines.append("    scr_noise_produce(scr_noise_food(), grid_x, grid_y);")
             lines.append("")
             
-            # 充能耗尽后的处理（仅在开启使用次数且开启用尽删除时生成）
-            if item.has_charges and item.delete_on_charge_zero:
+            # 充能耗尽后的处理（仅在开启用尽删除时生成，has_charges 必定为 true）
+            if item.delete_on_charge_zero:
                 lines.append("// 充能耗尽后的处理")
                 lines.append("if (charge <= 0)")
                 lines.append("    event_user(12);")

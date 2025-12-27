@@ -1399,14 +1399,13 @@ class ModGeneratorGUI:
         type_labels = ["无 (纯消耗品)", "武器类", "护甲饰品类", "被动类"]
         
         # 使用 radio_button 实现单选
+        EQUIPMENT_MODES = ["none", "weapon", "armor", "passive"]
         for i, label in enumerate(type_labels):
             if i > 0:
                 imgui.same_line(spacing=15)
             if imgui.radio_button(f"{label}##hybrid_type", current_type == i):
-                # 更新类型状态
-                hybrid.init_weapon_stats = (i == 1)
-                hybrid.init_armor_stats = (i == 2)
-                hybrid.has_passive = (i == 3)
+                # 更新装备模式
+                hybrid.equipment_mode = EQUIPMENT_MODES[i]
                 
                 # 自动推断装备设置
                 if i == 1:  # 武器类
@@ -1421,12 +1420,10 @@ class ModGeneratorGUI:
                     else:
                         hybrid.slot = hybrid.armor_type
                 else:  # 纯消耗品(i==0) 或 被动类(i==3)
-                    hybrid.equipable = False
+                    # equipable 现在是计算属性，无需手动设置
                     hybrid.slot = "heal"
         
-        # 自动设置 is_weapon（不向用户显示）
-        # is_weapon = true 当且仅当是武器类型且槽位为手持
-        hybrid.mark_as_weapon = hybrid.init_weapon_stats and hybrid.slot == "hand"
+        # is_weapon/mark_as_weapon 现在是计算属性，无需手动设置
 
         self.draw_indented_separator()
 
@@ -1574,6 +1571,53 @@ class ModGeneratorGUI:
         self.draw_indented_separator()
 
 
+        # ====== 耐久区块（放在使用次数之前）======
+        # has_durability 现在是计算属性（品质非文物且物品类型为武器/护甲时自动有耐久）
+        if hybrid.has_durability:
+            imgui.text("耐久设置")
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("武器类/护甲饰品类（非文物）自动拥有耐久度")
+            
+            # duration_init 已删除，初始耐久固定等于最大耐久
+            imgui.text("最大耐久:")
+            imgui.same_line()
+            imgui.push_item_width(120)
+            changed, hybrid.duration_max = imgui.input_int("##dur_max", hybrid.duration_max)
+            if changed:
+                hybrid.duration_max = max(1, hybrid.duration_max)
+            imgui.pop_item_width()
+            
+            # 耐久耗尽后删除
+            imgui.same_line(spacing=20)
+            changed, hybrid.destroy_on_durability_zero = imgui.checkbox("耐久耗尽后删除##hybrid", hybrid.destroy_on_durability_zero)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("开启：耐久归零时删除物品\n关闭：允许0耐久")
+
+            # 磨损设置（固定在耐久区块，所有模式都在这里设置）
+            if hybrid.has_charges:
+                imgui.text("每次使用磨损耐久 (%):")
+                imgui.same_line()
+                imgui.push_item_width(120)
+                changed, hybrid.wear_per_use = imgui.input_int("##wear_per_use", hybrid.wear_per_use)
+                if changed:
+                    # linked 模式下最小为1，normal 模式可为0
+                    min_wear = 1 if hybrid.charge_mode == "linked" else 0
+                    hybrid.wear_per_use = max(min_wear, min(100, hybrid.wear_per_use))
+                imgui.pop_item_width()
+                
+                # linked 模式下显示计算出的最大次数
+                if hybrid.charge_mode == "linked":
+                    computed_charge = hybrid.effective_charge
+                    imgui.same_line(spacing=10)
+                    self.text_secondary(f"→ 最大 {computed_charge} 次")
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip(f"最大使用次数 = floor(100 / {hybrid.wear_per_use}) = {computed_charge}\n（次数与耐久挂钩模式）")
+                else:
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip("每次使用消耗最大耐久的百分比\n无论耐久是否低于消耗都不阻止使用\n物品是否消失取决于\"耐久耗尽后删除\"设置")
+
+            self.draw_indented_separator()
+
         # ====== 使用次数区块 ======
         # has_charges 现在是计算属性（主动效果模式非"无"时自动有使用次数）
         if hybrid.has_charges:
@@ -1581,18 +1625,57 @@ class ModGeneratorGUI:
             if imgui.is_item_hovered():
                 imgui.set_tooltip("主动效果模式非\"无\"时自动拥有使用次数")
             
-            # 无消耗模式
-            changed, hybrid.is_unlimited_use = imgui.checkbox("无消耗（次数永不减少）##hybrid", hybrid.is_unlimited_use)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("启用后：\n• 使用次数固定为1\n• 使用后不减少\n• 禁用恢复相关设置")
+            # 充能消耗模式下拉选择器
+            imgui.text("消耗模式:")
+            imgui.same_line()
+            imgui.push_item_width(180)
             
-            if hybrid.is_unlimited_use:
-                # 无消耗模式下强制设置
+            # 构建可用模式列表
+            mode_options = ["normal", "unlimited"]
+            mode_labels = {"normal": "正常消耗", "unlimited": "无消耗"}
+            
+            # 只有当物品有耐久时才显示"与耐久挂钩"选项
+            if hybrid.has_durability:
+                mode_options.append("linked")
+                mode_labels["linked"] = "与耐久挂钩"
+            
+            current_mode_label = mode_labels.get(hybrid.charge_mode, "正常消耗")
+            if imgui.begin_combo("##charge_mode", current_mode_label):
+                for mode_key in mode_options:
+                    is_selected = hybrid.charge_mode == mode_key
+                    if imgui.selectable(mode_labels[mode_key], is_selected)[0]:
+                        hybrid.charge_mode = mode_key
+                        # 切换到 linked 模式时，确保 wear_per_use >= 1
+                        if mode_key == "linked" and hybrid.wear_per_use < 1:
+                            hybrid.wear_per_use = 10  # 默认10%
+                imgui.end_combo()
+            imgui.pop_item_width()
+            
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(
+                    "• 正常消耗：每次使用减少1次\n"
+                    "• 无消耗：次数永不减少（固定为1次）\n"
+                    "• 与耐久挂钩：次数由耐久度和磨损%计算\n"
+                    "  (仅武器/护甲类可选)"
+                )
+            
+            # 根据模式显示不同的设置
+            if hybrid.charge_mode == "unlimited":
+                # 无消耗模式：强制设置
                 hybrid.charge = 1
                 hybrid.has_charge_recovery = False
                 imgui.same_line(spacing=20)
                 self.text_secondary("（次数固定为 1，永不减少）")
-            else:
+                
+            elif hybrid.charge_mode == "linked":
+                # 与耐久挂钩模式：显示计算出的最大次数
+                computed_charge = hybrid.effective_charge
+                imgui.same_line(spacing=20)
+                imgui.text(f"最大次数: {computed_charge}")
+                imgui.same_line(spacing=10)
+                self.text_secondary("（由耐久设置区的磨损%计算）")
+                
+            else:  # normal 模式
                 # 正常模式：次数输入
                 imgui.same_line(spacing=20)
                 imgui.text("次数:")
@@ -1603,15 +1686,19 @@ class ModGeneratorGUI:
                     hybrid.charge = max(1, hybrid.charge)
                 imgui.pop_item_width()
 
-                imgui.same_line(spacing=20)
-                changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("是否在物品图标上显示使用次数")
-                
-                # 使用次数恢复设置（仅非无消耗模式）
+            imgui.same_line(spacing=20)
+            changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
+            if imgui.is_item_hovered():
+                imgui.set_tooltip("是否在物品图标上显示使用次数")
+            
+            # 使用次数恢复设置（无消耗模式下不可用）
+            if hybrid.charge_mode != "unlimited":
                 changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
                 if imgui.is_item_hovered():
-                    imgui.set_tooltip("启用后，使用次数会随时间自动恢复")
+                    tip = "启用后，使用次数会随时间自动恢复"
+                    if hybrid.charge_mode == "linked":
+                        tip += "\n（实际恢复的是耐久度）"
+                    imgui.set_tooltip(tip)
                 
                 if hybrid.has_charge_recovery:
                     imgui.same_line(spacing=20)
@@ -1630,77 +1717,15 @@ class ModGeneratorGUI:
             # 无使用次数时清除相关设置
             hybrid.charge = 1
             hybrid.draw_charges = False
-            hybrid.is_unlimited_use = False
+            hybrid.charge_mode = "normal"
             hybrid.has_charge_recovery = False
             hybrid.charge_recovery_interval = 10
             hybrid.wear_per_use = 0
             hybrid.delete_on_charge_zero = False
-            hybrid.link_charges_to_durability = False
 
-        # ====== 耐久区块 ======
-        # has_durability 现在是计算属性（品质非文物且物品类型为武器/护甲时自动有耐久）
-        if hybrid.has_durability:
-            imgui.text("耐久设置")
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("武器类/护甲饰品类（非文物）自动拥有耐久度")
-            
-            imgui.text("初始:")
-            imgui.same_line()
-            imgui.push_item_width(120)
-            changed, hybrid.duration_init = imgui.input_int("##dur_init", hybrid.duration_init)
-            if changed:
-                hybrid.duration_init = max(1, hybrid.duration_init)
-            imgui.pop_item_width()
-
-            imgui.same_line(spacing=10)
-            imgui.text("最大:")
-            imgui.same_line()
-            imgui.push_item_width(120)
-            changed, hybrid.duration_max = imgui.input_int("##dur_max", hybrid.duration_max)
-            if changed:
-                hybrid.duration_max = max(1, hybrid.duration_max)
-            imgui.pop_item_width()
-            
-            # 需求5：有耐久时允许设置是否因耐久耗尽而消失
-            imgui.same_line(spacing=20)
-            changed, hybrid.destroy_on_durability_zero = imgui.checkbox("耐久耗尽后删除##hybrid", hybrid.destroy_on_durability_zero)
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("开启：耐久归零时删除物品\n关闭：耐久最低保留1点")
-
-            # 需求6 & 7：有耐久且有使用次数时的额外设置
-            if hybrid.has_charges and not hybrid.is_unlimited_use:
-                # 需求7：次数与耐久绑定（放在前面，影响 wear_per_use 显示）
-                changed, hybrid.link_charges_to_durability = imgui.checkbox("次数与耐久绑定##hybrid", hybrid.link_charges_to_durability)
-                if imgui.is_item_hovered():
-                    tip = "开启后：\n• 使用次数由剩余耐久换算\n• 每次使用自动消耗 (100/总次数)% 耐久"
-                    if hybrid.has_charge_recovery:
-                        tip += "\n• 恢复时改为恢复相应耐久"
-                    imgui.set_tooltip(tip)
-                
-                # 绑定模式下自动计算 wear_per_use
-                if hybrid.link_charges_to_durability:
-                    if hybrid.charge > 0:
-                        hybrid.wear_per_use = round(100 / hybrid.charge)
-                    imgui.same_line(spacing=20)
-                    self.text_secondary(f"（每次使用磨损 {hybrid.wear_per_use}%）")
-                else:
-                    # 需求6：磨损设置（每次使用造成耐久消耗）
-                    imgui.same_line(spacing=20)
-                    imgui.text("每次使用磨损耐久 (%):")
-                    imgui.same_line()
-                    imgui.push_item_width(120)
-                    changed, hybrid.wear_per_use = imgui.input_int("##wear_per_use", hybrid.wear_per_use)
-                    if changed:
-                        hybrid.wear_per_use = max(0, min(100, hybrid.wear_per_use))
-                    imgui.pop_item_width()
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip("每次使用消耗最大耐久的百分比\n无论耐久是否低于消耗都不阻止使用\n物品是否消失取决于\"耐久耗尽后删除\"设置")
-
-            self.draw_indented_separator()
-
-        # ====== 需求4：次数耗尽删除物品 ======
-        # 条件：有使用次数、未设置无消耗、没有耐久、非文物
-        if hybrid.has_charges and not hybrid.is_unlimited_use and not hybrid.has_durability and hybrid.quality != 7:
+        # ====== 次数耗尽删除物品 ======
+        # 条件：有使用次数、非无消耗模式、没有耐久、非文物
+        if hybrid.has_charges and hybrid.charge_mode != "unlimited" and not hybrid.has_durability and hybrid.quality != 7:
             changed, hybrid.delete_on_charge_zero = imgui.checkbox("次数耗尽后删除物品##hybrid", hybrid.delete_on_charge_zero)
             if imgui.is_item_hovered():
                 imgui.set_tooltip("开启：使用次数归零时删除物品\n关闭：保留物品（可能需要修理或其他方式恢复次数）")
@@ -1758,17 +1783,6 @@ class ModGeneratorGUI:
         two_handed_types = {"2hsword", "2haxe", "2hmace", "2hStaff", "bow", "crossbow", "spear"}
         hybrid.hands = 2 if hybrid.weapon_type in two_handed_types else 1
 
-        # 伤害汇总（不区分主/额外，全部在属性里填）
-        damage_components = self._compute_weapon_damage_components(hybrid)
-        total_dmg = sum(v for _, v in damage_components)
-        max_val = max([v for _, v in damage_components], default=0)
-        ties = [t for t, v in damage_components if v == max_val and v > 0]
-        best_type = ties[0] if ties else (hybrid.damage_type or "Slashing_Damage")
-        hybrid.damage_type = best_type  # 仅作为生成时的占位标记
-        dmg_label_map = HYBRID_DAMAGE_TYPES
-        dmg_type_label = dmg_label_map.get(best_type, best_type)
-        imgui.text(f"伤害汇总: DMG={total_dmg}  主类型={dmg_type_label}（自动取最高伤害类型）")
-
         imgui.text("材料")
         hybrid.material = self._draw_enum_combo(
             "##wep_mat",
@@ -1788,19 +1802,22 @@ class ModGeneratorGUI:
 
         imgui.text("平衡")
         changed, hybrid.balance = imgui.input_int("##wep_balance", hybrid.balance)
+        if changed:
+            hybrid.balance = max(1, hybrid.balance)  # 最小值为1
 
         imgui.pop_item_width()
         imgui.columns(1)
+        # weapon_range 字段已删除，Range 通过属性编辑器设置
 
-        imgui.text("攻击范围:")
-        imgui.same_line()
-        imgui.push_item_width(80)
-        changed, hybrid.weapon_range = imgui.input_int("##wep_range", hybrid.weapon_range)
-        if changed:
-            hybrid.weapon_range = max(1, hybrid.weapon_range)
-        imgui.pop_item_width()
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("攻击距离 (格数)")
+        # 伤害汇总（放在区块底部，单独占一行）
+        damage_components = self._compute_weapon_damage_components(hybrid)
+        total_dmg = sum(v for _, v in damage_components)
+        max_val = max([v for _, v in damage_components], default=0)
+        ties = [t for t, v in damage_components if v == max_val and v > 0]
+        best_type = ties[0] if ties else "Slashing_Damage"  # 默认伤害类型
+        dmg_label_map = HYBRID_DAMAGE_TYPES
+        dmg_type_label = dmg_label_map.get(best_type, best_type)
+        self.text_secondary(f"伤害汇总: DMG={total_dmg}  主类型={dmg_type_label}（自动取最高伤害类型）")
 
     def _draw_hybrid_armor_settings(self, hybrid: HybridItem):
         """绘制混合物品护甲设置"""
@@ -1822,9 +1839,10 @@ class ModGeneratorGUI:
         hybrid.slot = "hand" if hybrid.armor_type == "shield" else hybrid.armor_type
 
         imgui.text("护甲材料")
-        hybrid.armor_material = self._draw_enum_combo(
+        # armor_material 已删除，使用 material（武器和护甲共用）
+        hybrid.material = self._draw_enum_combo(
             "##armor_mat",
-            hybrid.armor_material,
+            hybrid.material,
             list(HYBRID_ARMOR_MATERIALS.keys()),
             HYBRID_ARMOR_MATERIALS,
         )
@@ -1834,17 +1852,14 @@ class ModGeneratorGUI:
         imgui.push_item_width(-1)
 
         imgui.text("护甲类别")
-        hybrid.armor_class = self._draw_enum_combo(
-            "##armor_class",
-            hybrid.armor_class,
-            list(HYBRID_ARMOR_CLASSES.keys()),
+        # armor_class 已删除，由 weight 计算。这里设置 weight
+        hybrid.weight = self._draw_enum_combo(
+            "##armor_weight",
+            hybrid.weight,
+            list(HYBRID_ARMOR_CLASSES.keys()),  # Light/Medium/Heavy
             HYBRID_ARMOR_CLASSES,
         )
-
-        imgui.text("防御值")
-        changed, hybrid.defense = imgui.input_int("##armor_def", hybrid.defense)
-        if changed:
-            hybrid.defense = max(0, hybrid.defense)
+        # defense 字段已删除，DEF 通过属性编辑器设置
 
         imgui.pop_item_width()
         imgui.columns(1)
