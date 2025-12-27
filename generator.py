@@ -810,7 +810,14 @@ popz.v"""
         return code
 
     def _generate_hybrid_create_gml(self, item: HybridItem) -> str:
-        """生成混合物品的 Create_0 GML 代码"""
+        """生成混合物品的 Create_0 GML 代码
+        
+        简化策略：
+        - 所有常量直接在 Create_0 设置（无需 is_new 保护）
+        - 设置 duration/charge 变量供父类 Alarm_0 在 is_new 时存入 data
+        - 使用 ds_map_replace 写入 data（覆盖已有值或添加新值）
+        - 父类 o_inv_consum.Alarm_0 会处理 charge/duration 的持久化和恢复
+        """
         lines = []
         lines.append("event_inherited();")
         lines.append("")
@@ -827,30 +834,26 @@ popz.v"""
             lines.append("")
         
         lines.append("empty = false;")
-        lines.append("")
-        
-        # 混合物品标识（用于 Other_13 hover 对比时识别混合物品）
-        lines.append("// 混合物品标识（用于识别此物品为模组生成的混合物品）")
         lines.append("is_hybrid_item = true;")
         lines.append("")
         
-        # 品质设置
+        # ============== 品质设置 ==============
         if item.quality == 7:  # 文物
             lines.append("// 品质: 文物")
-            lines.append("ds_map_set(data, \"quality\", 7);")
-            lines.append("ds_map_set(data, \"Colour\", make_colour_rgb(229, 193, 85));")
-            lines.append("if (object_is_ancestor(object_index, o_inv_slot_parent))")
-            lines.append("    alarm[11] = shineDelay;")
+            lines.append("shineDelay = room_speed * 2;")
+            lines.append('ds_map_set(data, "quality", 7);')
+            lines.append('ds_map_set(data, "Colour", make_colour_rgb(229, 193, 85));')
+            lines.append("alarm[11] = shineDelay;")
         elif item.quality == 6:  # 独特
             lines.append("// 品质: 独特")
-            lines.append("ds_map_set(data, \"quality\", 6);")
-            lines.append("ds_map_set(data, \"Colour\", make_colour_rgb(130, 72, 188));")
+            lines.append('ds_map_set(data, "quality", 6);')
+            lines.append('ds_map_set(data, "Colour", make_colour_rgb(130, 72, 188));')
         else:  # 普通
             lines.append("// 品质: 普通")
-            lines.append("ds_map_set(data, \"quality\", 1);")
+            lines.append('ds_map_set(data, "quality", 1);')
         lines.append("")
         
-        # 槽位与装备
+        # ============== 槽位与装备 ==============
         if item.equipable:
             lines.append(f'slot = "{item.slot}";')
             lines.append("can_equip = true;")
@@ -862,56 +865,91 @@ popz.v"""
             lines.append("can_equip = false;")
         lines.append("")
         
-        # 武器标记
+        # ============== Tier 变量（hover 和修理费需要） ==============
+        lines.append(f"Tier = {item.tier};")
+        lines.append("")
+        
+        # ============== 武器/护甲标记与数值 ==============
         if item.mark_as_weapon:
             lines.append("is_weapon = true;")
-            lines.append("")
         
-        # 武器数值初始化（Tier 已通过 InjectTableItemStats 设置）
         if item.init_weapon_stats:
-            lines.append("// 武器数值（伤害来自 attributes 的伤害键）")
+            lines.append("// 武器数值")
             lines.append(f'type = "{item.weapon_type}";')
             lines.append(f"Balance = {item.balance};")
+            
+            # 计算 DamageType
+            damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
+            best_type = "Slashing_Damage"
+            if damage_components:
+                max_val = max(v for _, v in damage_components)
+                ties = [t for t, v in damage_components if v == max_val]
+                if best_type not in ties:
+                    best_type = ties[0]
+            lines.append(f'DamageType = "{best_type}";')
+            
+            # 弓/弩弹药槽
+            if item.weapon_type == "crossbow":
+                lines.append("haveAmmunitionSlot = true;")
+                lines.append('ammunitionType = "bolt";')
+                lines.append("isCrossbow = true;")
+            elif item.weapon_type == "bow":
+                lines.append("haveAmmunitionSlot = true;")
+                lines.append('ammunitionType = "arrow";')
             lines.append("")
         
-        # 护甲数值初始化（Tier 已通过 InjectTableItemStats 设置）
         if item.init_armor_stats:
             lines.append("// 护甲数值")
             lines.append(f'type = "{item.armor_type}";')
+            lines.append(f'armor_type = "{item.armor_class}";')
+            
+            # 非盾牌/戒指/项链的装备需要设置 fragment_*（用于拆解）
+            if item.slot not in ["hand", "Ring", "Amulet"]:
+                lines.append("")
+                lines.append("// 碎片材料（拆解用）")
+                frag_keys = ["cloth01", "cloth02", "cloth03", "cloth04",
+                             "leather01", "leather02", "leather03", "leather04",
+                             "metal01", "metal02", "metal03", "metal04", "gold"]
+                for frag in frag_keys:
+                    val = item.fragments.get(frag, 0)
+                    lines.append(f"fragment_{frag} = {val};")
             lines.append("")
         
-        # 使用次数
+        # ============== 使用次数（供父类 Alarm_0 持久化） ==============
         if item.has_charges:
-            lines.append("// 使用次数")
+            lines.append("// 使用次数（父类 Alarm_0 会处理持久化）")
             lines.append(f"charge = {item.effective_charge};")
             lines.append(f"max_charge = {item.effective_charge};")
             lines.append(f"draw_charges = {'true' if item.draw_charges else 'false'};")
             lines.append("")
             
-            # 消耗品属性初始化 (attributes_data)
+            # 消耗品属性 (attributes_data)
             lines.append("// 消耗品属性 (attributes_data)")
-            
             has_consum_attr = False
             for attr, value in item.consumable_attributes.items():
                 if value != 0:
                     lines.append(f'ds_map_add(attributes_data, "{attr}", {value});')
                     has_consum_attr = True
-            
             if not has_consum_attr:
                 lines.append("// 无消耗品属性")
             lines.append("")
         
-        # 耐久与删除
+        # ============== 耐久（供父类 Alarm_0 持久化） ==============
+        if item.has_durability:
+            lines.append("// 耐久度（父类 Alarm_0 会处理持久化）")
+            lines.append(f"duration = {item.duration_max};")
+            lines.append("")
+        
         lines.append(f"duration_change = {item.wear_per_use};")
         lines.append(f"delete_after_use = {'true' if item.delete_on_charge_zero else 'false'};")
         lines.append("")
         
-        # 被动效果
+        # ============== 被动效果 ==============
         if item.has_passive:
             lines.append("check_inventory_data = true;")
             lines.append("")
         
-        # 音效与价格
+        # ============== 音效与价格 ==============
         lines.append("// 音效与价格")
         lines.append(f"drop_gui_sound = {item.drop_sound};")
         lines.append(f"pickup_sound = {item.pickup_sound};")
@@ -919,7 +957,7 @@ popz.v"""
         lines.append("price = base_price;")
         lines.append("")
         
-        # 精灵
+        # ============== 精灵 ==============
         lines.append("// 精灵")
         lines.append(f"s_index = s_inv_{item.id};")
         if item.needs_char_texture():
@@ -934,6 +972,37 @@ popz.v"""
         lines.append("char_upper_sprite = -4;")
         lines.append("rest_char_sprite = -4;")
         lines.append("rest_char_upper_sprite = -4;")
+        lines.append("")
+        
+        # ============== data map 静态属性写入 ==============
+        # 使用 ds_map_replace 确保每次覆盖都安全（常量值）
+        
+        lines.append("// data map 元数据")
+        lines.append(f'ds_map_replace(data, "tags", "{item.tags}");')
+        lines.append(f'ds_map_replace(data, "rarity", "{item.rarity}");')
+        lines.append('ds_map_replace(data, "key", "");')
+        lines.append("ds_map_replace(data, \"identified\", true);")
+        
+        if item.has_durability:
+            lines.append(f'ds_map_replace(data, "MaxDuration", {item.duration_max});')
+        
+        if item.init_weapon_stats:
+            damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
+            best_type = "Slashing_Damage"
+            if damage_components:
+                max_val = max(v for _, v in damage_components)
+                ties = [t for t, v in damage_components if v == max_val]
+                if best_type not in ties:
+                    best_type = ties[0]
+            lines.append(f'ds_map_replace(data, "DamageType", "{best_type}");')
+            lines.append('ds_map_replace(data, "Metatype", "Weapon");')
+        
+        if item.init_armor_stats:
+            lines.append('ds_map_replace(data, "Metatype", "Armor");')
+            lines.append("ds_map_replace(data, \"Armor_Type\", Weight);")
+        
+        if item.init_weapon_stats or item.init_armor_stats:
+            lines.append('ds_map_replace(data, "Suffix", string(ds_map_find_value(data, "quality")) + " " + type);')
 
         return "\n".join(lines)
     
@@ -1085,94 +1154,55 @@ popz.v"""
         return "\n".join(lines)
 
     def _generate_hybrid_alarm_gml(self, item: HybridItem) -> str:
-        """生成混合物品的 Alarm_0 GML 代码"""
-        lines = []
-        lines.append("event_inherited();")
+        """生成混合物品的 Alarm_0 GML 代码
+        
+        简化策略：
+        - 调用 event_inherited() 让父类 o_inv_consum.Alarm_0 处理 is_new 逻辑
+        - 静态元数据已移到 Create_0
+        - 这里只保留需要 is_new 的属性写入（ds_map_add 在 key 存在时会失败）
+        """
+        lines = ["event_inherited();"]
+        
+        # 检查是否有需要写入的属性
+        attrs = {k: v for k, v in item.attributes.items() if v != 0}
+        if not attrs:
+            return "\n".join(lines)
+        
         lines.append("")
         lines.append("if (is_new) {")
+        lines.append('    var _main = ds_map_find_value(data, "Main");')
         
-        # 耐久初始化
-        if item.has_durability:
-            lines.append(f"    ds_map_replace(data, \"Duration\", {item.duration_max});  // 初始=最大")
-            lines.append(f"    ds_map_replace(data, \"MaxDuration\", {item.duration_max});")
-        
-        # 武器伤害初始化（伤害来自 attributes 的伤害键；DMG=总和，DamageType=最大伤类型）
         if item.init_weapon_stats:
-            lines.append("")
-            lines.append("    // 武器伤害初始化（静态展开：attributes 中的伤害键汇总）")
-            lines.append("    var _main = ds_map_find_value(data, \"Main\");")
-            damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
-            total_dmg = sum(v for _, v in damage_components) if damage_components else 0
-            best_type = "Slashing_Damage"  # 默认伤害类型
-            if damage_components:
-                max_val = max(v for _, v in damage_components)
-                ties = [t for t, v in damage_components if v == max_val]
-                if best_type not in ties:
-                    best_type = ties[0]
-            for t, v in damage_components:
-                lines.append(f'    ds_list_add(_main, \"{t}\", {v});')
-                lines.append(f'    ds_map_add(data, \"{t}\", {v});')
-            lines.append(f"    ds_map_add(data, \"DMG\", {total_dmg});")
-            lines.append(f'    DamageType = \"{best_type}\";')
+            damage_attrs = {k: v for k, v in attrs.items() if k in DAMAGE_ATTRIBUTES}
+            total_dmg = sum(damage_attrs.values())
             
-            # 武器属性（非伤害键，Range 特殊处理写入 Rng 和 Range）
-            for attr, value in item.attributes.items():
-                if value != 0 and attr not in DAMAGE_ATTRIBUTES:
-                    if attr == "Range":
-                        # Range 属性同时写入 Rng 和 Range
-                        lines.append(f'    ds_map_add(data, \"Rng\", {value});')
-                        lines.append(f'    ds_map_add(data, \"Range\", {value});')
-                    else:
-                        lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
+            for t, v in damage_attrs.items():
+                lines.append(f'    ds_list_add(_main, "{t}", {v});')
+                lines.append(f'    ds_map_add(data, "{t}", {v});')
+            lines.append(f'    ds_map_add(data, "DMG", {total_dmg});')
             
-            lines.append("")
-            lines.append("    // 武器元数据")
-            lines.append('    ds_map_add(data, \"Metatype\", \"Weapon\");')
+            for attr, val in attrs.items():
+                if attr in DAMAGE_ATTRIBUTES:
+                    continue
+                if attr == "Range":
+                    lines.append(f'    ds_map_add(data, "Rng", {val});')
+                    lines.append(f'    ds_map_add(data, "Range", {val});')
+                else:
+                    lines.append(f'    ds_map_add(data, "{attr}", {val});')
         
-        # 护甲属性初始化
-        if item.init_armor_stats:
-            lines.append("")
-            lines.append("    // 护甲属性初始化")
-            lines.append("    var _mainArmor = ds_map_find_value(data, \"Main\");")
-            
-            # 添加属性（DEF 特殊处理：同时写入 _mainArmor 列表）
-            for attr, value in item.attributes.items():
-                if value != 0:
-                    if attr == "DEF":
-                        # DEF 同时添加到 data map 和 Main list
-                        lines.append(f'    ds_map_add(data, \"DEF\", {value});')
-                        lines.append(f'    ds_list_add(_mainArmor, \"DEF\", {value});')
-                    else:
-                        lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
-            
-            lines.append("")
-            lines.append("    // 护甲元数据")
-            lines.append('    ds_map_add(data, \"Metatype\", \"Armor\");')
-            lines.append("    ds_map_add(data, \"Armor_Type\", Weight);")
-            if item.quality != 7:  # 非文物
-                lines.append(f'    ds_map_add(data, \"Tier\", {item.tier});')
+        elif item.init_armor_stats:
+            for attr, val in attrs.items():
+                if attr == "DEF":
+                    lines.append(f'    ds_map_add(data, "DEF", {val});')
+                    lines.append(f'    ds_list_add(_main, "DEF", {val});')
+                else:
+                    lines.append(f'    ds_map_add(data, "{attr}", {val});')
         
-        # 如果不是武器也不是护甲，但有属性
-        if not item.init_weapon_stats and not item.init_armor_stats and item.attributes:
-            lines.append("")
-            lines.append("    // 属性")
-            for attr, value in item.attributes.items():
-                if value != 0:
-                    lines.append(f'    ds_map_add(data, \"{attr}\", {value});')
-        
-        # 元数据
-        lines.append("")
-        lines.append("    // 元数据")
-        lines.append(f'    ds_map_replace(data, \"tags\", \"{item.tags}\");')
-        lines.append(f'    ds_map_add(data, \"rarity\", \"{item.rarity}\");')
-        lines.append('    ds_map_add(data, \"key\", \"\");')
-        lines.append("    ds_map_add(data, \"identified\", true);")
-        
-        if item.init_weapon_stats or item.init_armor_stats:
-            lines.append('    ds_map_add(data, \"Suffix\", string(ds_map_find_value(data, \"quality\")) + \" \" + type);')
+        else:
+            for attr, val in attrs.items():
+                lines.append(f'    ds_map_add(data, "{attr}", {val});')
         
         lines.append("}")
-        
         return "\n".join(lines)
 
     def _generate_hybrid_other10_gml(self, item: HybridItem) -> str:

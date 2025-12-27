@@ -1863,6 +1863,41 @@ class ModGeneratorGUI:
 
         imgui.pop_item_width()
         imgui.columns(1)
+        
+        # 碎片材料编辑器（用于拆解，仅非盾/戒/项链显示）
+        if hybrid.slot not in ["hand", "Ring", "Amulet"]:
+            if imgui.tree_node("拆解碎片##fragments"):
+                imgui.columns(3, "frag_cols", border=False)
+                frag_width = 100
+                imgui.set_column_width(0, frag_width)
+                imgui.set_column_width(1, frag_width)
+                imgui.set_column_width(2, frag_width)
+                
+                frag_labels = {
+                    "cloth01": "布料 1", "cloth02": "布料 2", "cloth03": "布料 3", "cloth04": "布料 4",
+                    "leather01": "皮革 1", "leather02": "皮革 2", "leather03": "皮革 3", "leather04": "皮革 4",
+                    "metal01": "金属 1", "metal02": "金属 2", "metal03": "金属 3", "metal04": "金属 4",
+                    "gold": "黄金"
+                }
+                frag_keys = ["cloth01", "cloth02", "cloth03", "cloth04",
+                             "leather01", "leather02", "leather03", "leather04",
+                             "metal01", "metal02", "metal03", "metal04", "gold"]
+                
+                for i, frag in enumerate(frag_keys):
+                    val = hybrid.fragments.get(frag, 0)
+                    imgui.push_item_width(60)
+                    changed, new_val = imgui.input_int(f"##{frag}", val, step=0, step_fast=0)
+                    imgui.pop_item_width()
+                    if changed:
+                        hybrid.fragments[frag] = max(0, new_val)
+                    imgui.same_line()
+                    imgui.text(frag_labels.get(frag, frag))
+                    imgui.next_column()
+                
+                imgui.columns(1)
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("拆解物品时获得的碎片材料")
+                imgui.tree_pop()
 
     def _draw_hybrid_attributes_editor(self, hybrid: HybridItem):
         """绘制混合物品属性编辑器（按武器/护甲/被动区分可选字段）"""

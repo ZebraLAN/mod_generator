@@ -471,6 +471,9 @@ class HybridItem:
     attributes: Dict[str, Any] = field(default_factory=dict)
     consumable_attributes: Dict[str, Any] = field(default_factory=dict)
     
+    # ====== 拆解碎片 (护甲/饰品用) ======
+    fragments: Dict[str, int] = field(default_factory=dict)
+    
     # ====== 贴图 ======
     textures: ItemTextures = field(default_factory=ItemTextures)
     
