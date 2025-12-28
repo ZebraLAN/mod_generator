@@ -415,6 +415,7 @@ public class {code_namespace} : Mod
         if self.project.hybrid_items:
             code += self._generate_hover_scripts_injection_method()
             code += self._generate_hover_hybrid_method()
+            code += self._generate_inject_item_stats_method()
 
         for item in self.project.weapons + self.project.armors:
             code += self._generate_item_method(item)
@@ -666,19 +667,26 @@ popz.v"""
         loot_sprite = f"s_loot_{item.id}"
         loot_parent = item.get_loot_parent()
         
-        # 确定材质（武器和护甲共用 material）
+        # 确定材质枚举值（首字母大写）
         if item.init_weapon_stats or item.init_armor_stats:
-            mat = item.material.lower()
+            material_enum = item.material.capitalize()
         else:
-            mat = "organic"
+            material_enum = "Organic"
         
-        # 确定 Weight（用户设置，护甲类别由 weight 决定）
-        # 注意：ItemStatsWeight 枚举使用 PascalCase (Light, Medium, VeryLight, Heavy)
-        weight_value = item.weight
+        # 确定重量枚举值
+        weight_map = {
+            "VeryLight": "VeryLight",
+            "Very Light": "VeryLight",
+            "Light": "Light",
+            "Medium": "Medium",
+            "Heavy": "Heavy",
+            "Net": "Net",
+        }
+        weight_enum = weight_map.get(item.weight, "Light")
         
-        # 确定 tier 映射
+        # 确定 tier 枚举值
         tier_map = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
-        tier_value = tier_map.get(item.tier, "none")
+        tier_enum = tier_map.get(item.tier, "None")
         
         # 生成本地化字典（确保至少有 English 条目）
         languages = item.localization.languages
@@ -718,18 +726,19 @@ popz.v"""
             isAwake: true
         );
 
-        // 注入物品元数据（scr_consum_atr 依赖 global.consum_stat_data）
-        Msl.InjectTableItemStats(
+        // 注入物品元数据（使用本地 Helper 以支持自定义 Cat/Subcat/tags）
+        InjectItemStats(
             id: "{item.id}",
             Price: {item.base_price},
-            tier: Msl.ItemStatsTier.{tier_value},
-            Cat: Msl.ItemStatsCategory.none,
-            Subcat: Msl.ItemStatsSubcategory.none,
-            Material: Msl.ItemStatsMaterial.{mat},
-            Weight: Msl.ItemStatsWeight.{weight_value},
-            tags: Msl.ItemStatsTags.special,
+            tier: ItemTier.{tier_enum},
+            Cat: "",
+            Subcat: "",
+            Material: ItemMaterial.{material_enum},
+            Weight: ItemWeight.{weight_enum},
+            tags: "special",
             dropsOnce: false
         );
+
 
         // 注入本地化
         Msl.InjectTableItemsLocalization(
@@ -2254,4 +2263,146 @@ if (priceHeight)
         return """event_inherited();
 middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
 """
+
+    def _generate_inject_item_stats_method(self) -> str:
+        """生成 InjectItemStats 辅助方法
+        
+        将 Category, Subcategory, Tags 从枚举类型改为字符串，
+        提供更灵活的物品属性定义。
+        
+        注意：
+        - 消耗品效果参数（Hunger 到 Poisoning_Duration）在 GML 端处理，此处仅保留物品元数据参数
+        - Duration 控制消耗品持续效果时间，属于具体效果属性的一部分而非元数据，因此不在 C# 端设定
+        - EffPrice 参数疑似无用，已移除但保留数据行占位
+        
+        统计信息（来自 items_stats.json）：
+        - Weight: Heavy, Light, Medium, Net, Very Light
+        - Material: cloth, gem, glass, gold, leather, metal, organic, paper, pottery, silver, stone, wood
+        - Stacks: 1, 2, 3, 4
+        - upgrade: Coop, Dummy, Tent2, Tent3, Foraging, Herbalism, Workbench, Chest2-4, Wheels3, Horses2 等
+        - fodder: 2, 3, 4, 6, 250
+        - stack: 20, 50, 100
+        """
+        return '''    // ============== 物品属性注入辅助类型 ==============
+
+    /// <summary>物品等级</summary>
+    public enum ItemTier
+    {
+        None,   // 无等级
+        Tier1,  // 1级
+        Tier2,  // 2级
+        Tier3,  // 3级
+        Tier4,  // 4级
+        Tier5   // 5级
+    }
+
+    /// <summary>物品重量等级</summary>
+    public enum ItemWeight
+    {
+        VeryLight,  // 极轻
+        Light,      // 轻
+        Medium,     // 中等
+        Heavy,      // 重
+        Net         // 网（特殊）
+    }
+
+    /// <summary>物品材质</summary>
+    public enum ItemMaterial
+    {
+        Organic,    // 有机物
+        Cloth,      // 布料
+        Leather,    // 皮革
+        Wood,       // 木材
+        Paper,      // 纸张
+        Pottery,    // 陶器
+        Glass,      // 玻璃
+        Stone,      // 石材
+        Metal,      // 金属
+        Silver,     // 白银
+        Gold,       // 黄金
+        Gem         // 宝石
+    }
+
+    private static string GetTierValue(ItemTier tier) => tier switch
+    {
+        ItemTier.Tier1 => "1",
+        ItemTier.Tier2 => "2",
+        ItemTier.Tier3 => "3",
+        ItemTier.Tier4 => "4",
+        ItemTier.Tier5 => "5",
+        _ => ""
+    };
+
+    private static string GetWeightValue(ItemWeight weight) => weight switch
+    {
+        ItemWeight.VeryLight => "Very Light",
+        ItemWeight.Light => "Light",
+        ItemWeight.Medium => "Medium",
+        ItemWeight.Heavy => "Heavy",
+        ItemWeight.Net => "Net",
+        _ => "Light"
+    };
+
+    private static string GetMaterialValue(ItemMaterial material) => material.ToString().ToLower();
+
+    /// <summary>
+    /// 注入物品属性数据到 table_items_stats 表
+    /// Cat/Subcat/tags 使用字符串以支持自定义分类
+    /// </summary>
+    /// <param name="id">物品ID</param>
+    /// <param name="Price">价格</param>
+    /// <param name="tier">物品等级 (None, Tier1-5)</param>
+    /// <param name="Cat">分类（如 medicine, beverage, food, material 等）</param>
+    /// <param name="Subcat">子分类</param>
+    /// <param name="Material">材质</param>
+    /// <param name="Weight">重量等级</param>
+    /// <param name="tags">标签（如 common, uncommon, special 等）</param>
+    /// <param name="Fresh">新鲜度</param>
+    /// <param name="Stacks">堆叠数量 (1-4)</param>
+    /// <param name="Diet">是否为饮食物品</param>
+    /// <param name="purse">是否为钱包</param>
+    /// <param name="bottle">是否为瓶装</param>
+    /// <param name="upgrade">升级路径</param>
+    /// <param name="fodder">饲料值 (2, 3, 4, 6, 250)</param>
+    /// <param name="stack">堆叠上限 (20, 50, 100)</param>
+    /// <param name="fireproof">是否防火</param>
+    /// <param name="dropsOnce">是否只掉落一次</param>
+    private void InjectItemStats(
+        string id,
+        int? Price = null,
+        ItemTier tier = ItemTier.None,
+        string Cat = "",
+        string Subcat = "",
+        ItemMaterial Material = ItemMaterial.Organic,
+        ItemWeight Weight = ItemWeight.Light,
+        string tags = "",
+        ushort? Fresh = null,
+        ushort? Stacks = null,
+        bool Diet = false,
+        bool purse = false,
+        bool bottle = false,
+        string? upgrade = null,
+        short? fodder = null,
+        short? stack = null,
+        bool fireproof = false,
+        bool dropsOnce = false)
+    {
+        const string tableName = "gml_GlobalScript_table_items_stats";
+        List<string> table = ThrowIfNull(ModLoader.GetTable(tableName));
+
+        string tierVal = GetTierValue(tier);
+        string weightVal = GetWeightValue(Weight);
+        string materialVal = GetMaterialValue(Material);
+
+        // 构建数据行
+        // 格式: id;;Price;EffPrice;tier;Cat;Subcat;Material;Weight;;Fresh;Duration;Stacks;Diet;;[效果参数...];;purse;bottle;upgrade;fodder;stack;fireproof;dropsOnce;tags;
+        // 注意：EffPrice 和 Duration 留空（EffPrice 疑似无用；Duration 属于效果属性，由 GML 端处理）
+        string newline = $"{id};;{Price};;{tierVal};{Cat};{Subcat};{materialVal};{weightVal};;{Fresh};;{Stacks};{(Diet ? "1" : "")};;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;{(purse ? "1" : "")};{(bottle ? "1" : "")};{upgrade};{fodder};{stack};{(fireproof ? "1" : "")};{(dropsOnce ? "1" : "")};{tags};";
+
+        table.Add(newline);
+        ModLoader.SetTable(table, tableName);
+    }
+
+'''
+
 
