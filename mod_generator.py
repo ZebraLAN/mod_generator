@@ -104,6 +104,7 @@ from models import (
     Armor,
     HybridItem,
     ModProject,
+    SpawnMode,
     Weapon,
     validate_item,
     validate_hybrid_item,
@@ -114,6 +115,16 @@ from skill_constants import (
     SKILL_BRANCH_TRANSLATIONS,
     SKILL_BY_BRANCH,
     SKILL_OBJECT_NAMES,
+)
+from drop_slot_data import (
+    ITEM_CATEGORIES,
+    ALL_SUBCATEGORY_OPTIONS,
+    CATEGORY_TRANSLATIONS,
+    QUALITY_TAGS,
+    DUNGEON_TAGS,
+    EXTRA_TAGS,
+    find_matching_slots,
+    tags_to_bits,
 )
 
 
@@ -1272,6 +1283,10 @@ class ModGeneratorGUI:
             self._draw_hybrid_textures_editor(hybrid)
             imgui.tree_pop()
 
+        if imgui.tree_node("掉落分类设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
+            self._draw_hybrid_drop_slot_settings(hybrid)
+            imgui.tree_pop()
+
         # 移除自定义代码板块 - 让用户编写代码有悖于设计原则
 
         errors = validate_hybrid_item(hybrid, self.project, include_warnings=True)
@@ -1305,9 +1320,6 @@ class ModGeneratorGUI:
 
         # 固定父类为 o_inv_consum（不向用户显示）
         hybrid.parent_object = "o_inv_consum"
-        
-        # 固定标签为 "special exc"（不向用户显示）
-        hybrid.tags = "special exc"
 
         # 两列布局
         col_width = imgui.get_content_region_available_width() / 2 - 8
@@ -1409,21 +1421,18 @@ class ModGeneratorGUI:
                 
                 # 自动推断装备设置
                 if i == 1:  # 武器类
-                    hybrid.equipable = True
                     hybrid.slot = "hand"
                     # 手数由武器类型决定，在武器设置中处理
                 elif i == 2:  # 护甲饰品类
-                    hybrid.equipable = True
                     # 槽位由护甲类型决定
                     if hybrid.armor_type == "shield":
                         hybrid.slot = "hand"
                     else:
                         hybrid.slot = hybrid.armor_type
                 else:  # 纯消耗品(i==0) 或 被动类(i==3)
-                    # equipable 现在是计算属性，无需手动设置
                     hybrid.slot = "heal"
         
-        # is_weapon/mark_as_weapon 现在是计算属性，无需手动设置
+        # equipable/is_weapon/mark_as_weapon 现在都是计算属性，由 equipment_mode 自动推断
 
         self.draw_indented_separator()
 
@@ -1693,11 +1702,23 @@ class ModGeneratorGUI:
             
             # 使用次数恢复设置（无消耗模式下不可用）
             if hybrid.charge_mode != "unlimited":
-                changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
+                # 文物 + 正常消耗模式 强制启用次数恢复
+                is_artifact_normal = hybrid.quality == 7 and hybrid.charge_mode == "normal"
+                if is_artifact_normal:
+                    hybrid.has_charge_recovery = True
+                    imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+                    imgui.checkbox("启用次数恢复##hybrid", True)
+                    imgui.pop_style_var()
+                    imgui.same_line()
+                    self.text_secondary("(文物强制启用)")
+                else:
+                    changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
                 if imgui.is_item_hovered():
                     tip = "启用后，使用次数会随时间自动恢复"
                     if hybrid.charge_mode == "linked":
                         tip += "\n（实际恢复的是耐久度）"
+                    if is_artifact_normal:
+                        tip += "\n\n文物使用正常消耗模式时强制启用"
                     imgui.set_tooltip(tip)
                 
                 if hybrid.has_charge_recovery:
@@ -1777,11 +1798,7 @@ class ModGeneratorGUI:
             list(HYBRID_WEAPON_TYPES.keys()),
             HYBRID_WEAPON_TYPES,
         )
-        
-        # 根据武器类型自动设置手数
-        # 双手武器：2hsword, 2haxe, 2hmace, 2hStaff, bow, crossbow, spear
-        two_handed_types = {"2hsword", "2haxe", "2hmace", "2hStaff", "bow", "crossbow", "spear"}
-        hybrid.hands = 2 if hybrid.weapon_type in two_handed_types else 1
+        # hands 是计算属性，由 weapon_type 自动推断，无需手动设置
 
         imgui.text("材料")
         hybrid.material = self._draw_enum_combo(
@@ -1795,10 +1812,7 @@ class ModGeneratorGUI:
         imgui.next_column()
         imgui.push_item_width(-1)
 
-        imgui.text("等级")
-        changed, hybrid.tier = imgui.input_int("##wep_tier", hybrid.tier)
-        if changed:
-            hybrid.tier = max(1, min(7, hybrid.tier))
+        # 等级已在掉落分类设置中统一设置，此处移除
 
         imgui.text("平衡")
         changed, hybrid.balance = imgui.input_int("##wep_balance", hybrid.balance)
@@ -1851,15 +1865,20 @@ class ModGeneratorGUI:
         imgui.next_column()
         imgui.push_item_width(-1)
 
-        imgui.text("护甲类别")
-        # armor_class 已删除，由 weight 计算。这里设置 weight
+        imgui.text("重量")
         hybrid.weight = self._draw_enum_combo(
             "##armor_weight",
             hybrid.weight,
-            list(HYBRID_ARMOR_CLASSES.keys()),  # Light/Medium/Heavy
-            HYBRID_ARMOR_CLASSES,
+            list(HYBRID_WEIGHT_LABELS.keys()),
+            HYBRID_WEIGHT_LABELS,
         )
-        # defense 字段已删除，DEF 通过属性编辑器设置
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品重量，用于游泳等行为判定\n同时决定护甲类别")
+        
+        # 只读显示护甲类别
+        self.text_secondary(f"护甲类别: {hybrid.armor_class}")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("由重量自动计算:\nLight/VeryLight → Light\nMedium → Medium\nHeavy → Heavy")
 
         imgui.pop_item_width()
         imgui.columns(1)
@@ -2278,7 +2297,305 @@ class ModGeneratorGUI:
         if hybrid.textures.is_animated("loot"):
             self._draw_loot_animation_settings(hybrid.textures, "hybrid")
 
-    # ==================== 通用属性编辑器 ====================
+    def _draw_hybrid_drop_slot_settings(self, hybrid: HybridItem):
+        """绘制掉落分类设置"""
+        # ====== 排除随机生成开关 ======
+        changed, hybrid.exclude_from_random = imgui.checkbox(
+            "排除随机生成##hybrid", hybrid.exclude_from_random
+        )
+        if imgui.is_item_hovered():
+            imgui.set_tooltip(
+                "开启后，物品不会出现在宝箱掉落和商店库存中\n"
+                "物品将使用 'special exc' 标签\n"
+                "关闭后，可设置分类和标签使物品参与随机生成"
+            )
+        
+        if hybrid.exclude_from_random:
+            self.text_secondary("物品已设为排除随机生成 (special exc)，下方设置不会生效")
+            return
+        
+        self.draw_indented_separator()
+        
+        # ====== 分类设置 ======
+        imgui.text("分类设置")
+        
+        # 两列布局
+        col_width = imgui.get_content_region_available_width() / 2 - 8
+        imgui.columns(2, "drop_slot_cols", border=False)
+        imgui.set_column_width(0, col_width)
+        
+        # 左列: Cat
+        imgui.push_item_width(-1)
+        imgui.text("主分类 (Cat)")
+        
+        # 文物主分类固定为 treasure
+        if hybrid.quality == 7:  # 文物
+            hybrid.cat = "treasure"
+            self.text_secondary("文物分类固定为 treasure")
+        else:
+            cat_options = [""] + ITEM_CATEGORIES
+            cat_labels = {"": "-- 无 --"}
+            cat_labels.update({c: f"{CATEGORY_TRANSLATIONS.get(c, c)} ({c})" for c in ITEM_CATEGORIES})
+            hybrid.cat = self._draw_enum_combo("##cat_hybrid", hybrid.cat, cat_options, cat_labels)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品的主分类，用于掉落表匹配")
+        imgui.pop_item_width()
+        
+        # 右列: Tier (现在可在此直接编辑)
+        imgui.next_column()
+        imgui.push_item_width(-1)
+        imgui.text("等级 (Tier)")
+        
+        # 文物等级固定为 0
+        if hybrid.quality == 7:  # 文物
+            hybrid.tier = 0
+            self.text_secondary("文物等级固定为 0")
+        else:
+            tier_options = [0, 1, 2, 3, 4, 5]
+            tier_labels = {0: "0 (匹配所有)", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+            hybrid.tier = self._draw_enum_combo("##tier_drop", hybrid.tier, tier_options, tier_labels)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品等级，用于掉落表等级筛选\n0 表示匹配所有等级")
+        imgui.pop_item_width()
+        
+        imgui.columns(1)
+        
+        # ====== Subcats 多选 ======
+        imgui.dummy(0, 4)
+        imgui.text("子分类 (Subcats)")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("可多选。物品可以匹配主分类或任一子分类")
+        
+        # 使用水平排列的 checkbox
+        subcat_options = ALL_SUBCATEGORY_OPTIONS  # 主分类+子分类都可选
+        items_per_row = 6
+        for i, subcat in enumerate(subcat_options):
+            if i > 0 and i % items_per_row != 0:
+                imgui.same_line(spacing=10)
+            
+            is_selected = subcat in hybrid.subcats
+            # 如果与 Cat 相同则禁用（用灰色显示）
+            is_disabled = (subcat == hybrid.cat)
+            
+            if is_disabled:
+                imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+            
+            changed, new_value = imgui.checkbox(f"{CATEGORY_TRANSLATIONS.get(subcat, subcat)}##subcat_{subcat}", is_selected)
+            if changed and not is_disabled:
+                if new_value:
+                    hybrid.subcats.append(subcat)
+                else:
+                    hybrid.subcats.remove(subcat)
+            
+            if is_disabled:
+                imgui.pop_style_var()
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("已选为主分类，无需重复选择")
+        
+        self.draw_indented_separator()
+        
+        # ====== Tags 设置 ======
+        imgui.text("标签设置")
+        
+        imgui.columns(3, "tags_cols", border=False)
+        
+        # 品质标签 (单选)
+        imgui.text("品质")
+        for tag_val, tag_label in QUALITY_TAGS.items():
+            if imgui.radio_button(f"{tag_label}##quality", hybrid.quality_tag == tag_val):
+                hybrid.quality_tag = tag_val
+        
+        imgui.next_column()
+        
+        # 地牢标签 (单选)
+        imgui.text("地牢")
+        for tag_val, tag_label in DUNGEON_TAGS.items():
+            if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
+                hybrid.dungeon_tag = tag_val
+        
+        imgui.next_column()
+        
+        # 其他标签 (多选)
+        imgui.text("其他")
+        for tag_val, tag_label in EXTRA_TAGS.items():
+            is_selected = tag_val in hybrid.extra_tags
+            changed, new_value = imgui.checkbox(f"{tag_label}##extra_{tag_val}", is_selected)
+            if changed:
+                if new_value:
+                    hybrid.extra_tags.append(tag_val)
+                else:
+                    hybrid.extra_tags.remove(tag_val)
+        
+        imgui.columns(1)
+        
+        # 显示有效 tags
+        imgui.dummy(0, 4)
+        self.text_secondary(f"有效标签: {hybrid.effective_tags or '(无)'}")
+        
+        self.draw_indented_separator()
+        
+        # ====== 生成路径配置 ======
+        imgui.text("生成路径配置")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("控制混合物品在各场景下如何生成\n装备品: 从装备筛选路径生成（与原生装备一起随机）\n非装备品: 保持当前行为")
+        
+        spawn_mode_options = [SpawnMode.EQUIPMENT, SpawnMode.NON_EQUIPMENT]
+        spawn_mode_labels = {
+            SpawnMode.EQUIPMENT: "装备品路径",
+            SpawnMode.NON_EQUIPMENT: "非装备品路径",
+            SpawnMode.CUSTOM: "自定义 (暂未实现)",
+        }
+        
+        imgui.columns(3, "spawn_mode_columns", border=False)
+        
+        # 容器/宝箱
+        imgui.text("容器/宝箱")
+        imgui.set_next_item_width(-1)
+        if imgui.begin_combo("##container_spawn", spawn_mode_labels[hybrid.container_spawn]):
+            for mode in spawn_mode_options:
+                selected = hybrid.container_spawn == mode
+                if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
+                    hybrid.container_spawn = mode
+            imgui.end_combo()
+        
+        imgui.next_column()
+        
+        # 商店进货
+        imgui.text("商店进货")
+        imgui.set_next_item_width(-1)
+        if imgui.begin_combo("##shop_spawn", spawn_mode_labels[hybrid.shop_spawn]):
+            for mode in spawn_mode_options:
+                selected = hybrid.shop_spawn == mode
+                if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
+                    hybrid.shop_spawn = mode
+            imgui.end_combo()
+        
+        imgui.next_column()
+        
+        # 敌人击杀
+        imgui.text("敌人击杀")
+        imgui.set_next_item_width(-1)
+        if imgui.begin_combo("##kill_spawn", spawn_mode_labels[hybrid.kill_spawn]):
+            for mode in spawn_mode_options:
+                selected = hybrid.kill_spawn == mode
+                if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
+                    hybrid.kill_spawn = mode
+            imgui.end_combo()
+        
+        imgui.columns(1)
+        
+        self.draw_indented_separator()
+        
+        # ====== 掉落匹配预览 ======
+        imgui.text("掉落池预览")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("显示物品可加入的掉落池\n物品加入池后，与池中其他物品一起参与随机抽取")
+        
+        # 查询匹配的 slots
+        if hybrid.cat or hybrid.subcats:
+            tags_bits = tags_to_bits(hybrid.tags_tuple)
+            matches = find_matching_slots(
+                hybrid.cat,
+                tuple(hybrid.subcats),
+                tags_bits,
+                hybrid.tier
+            )
+            
+            if matches:
+                self.text_secondary(f"物品可加入以下 {len(matches)} 个掉落池:")
+                
+                # 使用可滚动的子面板
+                imgui.begin_child("##drop_slots_preview", height=200, border=True)
+                
+                # 表头 (7列)
+                imgui.columns(7, "slots_table")
+                imgui.set_column_width(0, 120)  # 来源
+                imgui.set_column_width(1, 30)   # #
+                imgui.set_column_width(2, 250)  # 分类 (最长35字符)
+                imgui.set_column_width(3, 50)   # 概率
+                imgui.set_column_width(4, 50)   # 数量
+                imgui.set_column_width(5, 50)   # 等级
+                
+                imgui.text("来源")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("掉落池所在的容器（宝箱、书架等）")
+                imgui.next_column()
+                
+                imgui.text("#")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("同一容器内的第几个掉落池\n每个池独立抽取")
+                imgui.next_column()
+                
+                imgui.text("分类")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("该池收纳的物品分类\n对应物品的 Cat 或 Subcat")
+                imgui.next_column()
+                
+                imgui.text("概率")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("容器生成内容物时\n该池产出物品的概率")
+                imgui.next_column()
+                
+                imgui.text("数量")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("该池产出时生成的物品个数\n从池中随机抽取")
+                imgui.next_column()
+                
+                imgui.text("等级")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("该池接受的物品等级范围")
+                imgui.next_column()
+                
+                imgui.text("标签")
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip("该池允许的物品标签（白名单）\n物品的所有标签须在此范围内")
+                imgui.next_column()
+                imgui.separator()
+                
+                for slot in matches:
+                    # 容器名：显示中文名，hover 显示原名
+                    imgui.text(slot["entry_name_cn"])
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip(f"原名: {slot['entry_id']}")
+                    imgui.next_column()
+                    
+                    imgui.text(str(slot["slot_num"]))
+                    imgui.next_column()
+                    
+                    # 分类：翻译并 hover 显示原文
+                    cat_cn = ", ".join(CATEGORY_TRANSLATIONS.get(c.strip(), c.strip()) for c in slot["category"].split(","))
+                    imgui.text(cat_cn)
+                    if imgui.is_item_hovered():
+                        imgui.set_tooltip(f"原分类: {slot['category']}")
+                    imgui.next_column()
+                    
+                    imgui.text(f"{slot['chance']}%")
+                    imgui.next_column()
+                    
+                    imgui.text(str(slot["slot_count"]))
+                    imgui.next_column()
+                    
+                    imgui.text(slot["tier_range"])
+                    imgui.next_column()
+                    
+                    # 标签：翻译并 hover 显示原文
+                    if slot["slot_tags"]:
+                        all_tags = {**QUALITY_TAGS, **DUNGEON_TAGS, **EXTRA_TAGS}
+                        tags_cn = " ".join(all_tags.get(t.strip(), t.strip()) for t in slot["slot_tags"].split())
+                        imgui.text(tags_cn)
+                        if imgui.is_item_hovered():
+                            imgui.set_tooltip(f"原标签: {slot['slot_tags']}")
+                    else:
+                        imgui.text("-")
+                    imgui.next_column()
+                
+                imgui.columns(1)
+                imgui.end_child()
+            else:
+                self.text_secondary("(无匹配的掉落位置)")
+        else:
+            self.text_secondary("(请设置主分类或子分类以查看匹配结果)")
+
 
     def _draw_basic_properties(self, item, id_suffix, slot_labels, material_labels):
         """绘制物品基本属性"""

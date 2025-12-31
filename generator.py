@@ -400,7 +400,9 @@ public class {code_namespace} : Mod
             code += "        // 注入 hover 辅助脚本（仅执行一次）\n"
             code += "        EnsureHoverScriptsExist();\n"
             code += "        // 注入混合物品专用 hover 对象（仅执行一次）\n"
-            code += "        EnsureHoverHybridExists();\n\n"
+            code += "        EnsureHoverHybridExists();\n"
+            code += "        // 注入混合装备注册系统（仅执行一次）\n"
+            code += "        EnsureHybridEquipmentRegistry();\n\n"
 
         for weapon in self.project.weapons:
             code += f"        Add{weapon.id}();\n"
@@ -416,6 +418,8 @@ public class {code_namespace} : Mod
             code += self._generate_hover_scripts_injection_method()
             code += self._generate_hover_hybrid_method()
             code += self._generate_inject_item_stats_method()
+            code += self._generate_gml_helper_methods()
+            code += self._generate_hybrid_equipment_registry_method()
 
         for item in self.project.weapons + self.project.armors:
             code += self._generate_item_method(item)
@@ -731,11 +735,11 @@ popz.v"""
             id: "{item.id}",
             Price: {item.base_price},
             tier: ItemTier.{tier_enum},
-            Cat: "",
-            Subcat: "",
+            Cat: "{item.cat}",
+            Subcat: "{" ".join(item.subcats)}",
             Material: ItemMaterial.{material_enum},
             Weight: ItemWeight.{weight_enum},
-            tags: "special",
+            tags: "{item.effective_tags}",
             dropsOnce: false
         );
 
@@ -879,7 +883,7 @@ popz.v"""
         lines.append("")
         
         # ============== 武器/护甲标记与数值 ==============
-        if item.mark_as_weapon:
+        if item.is_weapon:
             lines.append("is_weapon = true;")
         
         if item.init_weapon_stats:
@@ -987,7 +991,7 @@ popz.v"""
         # 使用 ds_map_replace 确保每次覆盖都安全（常量值）
         
         lines.append("// data map 元数据")
-        lines.append(f'ds_map_replace(data, "tags", "{item.tags}");')
+        lines.append(f'ds_map_replace(data, "tags", "{item.effective_tags}");')
         lines.append(f'ds_map_replace(data, "rarity", "{item.rarity}");')
         lines.append('ds_map_replace(data, "key", "");')
         lines.append("ds_map_replace(data, \"identified\", true);")
@@ -1069,7 +1073,7 @@ popz.v"""
                      lines.append("    event_user(12);")
         
         # 使用次数恢复逻辑（仅非无消耗模式）
-        if item.has_charge_recovery and not item.is_unlimited_use:
+        if item.has_charge_recovery and item.charge_mode != "unlimited":
             lines.append("")
             
             # 公共的回合计算逻辑
@@ -1495,7 +1499,7 @@ popz.v"""
         
             # 消耗品模式：充能和耐久扣减（has_charges 在此代码路径必定为 true）
             # 无消耗模式下跳过充能扣减
-            if not item.is_unlimited_use:
+            if item.charge_mode != "unlimited":
                 lines.append("charge--;")
                 lines.append("ds_map_replace(data, \"charge\", charge);")
                 
@@ -2285,42 +2289,39 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         """
         return '''    // ============== 物品属性注入辅助类型 ==============
 
-    /// <summary>物品等级</summary>
     public enum ItemTier
     {
-        None,   // 无等级
-        Tier1,  // 1级
-        Tier2,  // 2级
-        Tier3,  // 3级
-        Tier4,  // 4级
-        Tier5   // 5级
+        None,
+        Tier1,
+        Tier2,
+        Tier3,
+        Tier4,
+        Tier5
     }
 
-    /// <summary>物品重量等级</summary>
     public enum ItemWeight
     {
-        VeryLight,  // 极轻
-        Light,      // 轻
-        Medium,     // 中等
-        Heavy,      // 重
-        Net         // 网（特殊）
+        VeryLight,
+        Light,
+        Medium,
+        Heavy,
+        Net
     }
 
-    /// <summary>物品材质</summary>
     public enum ItemMaterial
     {
-        Organic,    // 有机物
-        Cloth,      // 布料
-        Leather,    // 皮革
-        Wood,       // 木材
-        Paper,      // 纸张
-        Pottery,    // 陶器
-        Glass,      // 玻璃
-        Stone,      // 石材
-        Metal,      // 金属
-        Silver,     // 白银
-        Gold,       // 黄金
-        Gem         // 宝石
+        Organic,
+        Cloth,
+        Leather,
+        Wood,
+        Paper,
+        Pottery,
+        Glass,
+        Stone,
+        Metal,
+        Silver,
+        Gold,
+        Gem
     }
 
     private static string GetTierValue(ItemTier tier) => tier switch
@@ -2345,28 +2346,6 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
 
     private static string GetMaterialValue(ItemMaterial material) => material.ToString().ToLower();
 
-    /// <summary>
-    /// 注入物品属性数据到 table_items_stats 表
-    /// Cat/Subcat/tags 使用字符串以支持自定义分类
-    /// </summary>
-    /// <param name="id">物品ID</param>
-    /// <param name="Price">价格</param>
-    /// <param name="tier">物品等级 (None, Tier1-5)</param>
-    /// <param name="Cat">分类（如 medicine, beverage, food, material 等）</param>
-    /// <param name="Subcat">子分类</param>
-    /// <param name="Material">材质</param>
-    /// <param name="Weight">重量等级</param>
-    /// <param name="tags">标签（如 common, uncommon, special 等）</param>
-    /// <param name="Fresh">新鲜度</param>
-    /// <param name="Stacks">堆叠数量 (1-4)</param>
-    /// <param name="Diet">是否为饮食物品</param>
-    /// <param name="purse">是否为钱包</param>
-    /// <param name="bottle">是否为瓶装</param>
-    /// <param name="upgrade">升级路径</param>
-    /// <param name="fodder">饲料值 (2, 3, 4, 6, 250)</param>
-    /// <param name="stack">堆叠上限 (20, 50, 100)</param>
-    /// <param name="fireproof">是否防火</param>
-    /// <param name="dropsOnce">是否只掉落一次</param>
     private void InjectItemStats(
         string id,
         int? Price = null,
@@ -2388,7 +2367,7 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         bool dropsOnce = false)
     {
         const string tableName = "gml_GlobalScript_table_items_stats";
-        List<string> table = ThrowIfNull(ModLoader.GetTable(tableName));
+        List<string> table = Msl.ThrowIfNull(ModLoader.GetTable(tableName));
 
         string tierVal = GetTierValue(tier);
         string weightVal = GetWeightValue(Weight);
@@ -2405,4 +2384,322 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
 
 '''
 
+
+    def _generate_gml_helper_methods(self) -> str:
+        """生成 GML 脚本管理辅助函数的 C# 代码
+        
+        包含:
+        - FunctionExists: 检查全局函数是否存在
+        - InitScriptExists: 检查初始化脚本是否存在
+        - AddInitScript: 添加初始化脚本
+        - AddGlobalFunction: 添加 GMS 2.3 风格全局函数
+        - RegisterToGlobalInit: 注册代码到 GlobalInit
+        """
+        return '''
+    bool FunctionExists(string functionName)
+    {
+        string codeName = $"gml_GlobalScript_{functionName}";
+        return DataLoader.data.Code.ByName(codeName) != null
+            || DataLoader.data.Scripts.ByName(functionName) != null
+            || DataLoader.data.Functions.ByName(functionName) != null;
+    }
+
+    bool InitScriptExists(string scriptId)
+    {
+        string codeName = $"gml_GlobalScript_init_{scriptId}";
+        return DataLoader.data.Code.ByName(codeName) != null;
+    }
+
+    void RegisterToGlobalInit(UndertaleCode code)
+    {
+        if (DataLoader.data.GlobalInitScripts.Any(g => g.Code?.Name?.Content == code.Name?.Content))
+            return;
+        
+        UndertaleGlobalInit globalInit = new UndertaleGlobalInit();
+        globalInit.Code = code;
+        DataLoader.data.GlobalInitScripts.Add(globalInit);
+    }
+
+    void AddGlobalFunction(string functionName, string gmlCode)
+    {
+        string codeName = $"gml_GlobalScript_{functionName}";
+        
+        // Code
+        UndertaleCode code = new UndertaleCode();
+        code.Name = DataLoader.data.Strings.MakeString(codeName);
+        DataLoader.data.Code.Add(code);
+        
+        // CodeLocals
+        UndertaleCodeLocals locals = new UndertaleCodeLocals();
+        locals.Name = code.Name;
+        DataLoader.data.CodeLocals.Add(locals);
+        
+        // 编译
+        code.ReplaceGML(gmlCode, DataLoader.data);
+        
+        // Script
+        UndertaleScript script = new UndertaleScript();
+        script.Name = DataLoader.data.Strings.MakeString(functionName);
+        script.Code = code;
+        DataLoader.data.Scripts.Add(script);
+        
+        // Function
+        UndertaleFunction func = new UndertaleFunction();
+        func.Name = DataLoader.data.Strings.MakeString(functionName);
+        DataLoader.data.Functions.Add(func);
+        
+        // GlobalInit
+        RegisterToGlobalInit(code);
+    }
+
+    void AddInitScript(string scriptId, string gmlCode)
+    {
+        string codeName = $"gml_GlobalScript_init_{scriptId}";
+        
+        // Code
+        UndertaleCode code = new UndertaleCode();
+        code.Name = DataLoader.data.Strings.MakeString(codeName);
+        DataLoader.data.Code.Add(code);
+        
+        // CodeLocals
+        UndertaleCodeLocals locals = new UndertaleCodeLocals();
+        locals.Name = code.Name;
+        DataLoader.data.CodeLocals.Add(locals);
+        
+        // 编译
+        code.ReplaceGML(gmlCode, DataLoader.data);
+        
+        // GlobalInit
+        RegisterToGlobalInit(code);
+    }
+
+'''
+
+
+    def _generate_hybrid_equipment_registry_method(self) -> str:
+        """生成混合装备注册系统的 C# 方法
+        
+        包含:
+        1. 全局注册表初始化脚本
+        2. register_hybrid_equipment 函数
+        3. 本项目混合物品注册调用
+        """
+        project = self.project
+        
+        # 收集需要装备路径生成的混合物品（仅 weapon/armor/passive 模式）
+        equipment_hybrids = []
+        for h in project.hybrid_items:
+            # 只有 equipment_mode 为 weapon/armor/passive 的才能从装备路径生成
+            if h.equipment_mode not in ("weapon", "armor", "passive"):
+                continue
+            if (h.container_spawn.value == "equipment" or 
+                h.shop_spawn.value == "equipment" or 
+                h.kill_spawn.value == "equipment"):
+                equipment_hybrids.append(h)
+        
+        # 如果没有装备路径混合物品，不生成这个方法
+        if not equipment_hybrids:
+            return ""
+        
+        # 生成注册调用代码
+        register_calls = []
+        for h in equipment_hybrids:
+            # 确定槽位
+            if h.equipment_mode == "weapon":
+                slot = h.weapon_type
+            elif h.equipment_mode == "armor":
+                slot = h.armor_type
+            else:
+                slot = h.slot
+            
+            register_calls.append(
+                f'register_hybrid_equipment(""{h.id}"", ""{slot}"", {h.tier}, '
+                f'""{h.material.lower()}"", ""{h.effective_tags}"", '
+                f'""{h.container_spawn.value}"", ""{h.shop_spawn.value}"", ""{h.kill_spawn.value}"", '
+                f'""{h.equipment_mode}"");'
+            )
+        
+        register_code = "\\n        ".join(register_calls)
+        
+        code = f'''
+    void EnsureHybridEquipmentRegistry()
+    {{
+        // 1. 初始化全局注册表（如果不存在）
+        if (!InitScriptExists("hybrid_equipment_registry"))
+        {{
+            AddInitScript("hybrid_equipment_registry", @"
+if (!variable_global_exists(""hybrid_equipment_registry"")) {{
+    global.hybrid_equipment_registry = {{}};
+    global.hybrid_equipment_by_slot = {{}};
+}}
+");
+        }}
+        
+        // 2. 添加注册函数（如果不存在）
+        if (!FunctionExists("register_hybrid_equipment"))
+        {{
+            AddGlobalFunction("register_hybrid_equipment", @"
+function register_hybrid_equipment() {{
+    var _id = argument0;
+    
+    // 已注册则跳过
+    if (variable_struct_exists(global.hybrid_equipment_registry, _id)) return;
+    
+    var _data = {{
+        id: _id,
+        slot: argument1,
+        tier: argument2,
+        material: argument3,
+        tags: argument4,
+        container_spawn: argument5,
+        shop_spawn: argument6,
+        kill_spawn: argument7,
+        equipment_mode: argument8
+    }};
+    
+    // 主索引
+    variable_struct_set(global.hybrid_equipment_registry, _id, _data);
+    
+    // 槽位索引
+    var _slot = argument1;
+    if (!variable_struct_exists(global.hybrid_equipment_by_slot, _slot)) {{
+        variable_struct_set(global.hybrid_equipment_by_slot, _slot, []);
+    }}
+    array_push(variable_struct_get(global.hybrid_equipment_by_slot, _slot), _id);
+}}
+");
+        }}
+        
+        // 3. 注册本项目的混合物品
+        AddInitScript("init_{project.code_name}_hybrid_equipment", @"
+        {register_code}
+");
+        
+        // 4. Patch scr_find_weapon_params (敌人击杀 + 商店进货)
+        Msl.LoadGML("gml_GlobalScript_scr_find_weapon_params")
+            .MatchFrom("ds_list_shuffle(list)")
+            .InsertAbove(@"
+// === 混合装备注入 ===
+if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
+    var _is_shop = instance_exists(o_trade_inventory);
+    var _spawn_mode = _is_shop ? ""shop_spawn"" : ""kill_spawn"";
+    var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, _type);
+    if (!is_undefined(_hybrid_slot_items)) {{
+        for (var _hi = 0; _hi < array_length(_hybrid_slot_items); _hi++) {{
+            var _hid = _hybrid_slot_items[_hi];
+            var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
+            if (variable_struct_get(_hdata, _spawn_mode) != ""equipment"") continue;
+            
+            // 根据 equipment_mode 区分 weapon/armor 表
+            var _eq_mode = _hdata.equipment_mode;
+            if (_eq_mode == ""weapon"") {{
+                // weapon 模式只在 weapon 表或 all 时注入
+                if (_table != ""weapon"" && _table != ""all"") continue;
+            }} else {{
+                // armor/passive 模式只在 armor 表或 all 时注入
+                if (_table != ""armor"" && _table != ""all"") continue;
+            }}
+            
+            if (_hdata.tier < argument[0] || _hdata.tier > argument[1]) continue;
+            if (!scr_material_compare(_hdata.material, material)) continue;
+            if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), tags)) continue;
+            if (_check_repeat && ds_list_find_index(global.item_buffer, _hid) >= 0) continue;
+            ds_list_add(list, _hid);
+        }}
+    }}
+}}
+// === 混合装备注入结束 ===
+            ")
+            .Save();
+        
+        // 5. Patch scr_find_weapon (容器/宝箱)
+        Msl.LoadGML("gml_GlobalScript_scr_find_weapon")
+            .MatchFrom("var _array_size = array_length(_weapon_array)")
+            .InsertAbove(@"
+// === 混合装备注入 ===
+if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
+    var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, arg0);
+    if (!is_undefined(_hybrid_slot_items)) {{
+        for (var _hi = 0; _hi < array_length(_hybrid_slot_items); _hi++) {{
+            var _hid = _hybrid_slot_items[_hi];
+            var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
+            if (_hdata.container_spawn != ""equipment"") continue;
+            if (arg2 != -4 && _hdata.tier > 0 && (_hdata.tier < arg2[0] || _hdata.tier > arg2[1])) continue;
+            if (ds_list_find_index(scr_atr(""specialItemsPool""), _hid) >= 0) continue;
+            if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), arg1)) continue;
+            array_push(_weapon_array, _hid);
+        }}
+    }}
+}}
+// === 混合装备注入结束 ===
+            ")
+            .Save();
+        
+        // 6. Patch scr_weapon_loot (掉落创建)
+        Msl.LoadGML("gml_GlobalScript_scr_weapon_loot")
+            .MatchFrom(@"var checkSpecialPool = (argument4 == (6 << 0) && argument5 == ""dynamic"")")
+            .InsertAbove(@"
+// === 混合物品直接创建 ===
+if (variable_global_exists(""hybrid_equipment_registry"")) {{
+    if (variable_struct_exists(global.hybrid_equipment_registry, arg0)) {{
+        var _hybrid_loot = asset_get_index(""o_loot_"" + arg0);
+        if (object_exists(_hybrid_loot)) {{
+            if (scr_chance_value(arg3, 1)) {{
+                var _px = scr_round_cell(arg1) + 13;
+                var _py = scr_round_cell(arg2) + 13;
+                with (scr_loot_drop(_px, _py, _hybrid_loot, true, arg5, arg6, arg7)) {{
+                    if (arg4 != -4) determined_quality = arg4;
+                    event_user(1);
+                    return id;
+                }}
+            }}
+            return -4;
+        }}
+    }}
+}}
+// === 混合物品处理结束 ===
+            ")
+            .Save();
+        
+        // 7. Patch scr_inventory_add_weapon (背包添加)
+        Msl.LoadGML("gml_GlobalScript_scr_inventory_add_weapon")
+            .MatchFrom("var _checkSpecialPool = argument1 == (6 << 0)")
+            .InsertAbove(@"
+// === 混合物品直接创建 ===
+if (variable_global_exists(""hybrid_equipment_registry"")) {{
+    if (variable_struct_exists(global.hybrid_equipment_registry, arg0)) {{
+        var _hybrid_inv = asset_get_index(""o_inv_"" + arg0);
+        if (object_exists(_hybrid_inv)) {{
+            with (scr_guiCreateInteractive(global.guiBaseContainerVisible, _hybrid_inv)) {{
+                owner = other.id;
+                if (arg1 != -4) determined_quality = arg1;
+                is_new = arg4;
+                event_user(0);
+                if (arg5 != -4) ds_map_replace(data, ""identified"", arg5);
+                if (arg2) event_perform(ev_alarm, 0);
+                if (slotDestroyed) return -4;
+                if (arg3) {{
+                    if (!scr_inventory_add(owner)) {{
+                        if (owner.object_index != o_trade_inventory) {{
+                            forced_drop = true;
+                            event_user(15);
+                            return -4;
+                        }} else {{
+                            scr_inventory_cells_add(owner, owner.cellsContainer, 5, true);
+                            scr_inventory_add(owner, id);
+                        }}
+                    }}
+                }}
+                return id;
+            }}
+        }}
+    }}
+}}
+// === 混合物品处理结束 ===
+            ")
+            .Save();
+    }}
+
+'''
+        return code
 

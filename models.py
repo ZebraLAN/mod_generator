@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, List
 
 from constants import (
@@ -22,6 +23,21 @@ from constants import (
     LEFT_HAND_SLOTS,
     PRIMARY_LANGUAGE,
 )
+
+
+# ============== 枚举类型 ==============
+
+
+class SpawnMode(Enum):
+    """混合物品生成模式
+    
+    EQUIPMENT: 从装备品路径生成（走 scr_find_weapon_params / scr_find_weapon）
+    NON_EQUIPMENT: 从非装备品路径生成（保持当前行为）
+    CUSTOM: 自定义（暂未实现）
+    """
+    EQUIPMENT = "equipment"
+    NON_EQUIPMENT = "non_equipment"
+    CUSTOM = "custom"
 
 
 # ============== 辅助函数 ==============
@@ -459,8 +475,23 @@ class HybridItem:
     drop_sound: int = 911  # 放下音效ID
     pickup_sound: int = 907  # 拾取音效ID
     
-    # ====== 元数据 ======
-    tags: str = "special exc"  # 固定为 "special exc"
+    # ====== 分类元数据（用于 drop/shop 随机选取）======
+    cat: str = ""  # 主分类（单选）
+    subcats: List[str] = field(default_factory=list)  # 子分类（多选）
+    
+    # ====== Tags 设置 ======
+    exclude_from_random: bool = True  # True 时使用 "special exc" 排除随机生成
+    quality_tag: str = ""  # 品质 tag: common/uncommon/rare/""
+    dungeon_tag: str = ""  # 地牢 tag: crypt/catacombs/bastion/""
+    extra_tags: List[str] = field(default_factory=list)  # 其他 tags（多选）
+    
+    # ====== 生成路径配置 ======
+    # 控制混合物品在各场景下如何生成
+    container_spawn: SpawnMode = SpawnMode.NON_EQUIPMENT  # 容器/宝箱生成模式
+    shop_spawn: SpawnMode = SpawnMode.NON_EQUIPMENT       # 商店进货生成模式
+    kill_spawn: SpawnMode = SpawnMode.NON_EQUIPMENT       # 敌人击杀生成模式
+    
+    # ====== 其他元数据 ======
     rarity: str = ""  # 稀有度（由品质自动决定）
     weight: str = "Light"  # Light/Medium/VeryLight/Heavy（护甲由 armor_class 自动决定）
     
@@ -552,11 +583,6 @@ class HybridItem:
         return self.equipment_mode in ("weapon", "armor")
     
     @property
-    def mark_as_weapon(self) -> bool:
-        """is_weapon 的别名，保持向后兼容"""
-        return self.is_weapon
-    
-    @property
     def armor_class(self) -> str:
         """护甲类别（Light/Medium/Heavy）- 由 weight 决定"""
         return self.WEIGHT_TO_ARMOR_CLASS.get(self.weight, "Light")
@@ -600,14 +626,34 @@ class HybridItem:
             return self.charge
     
     @property
-    def is_unlimited_use(self) -> bool:
-        """是否为无消耗模式（计算属性，兼容旧代码）"""
-        return self.charge_mode == "unlimited"
+    def effective_tags(self) -> str:
+        """组合所有 tags 为空格分隔的字符串（用于 GML 生成）
+        
+        如果 exclude_from_random 为 True，返回 "special exc"
+        否则组合 quality_tag + dungeon_tag + extra_tags
+        """
+        if self.exclude_from_random:
+            return "special exc"
+        parts = []
+        if self.quality_tag:
+            parts.append(self.quality_tag)
+        if self.dungeon_tag:
+            parts.append(self.dungeon_tag)
+        parts.extend(self.extra_tags)
+        return " ".join(parts)
     
     @property
-    def link_charges_to_durability(self) -> bool:
-        """次数是否与耐久挂钩（计算属性，兼容旧代码）"""
-        return self.charge_mode == "linked"
+    def tags_tuple(self) -> tuple:
+        """获取 tags 元组（用于高效查找）"""
+        if self.exclude_from_random:
+            return ()  # special exc 不参与匹配
+        parts = []
+        if self.quality_tag:
+            parts.append(self.quality_tag)
+        if self.dungeon_tag:
+            parts.append(self.dungeon_tag)
+        parts.extend(self.extra_tags)
+        return tuple(parts)
 
 
 # ============== 验证函数 ==============
@@ -743,10 +789,8 @@ def validate_hybrid_item(
 
     # 耐久检查
     if item.has_durability:
-        if item.duration_init <= 0 or item.duration_max <= 0:
+        if item.duration_max <= 0:
             errors.append("耐久度应大于0")
-        if item.duration_init > item.duration_max:
-            errors.append("初始耐久不应大于最大耐久")
 
     # 贴图检查
     if not item.textures.has_loot():
@@ -909,13 +953,24 @@ class ModProject:
             "base_price": item.base_price,
             "drop_sound": item.drop_sound,
             "pickup_sound": item.pickup_sound,
-            "tags": item.tags,
+            # 分类元数据（新字段）
+            "cat": item.cat,
+            "subcats": item.subcats,
+            "exclude_from_random": item.exclude_from_random,
+            "quality_tag": item.quality_tag,
+            "dungeon_tag": item.dungeon_tag,
+            "extra_tags": item.extra_tags,
+            # 其他元数据
             "rarity": item.rarity,
             "weight": item.weight,
             "poison_duration": item.poison_duration,
             "attributes": item.attributes,
             "consumable_attributes": item.consumable_attributes,
             "textures": self._serialize_textures(item.textures, project_dir),
+            # 生成路径配置
+            "container_spawn": item.container_spawn.value,
+            "shop_spawn": item.shop_spawn.value,
+            "kill_spawn": item.kill_spawn.value,
         }
 
 
@@ -1224,12 +1279,24 @@ class ModProject:
             base_price=item_data.get("base_price", 100),
             drop_sound=item_data.get("drop_sound", 911),
             pickup_sound=item_data.get("pickup_sound", 907),
-            tags=item_data.get("tags", "special exc"),
+            # 分类元数据（新字段，向后兼容使用默认值）
+            cat=item_data.get("cat", ""),
+            subcats=item_data.get("subcats", []),
+            # 向后兼容：如果无新字段但有旧 tags 字段，保持 exclude_from_random=True
+            exclude_from_random=item_data.get("exclude_from_random", True),
+            quality_tag=item_data.get("quality_tag", ""),
+            dungeon_tag=item_data.get("dungeon_tag", ""),
+            extra_tags=item_data.get("extra_tags", []),
+            # 其他元数据
             rarity=item_data.get("rarity", ""),
             weight=item_data.get("weight", "Light"),
             poison_duration=item_data.get("poison_duration", 0),
             attributes=attributes,  # 使用迁移后的 attributes
             consumable_attributes=item_data.get("consumable_attributes", {}),
+            # 生成路径配置（向后兼容：默认为 NON_EQUIPMENT）
+            container_spawn=SpawnMode(item_data.get("container_spawn", "non_equipment")),
+            shop_spawn=SpawnMode(item_data.get("shop_spawn", "non_equipment")),
+            kill_spawn=SpawnMode(item_data.get("kill_spawn", "non_equipment")),
         )
         
         item.localization = ItemLocalization(

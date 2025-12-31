@@ -844,14 +844,13 @@ HYBRID_DAMAGE_TYPES = {
 
 # 混合物品材质
 HYBRID_MATERIALS = {
-    "Steel": "钢",
-    "Iron": "铁",
-    "Wood": "木",
-    "Bone": "骨",
-    "Leather": "皮革",
-    "Cloth": "布料",
-    "Silver": "银",
-    "Gold": "金",
+    "metal": "金属",
+    "wood": "木",
+    "leather": "皮革",
+    "cloth": "布料",
+    "silver": "银",
+    "gold": "金",
+    "gem": "宝石",
 }
 
 # 混合物品护甲类型
