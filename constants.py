@@ -853,7 +853,7 @@ HYBRID_MATERIALS = {
     "gem": "宝石",
 }
 
-# 混合物品护甲类型
+# 混合物品护甲类型 (Slot 字段)
 HYBRID_ARMOR_TYPES = {
     "Chest": "胸甲",
     "Head": "头盔",
@@ -861,6 +861,8 @@ HYBRID_ARMOR_TYPES = {
     "Legs": "靴子",
     "Waist": "腰带",
     "Back": "披风",
+    "Ring": "戒指",
+    "Amulet": "护身符",
     "shield": "盾牌",
 }
 

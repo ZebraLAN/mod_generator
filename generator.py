@@ -2373,10 +2373,8 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         string weightVal = GetWeightValue(Weight);
         string materialVal = GetMaterialValue(Material);
 
-        // 构建数据行
-        // 格式: id;;Price;EffPrice;tier;Cat;Subcat;Material;Weight;;Fresh;Duration;Stacks;Diet;;[效果参数...];;purse;bottle;upgrade;fodder;stack;fireproof;dropsOnce;tags;
-        // 注意：EffPrice 和 Duration 留空（EffPrice 疑似无用；Duration 属于效果属性，由 GML 端处理）
-        string newline = $"{id};;{Price};;{tierVal};{Cat};{Subcat};{materialVal};{weightVal};;{Fresh};;{Stacks};{(Diet ? "1" : "")};;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;{(purse ? "1" : "")};{(bottle ? "1" : "")};{upgrade};{fodder};{stack};{(fireproof ? "1" : "")};{(dropsOnce ? "1" : "")};{tags};";
+        // 构建数据行 - 基于 MSL InjectTableItemStats 格式 (100 个分号)
+        string newline = $"{id};;{Price};;{tierVal};{Cat};{Subcat};{materialVal};{weightVal};;{Fresh};;{Stacks};{(Diet ? "1" : "")};;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;{(purse ? "1" : "")};{(bottle ? "1" : "")};{upgrade};{fodder};{stack};{(fireproof ? "1" : "")};{(dropsOnce ? "1" : "")};{tags};";
 
         table.Add(newline);
         ModLoader.SetTable(table, tableName);
@@ -2501,8 +2499,8 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         if not equipment_hybrids:
             return ""
         
-        # 生成注册调用代码
-        register_calls = []
+        # 生成混合物品数据数组
+        item_entries = []
         for h in equipment_hybrids:
             # 确定槽位
             if h.equipment_mode == "weapon":
@@ -2512,56 +2510,50 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
             else:
                 slot = h.slot
             
-            register_calls.append(
-                f'register_hybrid_equipment(""{h.id}"", ""{slot}"", {h.tier}, '
-                f'""{h.material.lower()}"", ""{h.effective_tags}"", '
-                f'""{h.container_spawn.value}"", ""{h.shop_spawn.value}"", ""{h.kill_spawn.value}"", '
-                f'""{h.equipment_mode}"");'
+            # 生成数组元素 (effective_tags 不含 'special')
+            item_entries.append(
+                f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material.lower()}\"\", '
+                f'\"\"{h.effective_tags}\"\", \"\"{h.spawn_mode.value}\"\", \"\"{h.equipment_mode}\"\"]'
             )
         
-        register_code = "\\n        ".join(register_calls)
+        items_array = ", ".join(item_entries)
         
         code = f'''
     void EnsureHybridEquipmentRegistry()
     {{
-        // 1. 初始化全局注册表（如果不存在）
-        if (!InitScriptExists("hybrid_equipment_registry"))
+        // 单一初始化脚本，避免 GlobalInit 执行顺序问题
+        if (!InitScriptExists("{project.code_name}_hybrid_equipment"))
         {{
-            AddInitScript("hybrid_equipment_registry", @"
+            AddInitScript("{project.code_name}_hybrid_equipment", @"
+// === 混合装备注册系统初始化 ===
+
+// 1. 初始化全局注册表
 if (!variable_global_exists(""hybrid_equipment_registry"")) {{
     global.hybrid_equipment_registry = {{}};
     global.hybrid_equipment_by_slot = {{}};
 }}
-");
-        }}
-        
-        // 2. 添加注册函数（如果不存在）
-        if (!FunctionExists("register_hybrid_equipment"))
-        {{
-            AddGlobalFunction("register_hybrid_equipment", @"
-function register_hybrid_equipment() {{
-    var _id = argument0;
+
+// 2. 注册本项目的混合物品
+var _items = [{items_array}];
+for (var _i = 0; _i < array_length(_items); _i++) {{
+    var _item = _items[_i];
+    var _id = _item[0];
+    var _slot = _item[1];
     
-    // 已注册则跳过
-    if (variable_struct_exists(global.hybrid_equipment_registry, _id)) return;
+    if (variable_struct_exists(global.hybrid_equipment_registry, _id)) continue;
     
     var _data = {{
         id: _id,
-        slot: argument1,
-        tier: argument2,
-        material: argument3,
-        tags: argument4,
-        container_spawn: argument5,
-        shop_spawn: argument6,
-        kill_spawn: argument7,
-        equipment_mode: argument8
+        slot: _slot,
+        tier: _item[2],
+        material: _item[3],
+        tags: _item[4],
+        spawn_mode: _item[5],
+        equipment_mode: _item[6]
     }};
     
-    // 主索引
     variable_struct_set(global.hybrid_equipment_registry, _id, _data);
     
-    // 槽位索引
-    var _slot = argument1;
     if (!variable_struct_exists(global.hybrid_equipment_by_slot, _slot)) {{
         variable_struct_set(global.hybrid_equipment_by_slot, _slot, []);
     }}
@@ -2570,25 +2562,19 @@ function register_hybrid_equipment() {{
 ");
         }}
         
-        // 3. 注册本项目的混合物品
-        AddInitScript("init_{project.code_name}_hybrid_equipment", @"
-        {register_code}
-");
-        
         // 4. Patch scr_find_weapon_params (敌人击杀 + 商店进货)
         Msl.LoadGML("gml_GlobalScript_scr_find_weapon_params")
             .MatchFrom("ds_list_shuffle(list)")
             .InsertAbove(@"
 // === 混合装备注入 ===
 if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
-    var _is_shop = instance_exists(o_trade_inventory);
-    var _spawn_mode = _is_shop ? ""shop_spawn"" : ""kill_spawn"";
     var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, _type);
     if (!is_undefined(_hybrid_slot_items)) {{
         for (var _hi = 0; _hi < array_length(_hybrid_slot_items); _hi++) {{
             var _hid = _hybrid_slot_items[_hi];
             var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
-            if (variable_struct_get(_hdata, _spawn_mode) != ""equipment"") continue;
+            // 检查统一的 spawn_mode
+            if (_hdata.spawn_mode != ""equipment"") continue;
             
             // 根据 equipment_mode 区分 weapon/armor 表
             var _eq_mode = _hdata.equipment_mode;
@@ -2618,15 +2604,15 @@ if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
             .InsertAbove(@"
 // === 混合装备注入 ===
 if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
-    var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, arg0);
+    var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, argument0);
     if (!is_undefined(_hybrid_slot_items)) {{
         for (var _hi = 0; _hi < array_length(_hybrid_slot_items); _hi++) {{
             var _hid = _hybrid_slot_items[_hi];
             var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
             if (_hdata.container_spawn != ""equipment"") continue;
-            if (arg2 != -4 && _hdata.tier > 0 && (_hdata.tier < arg2[0] || _hdata.tier > arg2[1])) continue;
+            if (argument2 != -4 && _hdata.tier > 0 && (_hdata.tier < argument2[0] || _hdata.tier > argument2[1])) continue;
             if (ds_list_find_index(scr_atr(""specialItemsPool""), _hid) >= 0) continue;
-            if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), arg1)) continue;
+            if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), argument1)) continue;
             array_push(_weapon_array, _hid);
         }}
     }}
@@ -2640,15 +2626,15 @@ if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
             .MatchFrom(@"var checkSpecialPool = (argument4 == (6 << 0) && argument5 == ""dynamic"")")
             .InsertAbove(@"
 // === 混合物品直接创建 ===
-if (variable_global_exists(""hybrid_equipment_registry"")) {{
-    if (variable_struct_exists(global.hybrid_equipment_registry, arg0)) {{
-        var _hybrid_loot = asset_get_index(""o_loot_"" + arg0);
+if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argument0)) {{
+    if (variable_struct_exists(global.hybrid_equipment_registry, argument0)) {{
+        var _hybrid_loot = asset_get_index(""o_loot_"" + argument0);
         if (object_exists(_hybrid_loot)) {{
-            if (scr_chance_value(arg3, 1)) {{
-                var _px = scr_round_cell(arg1) + 13;
-                var _py = scr_round_cell(arg2) + 13;
-                with (scr_loot_drop(_px, _py, _hybrid_loot, true, arg5, arg6, arg7)) {{
-                    if (arg4 != -4) determined_quality = arg4;
+            if (scr_chance_value(argument3, 1)) {{
+                var _px = scr_round_cell(argument1) + 13;
+                var _py = scr_round_cell(argument2) + 13;
+                with (scr_loot_drop(_px, _py, _hybrid_loot, true, argument5, argument6, argument7)) {{
+                    if (argument4 != -4) determined_quality = argument4;
                     event_user(1);
                     return id;
                 }}
@@ -2666,19 +2652,19 @@ if (variable_global_exists(""hybrid_equipment_registry"")) {{
             .MatchFrom("var _checkSpecialPool = argument1 == (6 << 0)")
             .InsertAbove(@"
 // === 混合物品直接创建 ===
-if (variable_global_exists(""hybrid_equipment_registry"")) {{
-    if (variable_struct_exists(global.hybrid_equipment_registry, arg0)) {{
-        var _hybrid_inv = asset_get_index(""o_inv_"" + arg0);
+if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argument0)) {{
+    if (variable_struct_exists(global.hybrid_equipment_registry, argument0)) {{
+        var _hybrid_inv = asset_get_index(""o_inv_"" + argument0);
         if (object_exists(_hybrid_inv)) {{
             with (scr_guiCreateInteractive(global.guiBaseContainerVisible, _hybrid_inv)) {{
                 owner = other.id;
-                if (arg1 != -4) determined_quality = arg1;
-                is_new = arg4;
+                if (argument1 != -4) determined_quality = argument1;
+                is_new = argument4;
                 event_user(0);
-                if (arg5 != -4) ds_map_replace(data, ""identified"", arg5);
-                if (arg2) event_perform(ev_alarm, 0);
+                if (argument5 != -4) ds_map_replace(data, ""identified"", argument5);
+                if (argument2) event_perform(ev_alarm, 0);
                 if (slotDestroyed) return -4;
-                if (arg3) {{
+                if (argument3) {{
                     if (!scr_inventory_add(owner)) {{
                         if (owner.object_index != o_trade_inventory) {{
                             forced_drop = true;

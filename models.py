@@ -33,11 +33,9 @@ class SpawnMode(Enum):
     
     EQUIPMENT: 从装备品路径生成（走 scr_find_weapon_params / scr_find_weapon）
     NON_EQUIPMENT: 从非装备品路径生成（保持当前行为）
-    CUSTOM: 自定义（暂未实现）
     """
     EQUIPMENT = "equipment"
     NON_EQUIPMENT = "non_equipment"
-    CUSTOM = "custom"
 
 
 # ============== 辅助函数 ==============
@@ -481,15 +479,15 @@ class HybridItem:
     
     # ====== Tags 设置 ======
     exclude_from_random: bool = True  # True 时使用 "special exc" 排除随机生成
-    quality_tag: str = ""  # 品质 tag: common/uncommon/rare/""
+    quality_tag: str = ""  # 品质 tag: common/uncommon/rare/unique/""
     dungeon_tag: str = ""  # 地牢 tag: crypt/catacombs/bastion/""
+    country_tag: str = ""  # 国家/地区 tag: aldor/nistra/skadia/fjall/elven/maen/"" (互斥)
     extra_tags: List[str] = field(default_factory=list)  # 其他 tags（多选）
     
     # ====== 生成路径配置 ======
-    # 控制混合物品在各场景下如何生成
-    container_spawn: SpawnMode = SpawnMode.NON_EQUIPMENT  # 容器/宝箱生成模式
-    shop_spawn: SpawnMode = SpawnMode.NON_EQUIPMENT       # 商店进货生成模式
-    kill_spawn: SpawnMode = SpawnMode.NON_EQUIPMENT       # 敌人击杀生成模式
+    # 统一的生成模式（容器、商店、击杀均使用此设置）
+    # EQUIPMENT 模式下会自动添加 "special" 标签防止非装备路径匹配
+    spawn_mode: SpawnMode = SpawnMode.NON_EQUIPMENT
     
     # ====== 其他元数据 ======
     rarity: str = ""  # 稀有度（由品质自动决定）
@@ -627,10 +625,10 @@ class HybridItem:
     
     @property
     def effective_tags(self) -> str:
-        """组合所有 tags 为空格分隔的字符串（用于 GML 生成）
+        """组合所有 tags 为空格分隔的字符串
         
+        用于 GML 生成和显示。不含自动添加的 'special'。
         如果 exclude_from_random 为 True，返回 "special exc"
-        否则组合 quality_tag + dungeon_tag + extra_tags
         """
         if self.exclude_from_random:
             return "special exc"
@@ -639,12 +637,17 @@ class HybridItem:
             parts.append(self.quality_tag)
         if self.dungeon_tag:
             parts.append(self.dungeon_tag)
+        if self.country_tag:
+            parts.append(self.country_tag)
         parts.extend(self.extra_tags)
         return " ".join(parts)
     
     @property
     def tags_tuple(self) -> tuple:
-        """获取 tags 元组（用于高效查找）"""
+        """获取 tags 元组（用于预览匹配等）
+        
+        不含自动添加的 'special'，与 effective_tags 内容一致。
+        """
         if self.exclude_from_random:
             return ()  # special exc 不参与匹配
         parts = []
@@ -652,6 +655,29 @@ class HybridItem:
             parts.append(self.quality_tag)
         if self.dungeon_tag:
             parts.append(self.dungeon_tag)
+        if self.country_tag:
+            parts.append(self.country_tag)
+        parts.extend(self.extra_tags)
+        return tuple(parts)
+    
+    @property
+    def csharp_tags_tuple(self) -> tuple:
+        """获取 C# API 用的 tags 元组（EQUIPMENT 模式含 'special'）
+        
+        仅用于 C# InjectItemStats 调用，EQUIPMENT 模式自动添加 'special'
+        防止在非装备生成路径中被选中。
+        """
+        if self.exclude_from_random:
+            return ()
+        parts = []
+        if self.spawn_mode == SpawnMode.EQUIPMENT:
+            parts.append("special")
+        if self.quality_tag:
+            parts.append(self.quality_tag)
+        if self.dungeon_tag:
+            parts.append(self.dungeon_tag)
+        if self.country_tag:
+            parts.append(self.country_tag)
         parts.extend(self.extra_tags)
         return tuple(parts)
 
@@ -959,6 +985,7 @@ class ModProject:
             "exclude_from_random": item.exclude_from_random,
             "quality_tag": item.quality_tag,
             "dungeon_tag": item.dungeon_tag,
+            "country_tag": item.country_tag,
             "extra_tags": item.extra_tags,
             # 其他元数据
             "rarity": item.rarity,
@@ -968,9 +995,7 @@ class ModProject:
             "consumable_attributes": item.consumable_attributes,
             "textures": self._serialize_textures(item.textures, project_dir),
             # 生成路径配置
-            "container_spawn": item.container_spawn.value,
-            "shop_spawn": item.shop_spawn.value,
-            "kill_spawn": item.kill_spawn.value,
+            "spawn_mode": item.spawn_mode.value,
         }
 
 
@@ -1286,6 +1311,7 @@ class ModProject:
             exclude_from_random=item_data.get("exclude_from_random", True),
             quality_tag=item_data.get("quality_tag", ""),
             dungeon_tag=item_data.get("dungeon_tag", ""),
+            country_tag=item_data.get("country_tag", ""),
             extra_tags=item_data.get("extra_tags", []),
             # 其他元数据
             rarity=item_data.get("rarity", ""),
@@ -1293,10 +1319,9 @@ class ModProject:
             poison_duration=item_data.get("poison_duration", 0),
             attributes=attributes,  # 使用迁移后的 attributes
             consumable_attributes=item_data.get("consumable_attributes", {}),
-            # 生成路径配置（向后兼容：默认为 NON_EQUIPMENT）
-            container_spawn=SpawnMode(item_data.get("container_spawn", "non_equipment")),
-            shop_spawn=SpawnMode(item_data.get("shop_spawn", "non_equipment")),
-            kill_spawn=SpawnMode(item_data.get("kill_spawn", "non_equipment")),
+            # 生成路径配置（向后兼容：优先用新字段，兼容旧三字段格式）
+            spawn_mode=SpawnMode(item_data.get("spawn_mode", 
+                item_data.get("container_spawn", "non_equipment"))),
         )
         
         item.localization = ItemLocalization(

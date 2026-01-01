@@ -122,11 +122,13 @@ from drop_slot_data import (
     CATEGORY_TRANSLATIONS,
     QUALITY_TAGS,
     DUNGEON_TAGS,
+    COUNTRY_TAGS,
     EXTRA_TAGS,
+    ALL_TAGS,
     find_matching_slots,
-    tags_to_bits,
+    find_matching_eq_slots,
 )
-
+from shop_configs import NPC_METADATA, SHOP_CONFIGS
 
 def get_attr_display(attr: str, lang: str = "Chinese") -> tuple[str, str]:
     """获取属性的本地化显示名称和说明
@@ -2399,19 +2401,24 @@ class ModGeneratorGUI:
         
         imgui.columns(3, "tags_cols", border=False)
         
-        # 品质标签 (单选)
-        imgui.text("品质")
-        for tag_val, tag_label in QUALITY_TAGS.items():
-            if imgui.radio_button(f"{tag_label}##quality", hybrid.quality_tag == tag_val):
-                hybrid.quality_tag = tag_val
-        
-        imgui.next_column()
+        # 品质标签自动设置（不显示控件）
+        # quality 6 = 独特 -> 品质标签为 unique
+        # 其他 -> 品质标签为空
+        hybrid.quality_tag = "unique" if hybrid.quality == 6 else ""
         
         # 地牢标签 (单选)
         imgui.text("地牢")
         for tag_val, tag_label in DUNGEON_TAGS.items():
             if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
                 hybrid.dungeon_tag = tag_val
+        
+        imgui.next_column()
+        
+        # 国家标签 (单选，互斥)
+        imgui.text("国家/地区")
+        for tag_val, tag_label in COUNTRY_TAGS.items():
+            if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
+                hybrid.country_tag = tag_val
         
         imgui.next_column()
         
@@ -2437,165 +2444,362 @@ class ModGeneratorGUI:
         # ====== 生成路径配置 ======
         imgui.text("生成路径配置")
         if imgui.is_item_hovered():
-            imgui.set_tooltip("控制混合物品在各场景下如何生成\n装备品: 从装备筛选路径生成（与原生装备一起随机）\n非装备品: 保持当前行为")
+            imgui.set_tooltip("统一控制容器/商店/击杀的生成路径\n"
+                              "装备品: 从装备筛选路径生成（与原生装备一起随机）\n"
+                              "非装备品: 保持当前行为")
         
-        spawn_mode_options = [SpawnMode.EQUIPMENT, SpawnMode.NON_EQUIPMENT]
+        spawn_mode_options = [SpawnMode.NON_EQUIPMENT, SpawnMode.EQUIPMENT]
         spawn_mode_labels = {
             SpawnMode.EQUIPMENT: "装备品路径",
             SpawnMode.NON_EQUIPMENT: "非装备品路径",
-            SpawnMode.CUSTOM: "自定义 (暂未实现)",
         }
         
-        imgui.columns(3, "spawn_mode_columns", border=False)
-        
-        # 容器/宝箱
-        imgui.text("容器/宝箱")
-        imgui.set_next_item_width(-1)
-        if imgui.begin_combo("##container_spawn", spawn_mode_labels[hybrid.container_spawn]):
+        imgui.set_next_item_width(200)
+        if imgui.begin_combo("##spawn_mode", spawn_mode_labels[hybrid.spawn_mode]):
             for mode in spawn_mode_options:
-                selected = hybrid.container_spawn == mode
+                selected = hybrid.spawn_mode == mode
                 if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
-                    hybrid.container_spawn = mode
+                    hybrid.spawn_mode = mode
             imgui.end_combo()
         
-        imgui.next_column()
-        
-        # 商店进货
-        imgui.text("商店进货")
-        imgui.set_next_item_width(-1)
-        if imgui.begin_combo("##shop_spawn", spawn_mode_labels[hybrid.shop_spawn]):
-            for mode in spawn_mode_options:
-                selected = hybrid.shop_spawn == mode
-                if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
-                    hybrid.shop_spawn = mode
-            imgui.end_combo()
-        
-        imgui.next_column()
-        
-        # 敌人击杀
-        imgui.text("敌人击杀")
-        imgui.set_next_item_width(-1)
-        if imgui.begin_combo("##kill_spawn", spawn_mode_labels[hybrid.kill_spawn]):
-            for mode in spawn_mode_options:
-                selected = hybrid.kill_spawn == mode
-                if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
-                    hybrid.kill_spawn = mode
-            imgui.end_combo()
-        
-        imgui.columns(1)
+        if hybrid.spawn_mode == SpawnMode.EQUIPMENT:
+            imgui.same_line()
+            self.text_secondary("(自动添加 special 标签)")
         
         self.draw_indented_separator()
         
         # ====== 掉落匹配预览 ======
-        imgui.text("掉落池预览")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("显示物品可加入的掉落池\n物品加入池后，与池中其他物品一起参与随机抽取")
+        self._draw_drop_pool_preview(hybrid)
         
-        # 查询匹配的 slots
-        if hybrid.cat or hybrid.subcats:
-            tags_bits = tags_to_bits(hybrid.tags_tuple)
-            matches = find_matching_slots(
-                hybrid.cat,
-                tuple(hybrid.subcats),
-                tags_bits,
-                hybrid.tier
-            )
+        # ====== 商店预览 ======
+        self.draw_indented_separator()
+        imgui.text("商店进货预览")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("显示物品可能出现的商店\n"
+                              "商店根据分类/标签/等级筛选库存")
+        
+        if hybrid.spawn_mode == SpawnMode.NON_EQUIPMENT:
+            # 非装备路径商店：匹配 selling_loot_category
+            self._draw_shop_preview_non_equipment(hybrid)
+        elif hybrid.spawn_mode == SpawnMode.EQUIPMENT:
+            # 装备路径商店：匹配 tier_range, material_spec, trade_tags
+            self._draw_shop_preview_equipment(hybrid)
+    
+    def _draw_shop_preview_non_equipment(self, hybrid: HybridItem):
+        """绘制非装备路径商店预览"""
+        if not (hybrid.cat or hybrid.subcats):
+            self.text_secondary("(请设置分类以查看匹配商店)")
+            return
+        
+        # 匹配商店：检查 selling_loot_category 是否包含物品的分类
+        item_cats = set([hybrid.cat] + list(hybrid.subcats))
+        item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
+        matching_shops = []
+        
+        for objects_tuple, config in SHOP_CONFIGS.items():
+            selling_cats = config.get("selling_loot_category", {})
+            trade_tags = set(config.get("trade_tags", []))
             
-            if matches:
-                self.text_secondary(f"物品可加入以下 {len(matches)} 个掉落池:")
-                
-                # 使用可滚动的子面板
-                imgui.begin_child("##drop_slots_preview", height=200, border=True)
-                
-                # 表头 (7列)
-                imgui.columns(7, "slots_table")
-                imgui.set_column_width(0, 120)  # 来源
-                imgui.set_column_width(1, 30)   # #
-                imgui.set_column_width(2, 250)  # 分类 (最长35字符)
-                imgui.set_column_width(3, 50)   # 概率
-                imgui.set_column_width(4, 50)   # 数量
-                imgui.set_column_width(5, 50)   # 等级
-                
-                imgui.text("来源")
+            matched_cats = item_cats & set(selling_cats.keys())
+            if not matched_cats:
+                continue
+            
+            # 计算匹配分类的数量
+            total_count = sum(selling_cats.get(c, 0) for c in matched_cats if isinstance(selling_cats.get(c), int))
+            
+            # 标签检查：物品标签须为商店 trade_tags 的子集
+            if trade_tags and item_tags and not item_tags.issubset(trade_tags):
+                continue
+            
+            for obj in objects_tuple:
+                meta = NPC_METADATA.get(obj, {})
+                # 暂时隐藏没有名字的商店
+                if not meta.get("name_en") and not meta.get("name_zh"):
+                    continue
+                matching_shops.append({
+                    "npc_object": obj,
+                    "name": meta.get("name_zh") or meta.get("name_en") or obj,
+                    "town": meta.get("town_zh") or meta.get("town") or "",
+                    "matched_info": ", ".join(CATEGORY_TRANSLATIONS.get(c, c) for c in matched_cats),
+                    "count": str(total_count) if total_count else "-",
+                    "tags": " ".join(trade_tags) if trade_tags else "-",
+                })
+        
+        self._render_shop_table(matching_shops, "noneq", ["商店名称", "城镇", "匹配分类", "数量", "标签"])
+    
+    def _draw_shop_preview_equipment(self, hybrid: HybridItem):
+        """绘制装备路径商店预览"""
+        item_tier = hybrid.tier
+        item_material = hybrid.material
+        item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
+        
+        # 获取物品的装备分类
+        item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode in ("weapon", "hybrid") else None
+        item_armor_slot = hybrid.slot if hybrid.equipment_mode in ("armor", "hybrid") else None
+        is_jewelry = item_armor_slot in ("ring", "amulet") if item_armor_slot else False
+        
+        matching_shops = []
+        
+        for objects_tuple, config in SHOP_CONFIGS.items():
+            selling_cats = config.get("selling_loot_category", {})
+            tier_range = config.get("tier_range", [1, 1])
+            material_spec = config.get("material_spec", ["all"])
+            trade_tags = set(config.get("trade_tags", []))
+            
+            # 1. 检查 selling_loot_category 是否匹配物品类型
+            category_matched = False
+            matched_type = ""
+            selling_keys = set(selling_cats.keys())
+            
+            if "weapon" in selling_keys and item_weapon_type:
+                category_matched = True
+                matched_type = "武器"
+            elif "armor" in selling_keys and item_armor_slot and not is_jewelry:
+                category_matched = True
+                matched_type = "护甲"
+            elif "jewelry" in selling_keys and is_jewelry:
+                category_matched = True
+                matched_type = "饰品"
+            
+            if item_weapon_type:
+                type_lower = item_weapon_type.lower()
+                if type_lower in selling_keys or item_weapon_type in selling_keys:
+                    category_matched = True
+                    matched_type = CATEGORY_TRANSLATIONS.get(item_weapon_type, item_weapon_type)
+            
+            if item_armor_slot:
+                slot_cap = item_armor_slot.capitalize()
+                if slot_cap in selling_keys or item_armor_slot in selling_keys:
+                    category_matched = True
+                    matched_type = CATEGORY_TRANSLATIONS.get(slot_cap, slot_cap)
+            
+            if not category_matched:
+                continue
+            
+            # 2. 检查等级范围
+            if item_tier > 0 and not (tier_range[0] <= item_tier <= tier_range[1]):
+                continue
+            
+            # 3. 检查材料筛选
+            if "all" not in material_spec and item_material not in material_spec:
+                continue
+            
+            # 4. 检查标签匹配
+            if trade_tags:
+                if not item_tags:
+                    continue
+                if not item_tags.issubset(trade_tags):
+                    continue
+            
+            for obj in objects_tuple:
+                meta = NPC_METADATA.get(obj, {})
+                if not meta.get("name_en") and not meta.get("name_zh"):
+                    continue
+                matching_shops.append({
+                    "npc_object": obj,
+                    "name": meta.get("name_zh") or meta.get("name_en") or obj,
+                    "town": meta.get("town_zh") or meta.get("town") or "",
+                    "matched_info": matched_type,
+                    "count": f"T{tier_range[0]}-{tier_range[1]}",
+                    "tags": " ".join(trade_tags) if trade_tags else "-",
+                })
+        
+        self._render_shop_table(matching_shops, "eq", ["商店名称", "城镇", "匹配类型", "等级", "标签"])
+    
+    def _render_shop_table(self, shops: list, table_id: str, headers: list):
+        """渲染商店预览表格（通用帮助函数）"""
+        if not shops:
+            self.text_secondary("(无匹配的商店)")
+            return
+        
+        self.text_secondary(f"物品可能出现在 {len(shops)} 个商店:")
+        imgui.begin_child(f"##shop_preview_{table_id}", height=150, border=True)
+        imgui.columns(len(headers), f"shop_table_{table_id}")
+        imgui.set_column_width(0, 130)
+        imgui.set_column_width(1, 70)
+        imgui.set_column_width(2, 80)
+        imgui.set_column_width(3, 50)
+        
+        for header in headers:
+            imgui.text(header)
+            imgui.next_column()
+        imgui.separator()
+        
+        for shop in shops[:30]:
+            imgui.text(shop["name"])
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(shop["npc_object"])
+            imgui.next_column()
+            imgui.text(shop["town"])
+            imgui.next_column()
+            imgui.text(shop["matched_info"])
+            imgui.next_column()
+            imgui.text(shop["count"])
+            imgui.next_column()
+            imgui.text(shop["tags"])
+            imgui.next_column()
+        
+        if len(shops) > 30:
+            imgui.text(f"...还有 {len(shops) - 30} 个商店")
+        
+        imgui.columns(1)
+        imgui.end_child()
+    
+    def _draw_drop_pool_preview(self, hybrid: HybridItem):
+        """绘制掉落池预览（非装备路径和装备路径）"""
+        imgui.text("容器掉落预览")
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("显示物品可能在哪些容器（宝箱等）中生成")
+        
+        # 根据生成路径显示不同预览
+        if hybrid.spawn_mode == SpawnMode.NON_EQUIPMENT:
+            self._draw_non_equipment_drop_preview(hybrid)
+        elif hybrid.spawn_mode == SpawnMode.EQUIPMENT:
+            self._draw_equipment_drop_preview(hybrid)
+    
+    def _draw_non_equipment_drop_preview(self, hybrid: HybridItem):
+        """绘制非装备路径容器掉落预览"""
+        if not (hybrid.cat or hybrid.subcats):
+            return  # 没有设置分类时不显示
+        
+        matches = find_matching_slots(
+            hybrid.cat,
+            tuple(hybrid.subcats),
+            hybrid.tags_tuple,
+            hybrid.tier
+        )
+        
+        if not matches:
+            self.text_secondary("(无匹配的掉落池)")
+            return
+        
+        self.text_secondary(f"物品可加入 {len(matches)} 个掉落池:")
+        
+        imgui.begin_child("##drop_slots_preview", height=180, border=True)
+        
+        imgui.columns(7, "slots_table")
+        imgui.set_column_width(0, 120)
+        imgui.set_column_width(1, 30)
+        imgui.set_column_width(2, 200)
+        imgui.set_column_width(3, 45)
+        imgui.set_column_width(4, 40)
+        imgui.set_column_width(5, 45)
+        
+        for header in ["来源", "#", "分类", "概率", "数量", "等级", "标签"]:
+            imgui.text(header)
+            imgui.next_column()
+        imgui.separator()
+        
+        for slot in matches[:50]:
+            imgui.text(slot["entry_name_cn"])
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(slot["entry_id"])
+            imgui.next_column()
+            
+            imgui.text(str(slot["slot_num"]))
+            imgui.next_column()
+            
+            cat_cn = ", ".join(CATEGORY_TRANSLATIONS.get(c.strip(), c.strip()) for c in slot["category"].split(","))
+            imgui.text(cat_cn[:25])
+            imgui.next_column()
+            
+            imgui.text(f"{slot['chance']}%")
+            imgui.next_column()
+            
+            imgui.text(str(slot["slot_count"]))
+            imgui.next_column()
+            
+            imgui.text(slot["tier_range"])
+            imgui.next_column()
+            
+            if slot["slot_tags"]:
+                tags_cn = " ".join(ALL_TAGS.get(t, t) for t in slot["slot_tags"].split())
+                imgui.text(tags_cn[:15])
                 if imgui.is_item_hovered():
-                    imgui.set_tooltip("掉落池所在的容器（宝箱、书架等）")
-                imgui.next_column()
-                
-                imgui.text("#")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("同一容器内的第几个掉落池\n每个池独立抽取")
-                imgui.next_column()
-                
-                imgui.text("分类")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("该池收纳的物品分类\n对应物品的 Cat 或 Subcat")
-                imgui.next_column()
-                
-                imgui.text("概率")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("容器生成内容物时\n该池产出物品的概率")
-                imgui.next_column()
-                
-                imgui.text("数量")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("该池产出时生成的物品个数\n从池中随机抽取")
-                imgui.next_column()
-                
-                imgui.text("等级")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("该池接受的物品等级范围")
-                imgui.next_column()
-                
-                imgui.text("标签")
-                if imgui.is_item_hovered():
-                    imgui.set_tooltip("该池允许的物品标签（白名单）\n物品的所有标签须在此范围内")
-                imgui.next_column()
-                imgui.separator()
-                
-                for slot in matches:
-                    # 容器名：显示中文名，hover 显示原名
-                    imgui.text(slot["entry_name_cn"])
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip(f"原名: {slot['entry_id']}")
-                    imgui.next_column()
-                    
-                    imgui.text(str(slot["slot_num"]))
-                    imgui.next_column()
-                    
-                    # 分类：翻译并 hover 显示原文
-                    cat_cn = ", ".join(CATEGORY_TRANSLATIONS.get(c.strip(), c.strip()) for c in slot["category"].split(","))
-                    imgui.text(cat_cn)
-                    if imgui.is_item_hovered():
-                        imgui.set_tooltip(f"原分类: {slot['category']}")
-                    imgui.next_column()
-                    
-                    imgui.text(f"{slot['chance']}%")
-                    imgui.next_column()
-                    
-                    imgui.text(str(slot["slot_count"]))
-                    imgui.next_column()
-                    
-                    imgui.text(slot["tier_range"])
-                    imgui.next_column()
-                    
-                    # 标签：翻译并 hover 显示原文
-                    if slot["slot_tags"]:
-                        all_tags = {**QUALITY_TAGS, **DUNGEON_TAGS, **EXTRA_TAGS}
-                        tags_cn = " ".join(all_tags.get(t.strip(), t.strip()) for t in slot["slot_tags"].split())
-                        imgui.text(tags_cn)
-                        if imgui.is_item_hovered():
-                            imgui.set_tooltip(f"原标签: {slot['slot_tags']}")
-                    else:
-                        imgui.text("-")
-                    imgui.next_column()
-                
-                imgui.columns(1)
-                imgui.end_child()
+                    imgui.set_tooltip(slot["slot_tags"])
             else:
-                self.text_secondary("(无匹配的掉落位置)")
-        else:
-            self.text_secondary("(请设置主分类或子分类以查看匹配结果)")
-
+                imgui.text("-")
+            imgui.next_column()
+        
+        imgui.columns(1)
+        imgui.end_child()
+    
+    def _draw_equipment_drop_preview(self, hybrid: HybridItem):
+        """绘制装备路径容器掉落预览"""
+        # 确定装备类别
+        eq_categories = []
+        if hybrid.equipment_mode == "weapon":
+            # 武器: 添加具体武器类型(如 sword, axe)和通用 weapon
+            if hybrid.weapon_type:
+                eq_categories.append(hybrid.weapon_type)
+            eq_categories.append("weapon")
+        elif hybrid.equipment_mode == "armor":
+            # 护甲: 添加具体护甲类型，再添加 jewelry 或 armor
+            if hybrid.armor_type:
+                eq_categories.append(hybrid.armor_type)
+            if hybrid.armor_type in ("Ring", "Amulet"):
+                eq_categories.append("jewelry")
+            else:
+                eq_categories.append("armor")
+        
+        if not eq_categories:
+            return
+        
+        all_matches = []
+        for eq_cat in eq_categories:
+            matches = find_matching_eq_slots(eq_cat, hybrid.tags_tuple, hybrid.tier)
+            all_matches.extend(matches)
+        
+        if not all_matches:
+            self.text_secondary("(无匹配的装备掉落池)")
+            return
+        
+        self.text_secondary(f"装备可从 {len(all_matches)} 个容器生成:")
+        
+        imgui.begin_child("##eq_drop_preview", height=180, border=True)
+        
+        imgui.columns(6, "eq_slots_table")
+        imgui.set_column_width(0, 130)
+        imgui.set_column_width(1, 30)
+        imgui.set_column_width(2, 80)
+        imgui.set_column_width(3, 45)
+        imgui.set_column_width(4, 50)
+        
+        for header in ["来源", "#", "类型", "概率", "等级", "标签"]:
+            imgui.text(header)
+            imgui.next_column()
+        imgui.separator()
+        
+        for slot in all_matches[:50]:
+            imgui.text(slot["entry_name_cn"])
+            if imgui.is_item_hovered():
+                imgui.set_tooltip(slot["entry_id"])
+            imgui.next_column()
+            
+            imgui.text(str(slot["eq_num"]))
+            imgui.next_column()
+            
+            eq_cat_cn = ", ".join(CATEGORY_TRANSLATIONS.get(c.strip(), c) for c in slot["eq_category"].split(","))
+            imgui.text(eq_cat_cn)
+            imgui.next_column()
+            
+            imgui.text(f"{slot['chance']}%")
+            imgui.next_column()
+            
+            imgui.text(slot["tier_range"])
+            imgui.next_column()
+            
+            if slot["eq_tags"]:
+                tags_cn = " ".join(ALL_TAGS.get(t, t) for t in slot["eq_tags"].split())
+                imgui.text(tags_cn[:15])
+                if imgui.is_item_hovered():
+                    imgui.set_tooltip(f"tags: {slot['eq_tags']}\nrarity: {slot.get('eq_rarity', '')}")
+            else:
+                imgui.text("-")
+            imgui.next_column()
+        
+        imgui.columns(1)
+        imgui.end_child()
 
     def _draw_basic_properties(self, item, id_suffix, slot_labels, material_labels):
         """绘制物品基本属性"""
@@ -4494,7 +4698,7 @@ class ModGeneratorGUI:
 
     def _draw_enum_combo(self, label, current_value, options, labels, tooltip=""):
         """通用枚举下拉框"""
-        current_label = labels.get(current_value, current_value)
+        current_label = str(labels.get(current_value, current_value))
         new_value = current_value
 
         if current_value not in options:
