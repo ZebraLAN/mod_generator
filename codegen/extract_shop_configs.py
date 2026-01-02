@@ -12,12 +12,12 @@ import json
 from pathlib import Path
 from collections import defaultdict
 
-# 文件路径 (相对于脚本目录)
-SCRIPT_DIR = Path(__file__).parent
-GML_DIR = SCRIPT_DIR / "code"
-INHERITANCE_FILE = SCRIPT_DIR / "object_inheritance.json"
-LOCATIONS_FILE = SCRIPT_DIR / "output_json" / "locations.json"
-NAMES_FILE = SCRIPT_DIR / "output_json" / "names.json"
+# 文件路径 (相对于项目根目录)
+SCRIPT_DIR = Path(__file__).parent.parent  # codegen -> project root
+GML_DIR = SCRIPT_DIR / "game_code"
+INHERITANCE_FILE = SCRIPT_DIR / "reference" / "data" / "object_inheritance.json"
+LOCATIONS_FILE = SCRIPT_DIR / "game_data" / "locations.json"
+NAMES_FILE = SCRIPT_DIR / "game_data" / "names.json"
 OUTPUT_FILE = SCRIPT_DIR / "shop_configs.py"
 
 # 城镇声望 Perk 对应的装备等级加成

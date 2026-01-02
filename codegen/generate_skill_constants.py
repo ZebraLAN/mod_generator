@@ -217,15 +217,15 @@ def generate_skill_constants(skills: dict, branch_translations: dict) -> str:
 
 
 def main():
-    base_dir = Path(__file__).parent
+    base_dir = Path(__file__).parent.parent  # codegen -> project root
     
     print("Loading data files...")
     
     # 加载数据
-    inheritance = load_json(base_dir / "reference" / "object_inheritance.json")
-    skills_stats = load_json(base_dir / "output_json" / "skills_stats.json")
-    skills_json = load_json(base_dir / "output_json" / "skills.json")
-    text_json = load_json(base_dir / "output_json" / "text.json")
+    inheritance = load_json(base_dir / "reference" / "data" / "object_inheritance.json")
+    skills_stats = load_json(base_dir / "game_data" / "skills_stats.json")
+    skills_json = load_json(base_dir / "game_data" / "skills.json")
+    text_json = load_json(base_dir / "game_data" / "text.json")
     
     print(f"Loaded {len(inheritance)} objects from inheritance")
     
@@ -237,8 +237,8 @@ def main():
     skill_objects = [ico_to_skill_object(ico) for ico in ico_children]
     print(f"Converted to {len(skill_objects)} skill objects")
     
-    # 3. 从 GML 文件提取书面名称 (从 code 目录读取)
-    skill_names = find_skill_written_names(skill_objects, str(base_dir / "code"))
+    # 3. 从 GML 文件提取书面名称 (从 game_code 目录读取)
+    skill_names = find_skill_written_names(skill_objects, str(base_dir / "game_code"))
     print(f"Found written names for {len(skill_names)} skills")
     
     # 4. 用元数据丰富

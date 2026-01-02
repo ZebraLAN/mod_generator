@@ -276,7 +276,8 @@ def generate_python_module(translations: dict, descriptions: dict) -> str:
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(script_dir, "output_json", "attributes.json")
+    project_root = os.path.dirname(script_dir)  # codegen -> project root
+    json_path = os.path.join(project_root, "game_data", "attributes.json")
     
     if not os.path.exists(json_path):
         print(f"错误: 找不到 {json_path}")
@@ -320,7 +321,7 @@ def main():
     code = generate_python_module(translations, descriptions)
     
     # 生成可直接导入的模块
-    output_path = os.path.join(script_dir, "attribute_data.py")
+    output_path = os.path.join(project_root, "attribute_data.py")
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
     
