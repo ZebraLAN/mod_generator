@@ -1354,27 +1354,46 @@ class ModGeneratorGUI:
         imgui.next_column()
         imgui.push_item_width(-1)
 
+        # 等级设置 (使用掉落分类的下拉选择器格式，0-5)
         imgui.text("等级")
-        changed, hybrid.tier = imgui.input_int("##tier_hybrid", hybrid.tier)
-        if changed:
-            hybrid.tier = max(1, min(7, hybrid.tier))
+        if hybrid.quality == 7:  # 文物
+            hybrid.tier = 0
+            self.text_secondary("文物等级固定为 0")
+        else:
+            tier_options = [0, 1, 2, 3, 4, 5]
+            tier_labels = {0: "0 (匹配所有)", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+            hybrid.tier = self._draw_enum_combo("##tier_hybrid", hybrid.tier, tier_options, tier_labels)
         if imgui.is_item_hovered():
-            imgui.set_tooltip("物品等级 (1-7)，用于商人筛选和悬浮提示显示")
+            imgui.set_tooltip("物品等级，用于掉落表等级筛选和商人筛选\n0 表示匹配所有等级")
 
-        # Weight 选择（仅非护甲类型需要手动设置，护甲由 armor_class 自动推断）
-        if not hybrid.init_armor_stats:
-            imgui.text("重量")
-            hybrid.weight = self._draw_enum_combo(
-                "##weight_hybrid",
-                hybrid.weight,
-                list(HYBRID_WEIGHT_LABELS.keys()),
-                HYBRID_WEIGHT_LABELS,
-            )
-            if imgui.is_item_hovered():
-                imgui.set_tooltip("物品重量分类，影响游泳等行为")
+        # 重量设置（常驻显示）
+        imgui.text("重量")
+        hybrid.weight = self._draw_enum_combo(
+            "##weight_hybrid",
+            hybrid.weight,
+            list(HYBRID_WEIGHT_LABELS.keys()),
+            HYBRID_WEIGHT_LABELS,
+        )
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品重量分类，影响游泳等行为\n护甲类型时同时决定护甲类别")
 
         imgui.pop_item_width()
         imgui.columns(1)
+        
+        # 材质设置（常驻显示）
+        imgui.dummy(0, 4)
+        imgui.text("材质")
+        imgui.same_line()
+        imgui.push_item_width(200)
+        hybrid.material = self._draw_enum_combo(
+            "##material_hybrid",
+            hybrid.material,
+            list(HYBRID_MATERIALS.keys()),
+            HYBRID_MATERIALS,
+        )
+        imgui.pop_item_width()
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("物品的材质类型")
 
         # 装备设置由物品类型自动推断（在功能设置中处理）
 
@@ -1801,14 +1820,7 @@ class ModGeneratorGUI:
             HYBRID_WEAPON_TYPES,
         )
         # hands 是计算属性，由 weapon_type 自动推断，无需手动设置
-
-        imgui.text("材料")
-        hybrid.material = self._draw_enum_combo(
-            "##wep_mat",
-            hybrid.material,
-            list(HYBRID_MATERIALS.keys()),
-            HYBRID_MATERIALS,
-        )
+        # 材料已移至基本属性区域
 
         imgui.pop_item_width()
         imgui.next_column()
@@ -1837,53 +1849,28 @@ class ModGeneratorGUI:
 
     def _draw_hybrid_armor_settings(self, hybrid: HybridItem):
         """绘制混合物品护甲设置"""
-        col_width = imgui.get_content_region_available_width() / 2 - 8
-        imgui.columns(2, "hybrid_armor_cols", border=False)
-        imgui.set_column_width(0, col_width)
-
-        imgui.push_item_width(-1)
-
+        # 护甲类型和护甲类别在同一行显示
         imgui.text("护甲类型")
+        imgui.same_line()
+        imgui.push_item_width(200)
         hybrid.armor_type = self._draw_enum_combo(
             "##armor_type",
             hybrid.armor_type,
             list(HYBRID_ARMOR_TYPES.keys()),
             HYBRID_ARMOR_TYPES,
         )
+        imgui.pop_item_width()
         
         # 根据护甲类型自动设置槽位
         hybrid.slot = "hand" if hybrid.armor_type == "shield" else hybrid.armor_type
 
-        imgui.text("护甲材料")
-        # armor_material 已删除，使用 material（武器和护甲共用）
-        hybrid.material = self._draw_enum_combo(
-            "##armor_mat",
-            hybrid.material,
-            list(HYBRID_ARMOR_MATERIALS.keys()),
-            HYBRID_ARMOR_MATERIALS,
-        )
-
-        imgui.pop_item_width()
-        imgui.next_column()
-        imgui.push_item_width(-1)
-
-        imgui.text("重量")
-        hybrid.weight = self._draw_enum_combo(
-            "##armor_weight",
-            hybrid.weight,
-            list(HYBRID_WEIGHT_LABELS.keys()),
-            HYBRID_WEIGHT_LABELS,
-        )
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("物品重量，用于游泳等行为判定\n同时决定护甲类别")
-        
         # 只读显示护甲类别
-        self.text_secondary(f"护甲类别: {hybrid.armor_class}")
+        imgui.same_line(spacing=30)
+        imgui.text("护甲类别:")
+        imgui.same_line()
+        self.text_secondary(f"{hybrid.armor_class}")
         if imgui.is_item_hovered():
-            imgui.set_tooltip("由重量自动计算:\nLight/VeryLight → Light\nMedium → Medium\nHeavy → Heavy")
-
-        imgui.pop_item_width()
-        imgui.columns(1)
+            imgui.set_tooltip("由基本属性中的'重量'自动计算:\nLight/VeryLight → Light\nMedium → Medium\nHeavy → Heavy")
         
         # 碎片材料编辑器（用于拆解，仅非盾/戒/项链显示）
         if hybrid.slot not in ["hand", "Ring", "Amulet"]:
@@ -2335,30 +2322,20 @@ class ModGeneratorGUI:
             hybrid.cat = "treasure"
             self.text_secondary("文物分类固定为 treasure")
         else:
-            cat_options = [""] + ITEM_CATEGORIES
+            # 非文物不能选择 treasure
+            available_cats = [c for c in ITEM_CATEGORIES if c != "treasure"]
+            # 如果当前选择了 treasure，重置为空
+            if hybrid.cat == "treasure":
+                hybrid.cat = ""
+            cat_options = [""] + available_cats
             cat_labels = {"": "-- 无 --"}
-            cat_labels.update({c: f"{CATEGORY_TRANSLATIONS.get(c, c)} ({c})" for c in ITEM_CATEGORIES})
+            cat_labels.update({c: f"{CATEGORY_TRANSLATIONS.get(c, c)} ({c})" for c in available_cats})
             hybrid.cat = self._draw_enum_combo("##cat_hybrid", hybrid.cat, cat_options, cat_labels)
         if imgui.is_item_hovered():
             imgui.set_tooltip("物品的主分类，用于掉落表匹配")
         imgui.pop_item_width()
         
-        # 右列: Tier (现在可在此直接编辑)
-        imgui.next_column()
-        imgui.push_item_width(-1)
-        imgui.text("等级 (Tier)")
-        
-        # 文物等级固定为 0
-        if hybrid.quality == 7:  # 文物
-            hybrid.tier = 0
-            self.text_secondary("文物等级固定为 0")
-        else:
-            tier_options = [0, 1, 2, 3, 4, 5]
-            tier_labels = {0: "0 (匹配所有)", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
-            hybrid.tier = self._draw_enum_combo("##tier_drop", hybrid.tier, tier_options, tier_labels)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("物品等级，用于掉落表等级筛选\n0 表示匹配所有等级")
-        imgui.pop_item_width()
+        # 等级已移至基本属性区域
         
         imgui.columns(1)
         
@@ -2368,21 +2345,33 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip("可多选。物品可以匹配主分类或任一子分类")
         
-        # 使用水平排列的 checkbox
-        subcat_options = ALL_SUBCATEGORY_OPTIONS  # 主分类+子分类都可选
-        items_per_row = 6
+        # 使用四列网格布局
+        # 非文物不能选择 treasure
+        if hybrid.quality == 7:
+            subcat_options = ALL_SUBCATEGORY_OPTIONS
+        else:
+            subcat_options = [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
+            # 如果当前选择了 treasure，移除它
+            if "treasure" in hybrid.subcats:
+                hybrid.subcats.remove("treasure")
+        
+        num_cols = 4
+        col_width = imgui.get_content_region_available_width() / num_cols - 4
+        imgui.columns(num_cols, "subcat_cols", border=False)
+        for i in range(num_cols):
+            imgui.set_column_width(i, col_width)
+        
         for i, subcat in enumerate(subcat_options):
-            if i > 0 and i % items_per_row != 0:
-                imgui.same_line(spacing=10)
-            
             is_selected = subcat in hybrid.subcats
-            # 如果与 Cat 相同则禁用（用灰色显示）
             is_disabled = (subcat == hybrid.cat)
             
             if is_disabled:
                 imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
             
-            changed, new_value = imgui.checkbox(f"{CATEGORY_TRANSLATIONS.get(subcat, subcat)}##subcat_{subcat}", is_selected)
+            changed, new_value = imgui.checkbox(
+                f"{CATEGORY_TRANSLATIONS.get(subcat, subcat)}##subcat_{subcat}", 
+                is_selected
+            )
             if changed and not is_disabled:
                 if new_value:
                     hybrid.subcats.append(subcat)
@@ -2393,6 +2382,10 @@ class ModGeneratorGUI:
                 imgui.pop_style_var()
                 if imgui.is_item_hovered():
                     imgui.set_tooltip("已选为主分类，无需重复选择")
+            
+            imgui.next_column()
+        
+        imgui.columns(1)
         
         self.draw_indented_separator()
         

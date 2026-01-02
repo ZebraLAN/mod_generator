@@ -14,16 +14,19 @@ from drop_slot_index import SLOT_METADATA, TIER_INDEX, EQ_METADATA, EQ_TIER_INDE
 # ============== 分类常量 ==============
 
 ITEM_CATEGORIES = [
-    "additive", "alcohol", "ammo", "backpack", "bag", "beverage", "book",
-    "commodity", "drug", "flag", "food", "ingredient", "junk", "material",
-    "medicine", "other", "quest", "recipe", "resource", "schematic",
-    "scroll", "tool", "treasure", "trophy", "upgrade", "valuable"
+    # 暂不支持的分类已注释
+    # "additive", "alcohol", "ammo", "backpack", "bag", "book",
+    # "commodity", "flag", "other", "quest", "recipe", "schematic",
+    # "scroll", "trophy", "upgrade",
+    "beverage", "drug", "food", "ingredient", "junk", "material",
+    "medicine", "resource", "tool", "treasure", "valuable"
 ]
 
 ITEM_SUBCATEGORIES = [
-    "alchemy", "berry", "beverage", "bird", "dairy", "dish", "fish", "folio",
+    # 暂不支持: "folio", "treatise", "quest"
+    "alchemy", "berry", "beverage", "bird", "dairy", "dish", "fish",
     "fruit", "gem", "herb", "hide", "ingredient", "meat", "meat_large",
-    "mushroom", "pastry", "potion", "quest", "treatise", "vegetable"
+    "mushroom", "pastry", "potion", "vegetable"
 ]
 
 ALL_SUBCATEGORY_OPTIONS = sorted(set(ITEM_CATEGORIES + ITEM_SUBCATEGORIES))
