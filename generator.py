@@ -36,7 +36,7 @@ from constants import (
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
 )
-from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE  # <- import constants
+from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE, SpawnMode  # <- import constants
 
 # 武器/护甲属性生成辅助 <- moved to module level
 TIER_TO_ENUM = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
@@ -386,6 +386,13 @@ class CodeGenerator:
         # 在 C# verbatim string 中，" 需要转义为 ""
         return text.replace('"', '""')
 
+    def _has_equipment_spawn_hybrids(self) -> bool:
+        """检查是否有任何混合物品使用装备路径生成"""
+        return any(
+            h.equipment_mode in ("weapon", "armor", "passive") and h.spawn_mode == SpawnMode.EQUIPMENT
+            for h in self.project.hybrid_items
+        )
+
     def generate(self) -> str:
         """生成完整的 C# 模组代码"""
         code_namespace = self.project.code_name.strip() or "ModNamespace"
@@ -416,8 +423,11 @@ public class {code_namespace} : Mod
             code += "        EnsureHoverScriptsExist();\n"
             code += "        // 注入混合物品专用 hover 对象（仅执行一次）\n"
             code += "        EnsureHoverHybridExists();\n"
-            code += "        // 注入混合装备注册系统（仅执行一次）\n"
-            code += "        EnsureHybridEquipmentRegistry();\n\n"
+            # 仅当有装备路径混合物品时才调用注册系统
+            if self._has_equipment_spawn_hybrids():
+                code += "        // 注入混合装备注册系统（仅执行一次）\n"
+                code += "        EnsureHybridEquipmentRegistry();\n"
+            code += "\n"
 
         for weapon in self.project.weapons:
             code += f"        Add{weapon.id}();\n"
@@ -434,7 +444,9 @@ public class {code_namespace} : Mod
             code += self._generate_hover_hybrid_method()
             code += self._generate_inject_item_stats_method()
             code += self._generate_gml_helper_methods()
-            code += self._generate_hybrid_equipment_registry_method()
+            # 仅当有装备路径混合物品时才生成注册方法
+            if self._has_equipment_spawn_hybrids():
+                code += self._generate_hybrid_equipment_registry_method()
 
         for item in self.project.weapons + self.project.armors:
             code += self._generate_item_method(item)
@@ -2481,9 +2493,7 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
             # 只有 equipment_mode 为 weapon/armor/passive 的才能从装备路径生成
             if h.equipment_mode not in ("weapon", "armor", "passive"):
                 continue
-            if (h.container_spawn.value == "equipment" or 
-                h.shop_spawn.value == "equipment" or 
-                h.kill_spawn.value == "equipment"):
+            if h.spawn_mode == SpawnMode.EQUIPMENT:
                 equipment_hybrids.append(h)
         
         # 如果没有装备路径混合物品，不生成这个方法
@@ -2554,35 +2564,57 @@ for (var _i = 0; _i < array_length(_items); _i++) {{
         }}
         
         // 4. Patch scr_find_weapon_params (敌人击杀 + 商店进货)
+        // 完全模拟原始筛选逻辑：tier, material, tags, slot, _all_type, _check_repeat
         Msl.LoadGML("gml_GlobalScript_scr_find_weapon_params")
             .MatchFrom("ds_list_shuffle(list)")
             .InsertAbove(@"
 // === 混合装备注入 ===
-if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
-    var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, _type);
-    if (!is_undefined(_hybrid_slot_items)) {{
-        for (var _hi = 0; _hi < array_length(_hybrid_slot_items); _hi++) {{
-            var _hid = _hybrid_slot_items[_hi];
-            var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
-            // 检查统一的 spawn_mode
-            if (_hdata.spawn_mode != ""equipment"") continue;
+if (variable_global_exists(""hybrid_equipment_registry"")) {{
+    var _hybrid_ids = variable_struct_get_names(global.hybrid_equipment_registry);
+    for (var _hi = 0; _hi < array_length(_hybrid_ids); _hi++) {{
+        var _hid = _hybrid_ids[_hi];
+        var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
+        
+        // 检查统一的 spawn_mode
+        if (_hdata.spawn_mode != ""equipment"") continue;
+        
+        // 根据 equipment_mode 区分 weapon/armor 表
+        var _eq_mode = _hdata.equipment_mode;
+        var _hslot = _hdata.slot;
+        
+        if (_eq_mode == ""weapon"") {{
+            // weapon 模式只在 weapon 表或 all 时注入
+            if (_table != ""weapon"" && _table != ""all"") continue;
             
-            // 根据 equipment_mode 区分 weapon/armor 表
-            var _eq_mode = _hdata.equipment_mode;
-            if (_eq_mode == ""weapon"") {{
-                // weapon 模式只在 weapon 表或 all 时注入
-                if (_table != ""weapon"" && _table != ""all"") continue;
-            }} else {{
-                // armor/passive 模式只在 armor 表或 all 时注入
-                if (_table != ""armor"" && _table != ""all"") continue;
+            // Slot 检查（模拟 weapon 表逻辑）
+            // 原始逻辑: scr_csv_colum_parse(""Slot"", i, _weapon_array) == _type || _all_type
+            if (_hslot != _type && !_all_type) continue;
+        }} else {{
+            // armor/passive 模式只在 armor 表或 all 时注入
+            if (_table != ""armor"" && _table != ""all"") continue;
+            
+            // Slot 检查（模拟 armor 表逻辑）
+            // 原始逻辑: _table_type == _type || (_all_type && _table_type != ""Ring"" && _table_type != ""Amulet"")
+            if (_hslot != _type) {{
+                if (!_all_type) continue;
+                // _all_type 为 true 时，排除 Ring 和 Amulet
+                if (_hslot == ""Ring"" || _hslot == ""Amulet"") continue;
             }}
-            
-            if (_hdata.tier < argument[0] || _hdata.tier > argument[1]) continue;
-            if (!scr_material_compare(_hdata.material, material)) continue;
-            if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), tags)) continue;
-            if (_check_repeat && ds_list_find_index(global.item_buffer, _hid) >= 0) continue;
-            ds_list_add(list, _hid);
         }}
+        
+        // Tier 检查
+        if (_hdata.tier < argument[0] || _hdata.tier > argument[1]) continue;
+        
+        // Material 检查
+        if (!scr_material_compare(_hdata.material, material)) continue;
+        
+        // Tags 检查
+        if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), tags)) continue;
+        
+        // item_buffer 重复检查
+        if (_check_repeat && ds_list_find_index(global.item_buffer, _hid) >= 0) continue;
+        
+        ds_list_add(list, _hid);
     }}
 }}
 // === 混合装备注入结束 ===
@@ -2600,7 +2632,7 @@ if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
         for (var _hi = 0; _hi < array_length(_hybrid_slot_items); _hi++) {{
             var _hid = _hybrid_slot_items[_hi];
             var _hdata = variable_struct_get(global.hybrid_equipment_registry, _hid);
-            if (_hdata.container_spawn != ""equipment"") continue;
+            if (_hdata.spawn_mode != ""equipment"") continue;
             if (argument2 != -4 && _hdata.tier > 0 && (_hdata.tier < argument2[0] || _hdata.tier > argument2[1])) continue;
             if (ds_list_find_index(scr_atr(""specialItemsPool""), _hid) >= 0) continue;
             if (!scr_weapon_tags_compare(string_split_custom(_hdata.tags, "" ""), argument1)) continue;
@@ -2649,11 +2681,11 @@ if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argum
         if (object_exists(_hybrid_inv)) {{
             with (scr_guiCreateInteractive(global.guiBaseContainerVisible, _hybrid_inv)) {{
                 owner = other.id;
-                if (argument1 != -4) determined_quality = argument1;
+                // if (argument1 != -4) determined_quality = argument1;
                 is_new = argument4;
                 event_user(0);
-                if (argument5 != -4) ds_map_replace(data, ""identified"", argument5);
-                if (argument2) event_perform(ev_alarm, 0);
+                // if (argument5 != -4) ds_map_replace(data, ""identified"", argument5);
+                // if (argument2) event_perform(ev_alarm, 0);
                 if (slotDestroyed) return -4;
                 if (argument3) {{
                     if (!scr_inventory_add(owner)) {{

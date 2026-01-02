@@ -94,6 +94,7 @@ from constants import (
     get_hybrid_attrs_for_slot,
     get_consumable_duration_attrs,
     CONSUMABLE_INSTANT_ATTRS,
+    ACTIVE_EFFECT_MODES,
 )
 from generator import CodeGenerator, copy_item_textures
 from models import (
@@ -2506,8 +2507,8 @@ class ModGeneratorGUI:
         item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
         
         # 获取物品的装备分类
-        item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode in ("weapon", "hybrid") else None
-        item_armor_slot = hybrid.slot if hybrid.equipment_mode in ("armor", "hybrid") else None
+        item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode == "weapon" else None
+        item_armor_slot = hybrid.slot if hybrid.equipment_mode == "armor" else None
         is_jewelry = item_armor_slot in ("ring", "amulet") if item_armor_slot else False
         
         matching_shops = []
