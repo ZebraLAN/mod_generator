@@ -82,13 +82,9 @@ from constants import (
     HYBRID_DAMAGE_TYPES,
     HYBRID_MATERIALS,
     HYBRID_ARMOR_TYPES,
-    HYBRID_ARMOR_MATERIALS,
     HYBRID_ARMOR_CLASSES,
-    HYBRID_SKILL_IDS,
-    HYBRID_SKILL_OBJECTS,
     HYBRID_PICKUP_SOUNDS,
     HYBRID_DROP_SOUNDS,
-    HYBRID_DURABILITY_POLICIES,
     HYBRID_WEIGHT_LABELS,
     # 消耗品属性常量
     CONSUMABLE_FLOAT_ATTRIBUTES,
@@ -1468,33 +1464,16 @@ class ModGeneratorGUI:
             )
         
         # 主动效果模式选择
-        mode_labels = ["无", "消耗品使用效果", "技能释放"]
-        mode_keys = ["none", "consumable", "skill"]
-        
-        # 获取当前模式索引
-        current_mode_idx = 0
-        if hybrid.active_effect_mode in mode_keys:
-            current_mode_idx = mode_keys.index(hybrid.active_effect_mode)
-        
         # 使用 radio_button 实现单选
-        for i, label in enumerate(mode_labels):
+        for i, (key, label) in enumerate(ACTIVE_EFFECT_MODES.items()):
             if i > 0:
                 imgui.same_line(spacing=15)
-            if imgui.radio_button(f"{label}##active_effect_mode", current_mode_idx == i):
-                new_mode = mode_keys[i]
-                old_mode = hybrid.active_effect_mode
-                hybrid.active_effect_mode = new_mode
-                
+            if imgui.radio_button(f"{label}##active_effect_mode", hybrid.active_effect_mode == key):
+                hybrid.active_effect_mode = key
                 # 切换模式时清除不相关的数据
-                if new_mode == "none":
-                    # 切换到"无"时，清空所有主动效果数据
+                if key != "skill":
                     hybrid.skill_object = ""
-                    hybrid.consumable_attributes.clear()
-                elif new_mode == "consumable":
-                    # 切换到"消耗品"时，清空技能
-                    hybrid.skill_object = ""
-                elif new_mode == "skill":
-                    # 切换到"技能"时，清空消耗品属性
+                if key != "consumable":
                     hybrid.consumable_attributes.clear()
         
         # 技能选择（仅在技能释放模式下显示）

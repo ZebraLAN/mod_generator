@@ -230,14 +230,6 @@ HYBRID_WEIGHT_LABELS = {
     "Heavy": "重",
 }
 
-# 护甲类型到 Weight 的映射（自动推断）
-ARMOR_CLASS_TO_WEIGHT = {
-    "Light": "Light",
-    "Medium": "Medium",
-    "Heavy": "Heavy",
-}
-
-
 # ============== 统一属性分组映射 ==============
 # 每个属性只有一个分组归属（单一来源）
 # 基于游戏逻辑：
@@ -844,13 +836,18 @@ HYBRID_DAMAGE_TYPES = {
 
 # 混合物品材质
 HYBRID_MATERIALS = {
-    "metal": "金属",
-    "wood": "木",
-    "leather": "皮革",
     "cloth": "布料",
-    "silver": "银",
-    "gold": "金",
     "gem": "宝石",
+    "glass": "玻璃",
+    "gold": "金",
+    "leather": "皮革",
+    "metal": "金属",
+    "organic": "有机物",
+    "paper": "纸",
+    "pottery": "陶器",
+    "silver": "银",
+    "stone": "石",
+    "wood": "木",
 }
 
 # 混合物品护甲类型 (Slot 字段)
@@ -864,16 +861,6 @@ HYBRID_ARMOR_TYPES = {
     "Ring": "戒指",
     "Amulet": "护身符",
     "shield": "盾牌",
-}
-
-# 混合物品护甲材质
-HYBRID_ARMOR_MATERIALS = {
-    "metal": "金属",
-    "leather": "皮革",
-    "cloth": "布料",
-    "wood": "木",
-    "silver": "银",
-    "gold": "金",
 }
 
 # 混合物品护甲类别
@@ -897,13 +884,6 @@ HYBRID_SKILL_IDS = {
     4509: "打开书籍 (o_open_book)",
     4510: "打开笔记 (o_open_note)",
     138: "灭火/倒水 (o_skill_douse)",
-}
-
-# 技能对象名称（用于技能释放模式）
-# 注意：由于游戏技能系统复杂，此列表仅供参考，用户需手动输入正确的技能对象名
-# 技能对象名可在游戏反编译代码中查找，格式如 o_skill_xxx
-HYBRID_SKILL_OBJECTS = {
-    # 留空，用户通过文本输入
 }
 
 # 混合物品音效选项
@@ -1031,11 +1011,6 @@ HYBRID_DROP_SOUNDS = {
     2173: "工具放下 (金属)",
 }
 
-# 耐久使用策略
-HYBRID_DURABILITY_POLICIES = {
-    "allow_to_one": "不足消耗时允许最后一次，耐久变为 1 留存",
-    "destroy": "不足消耗时允许最后一次，用后删除道具",
-}
 # ============== 物品类型配置 ==============
 
 ITEM_TYPE_CONFIG = {

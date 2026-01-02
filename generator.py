@@ -36,9 +36,24 @@ from constants import (
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
 )
-from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon
+from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE  # <- import constants
+
+# 武器/护甲属性生成辅助 <- moved to module level
+TIER_TO_ENUM = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
+WEIGHT_TO_ENUM = {
+    "VeryLight": "VeryLight", "Very Light": "VeryLight",
+    "Light": "Light", "Medium": "Medium", "Heavy": "Heavy", "Net": "Net",
+}
 
 
+def _compute_damage_type(attributes: dict) -> str:  # <- extracted helper
+    """计算主伤害类型（最高值优先，无则默认 Slashing）"""
+    damage_attrs = {k: v for k, v in attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0}
+    if not damage_attrs:
+        return "Slashing_Damage"
+    max_val = max(damage_attrs.values())
+    ties = [t for t, v in damage_attrs.items() if v == max_val]
+    return "Slashing_Damage" if "Slashing_Damage" in ties else ties[0]
 
 
 
@@ -678,19 +693,10 @@ popz.v"""
             material_enum = "Organic"
         
         # 确定重量枚举值
-        weight_map = {
-            "VeryLight": "VeryLight",
-            "Very Light": "VeryLight",
-            "Light": "Light",
-            "Medium": "Medium",
-            "Heavy": "Heavy",
-            "Net": "Net",
-        }
-        weight_enum = weight_map.get(item.weight, "Light")
+        weight_enum = WEIGHT_TO_ENUM.get(item.weight, "Light")  # <- use module constant
         
         # 确定 tier 枚举值
-        tier_map = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
-        tier_enum = tier_map.get(item.tier, "None")
+        tier_enum = TIER_TO_ENUM.get(item.tier, "None")  # <- use module constant
         
         # 生成本地化字典（确保至少有 English 条目）
         languages = item.localization.languages
@@ -851,13 +857,13 @@ popz.v"""
         lines.append("")
         
         # ============== 品质设置 ==============
-        if item.quality == 7:  # 文物
+        if item.quality == QUALITY_ARTIFACT:  # <- use constant
             lines.append("// 品质: 文物")
             lines.append("shineDelay = room_speed * 2;")
             lines.append('ds_map_set(data, "quality", 7);')
             lines.append('ds_map_set(data, "Colour", make_colour_rgb(229, 193, 85));')
             lines.append("alarm[11] = shineDelay;")
-        elif item.quality == 6:  # 独特
+        elif item.quality == QUALITY_UNIQUE:  # <- use constant
             lines.append("// 品质: 独特")
             lines.append('ds_map_set(data, "quality", 6);')
             lines.append('ds_map_set(data, "Colour", make_colour_rgb(130, 72, 188));')
@@ -892,13 +898,7 @@ popz.v"""
             lines.append(f"Balance = {item.balance};")
             
             # 计算 DamageType
-            damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
-            best_type = "Slashing_Damage"
-            if damage_components:
-                max_val = max(v for _, v in damage_components)
-                ties = [t for t, v in damage_components if v == max_val]
-                if best_type not in ties:
-                    best_type = ties[0]
+            best_type = _compute_damage_type(item.attributes)  # <- use helper
             lines.append(f'DamageType = "{best_type}";')
             
             # 弓/弩弹药槽
@@ -1000,13 +1000,7 @@ popz.v"""
             lines.append(f'ds_map_replace(data, "MaxDuration", {item.duration_max});')
         
         if item.init_weapon_stats:
-            damage_components = [(k, v) for k, v in item.attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0]
-            best_type = "Slashing_Damage"
-            if damage_components:
-                max_val = max(v for _, v in damage_components)
-                ties = [t for t, v in damage_components if v == max_val]
-                if best_type not in ties:
-                    best_type = ties[0]
+            best_type = _compute_damage_type(item.attributes)  # <- use helper
             lines.append(f'ds_map_replace(data, "DamageType", "{best_type}");')
             lines.append('ds_map_replace(data, "Metatype", "Weapon");')
         
@@ -1254,10 +1248,7 @@ popz.v"""
         注意：使用次数由 o_hoverHybrid 的 Other_20 通过 chargesLeft/Right 显示，
         这里只处理冷却时间（因为 Other_20 不处理冷却）。
         """
-        lines = []
-        
-        if lines:
-            lines.append("")
+        lines = []  # <- removed dead 'if lines' check
         
         # 完整的 switch 结构（基于 o_inv_slot.Other_13）
         lines.append("switch (guiInteractiveState) {")

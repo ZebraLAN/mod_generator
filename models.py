@@ -372,6 +372,11 @@ class Weapon(Item):
 
 # ============== 混合物品类 ==============
 
+# 品质常量 <- named
+QUALITY_COMMON = 1
+QUALITY_UNIQUE = 6
+QUALITY_ARTIFACT = 7
+
 
 @dataclass
 class HybridItem:
@@ -421,7 +426,7 @@ class HybridItem:
     # ====== 武器设置（仅 equipment_mode="weapon" 时使用）======
     weapon_type: str = "sword"  # 武器类型
     # damage_type 和 primary_damage 字段已删除，伤害通过 attributes 设置
-    material: str = "Steel"  # 材质（武器和护甲共用）
+    material: str = "metal"  # 材质（武器和护甲共用）
     tier: int = 1  # 等级 1-5
     balance: int = 2  # 平衡性
     # weapon_range 字段已删除，使用 attributes["Range"] 代替
@@ -604,7 +609,7 @@ class HybridItem:
     @property
     def has_durability(self) -> bool:
         """品质非文物且物品类型为武器/护甲时自动有耐久"""
-        return self.quality != 7 and (self.init_weapon_stats or self.init_armor_stats)
+        return self.quality != QUALITY_ARTIFACT and (self.init_weapon_stats or self.init_armor_stats)  # <- use constant
     
     @property
     def has_charges(self) -> bool:
@@ -623,16 +628,9 @@ class HybridItem:
         else:  # normal
             return self.charge
     
-    @property
-    def effective_tags(self) -> str:
-        """组合所有 tags 为空格分隔的字符串
-        
-        用于 GML 生成和显示。不含自动添加的 'special'。
-        如果 exclude_from_random 为 True，返回 "special exc"
-        """
-        if self.exclude_from_random:
-            return "special exc"
-        parts = []
+    def _build_tags_list(self, prefix: list = None) -> list:  # <- extracted helper
+        """构建 tags 列表（内部方法）"""
+        parts = list(prefix) if prefix else []
         if self.quality_tag:
             parts.append(self.quality_tag)
         if self.dungeon_tag:
@@ -640,46 +638,29 @@ class HybridItem:
         if self.country_tag:
             parts.append(self.country_tag)
         parts.extend(self.extra_tags)
-        return " ".join(parts)
+        return parts
+
+    @property
+    def effective_tags(self) -> str:
+        """组合所有 tags 为空格分隔的字符串（不含 'special'）"""
+        if self.exclude_from_random:
+            return "special exc"
+        return " ".join(self._build_tags_list())  # <- simplified
     
     @property
     def tags_tuple(self) -> tuple:
-        """获取 tags 元组（用于预览匹配等）
-        
-        不含自动添加的 'special'，与 effective_tags 内容一致。
-        """
+        """获取 tags 元组（用于预览匹配等，不含 'special'）"""
         if self.exclude_from_random:
-            return ()  # special exc 不参与匹配
-        parts = []
-        if self.quality_tag:
-            parts.append(self.quality_tag)
-        if self.dungeon_tag:
-            parts.append(self.dungeon_tag)
-        if self.country_tag:
-            parts.append(self.country_tag)
-        parts.extend(self.extra_tags)
-        return tuple(parts)
+            return ()
+        return tuple(self._build_tags_list())  # <- simplified
     
     @property
     def csharp_tags_tuple(self) -> tuple:
-        """获取 C# API 用的 tags 元组（EQUIPMENT 模式含 'special'）
-        
-        仅用于 C# InjectItemStats 调用，EQUIPMENT 模式自动添加 'special'
-        防止在非装备生成路径中被选中。
-        """
+        """获取 C# API 用的 tags 元组（EQUIPMENT 模式含 'special'）"""
         if self.exclude_from_random:
             return ()
-        parts = []
-        if self.spawn_mode == SpawnMode.EQUIPMENT:
-            parts.append("special")
-        if self.quality_tag:
-            parts.append(self.quality_tag)
-        if self.dungeon_tag:
-            parts.append(self.dungeon_tag)
-        if self.country_tag:
-            parts.append(self.country_tag)
-        parts.extend(self.extra_tags)
-        return tuple(parts)
+        prefix = ["special"] if self.spawn_mode == SpawnMode.EQUIPMENT else []  # <- simplified
+        return tuple(self._build_tags_list(prefix))
 
 
 # ============== 验证函数 ==============
@@ -1261,12 +1242,17 @@ class ModProject:
                 equipment_mode = "none"
         
         # 向后兼容：armor_material 迁移到 material
-        material = item_data.get("material", "Steel")
+        material = item_data.get("material", "metal")
         if equipment_mode == "armor":
             # 如果是护甲模式，优先使用 armor_material（旧项目）
             armor_material = item_data.get("armor_material")
-            if armor_material and material == "Steel":  # Steel 是默认值，可能未设置
+            if armor_material and material in ("metal", "Steel"):  # 默认值，可能未设置
                 material = armor_material
+        
+        # 向后兼容："Steel" 映射到 "metal"，统一小写
+        if material == "Steel":
+            material = "metal"
+        material = material.lower()
         
         item = HybridItem(
             name=item_data.get("name", ""),
