@@ -36,7 +36,7 @@ from constants import (
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
 )
-from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE, SpawnMode  # <- import constants
+from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE, SpawnMode, EquipmentMode, TriggerMode, ChargeMode  # <- import constants
 
 # 武器/护甲属性生成辅助 <- moved to module level
 TIER_TO_ENUM = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
@@ -389,7 +389,7 @@ class CodeGenerator:
     def _has_equipment_spawn_hybrids(self) -> bool:
         """检查是否有任何混合物品使用装备路径生成"""
         return any(
-            h.equipment_mode in ("weapon", "armor", "passive") and h.spawn_mode == SpawnMode.EQUIPMENT
+            h.equipment_mode in (EquipmentMode.WEAPON, EquipmentMode.ARMOR, EquipmentMode.CHARM) and h.spawn_mode == SpawnMode.EQUIPMENT
             for h in self.project.hybrid_items
         )
 
@@ -1068,7 +1068,7 @@ popz.v"""
              lines.append("}")
 
              # 关联次数逻辑（linked 模式下验证层已确保 has_durability 为 true）
-             if item.charge_mode == "linked":
+             if item.charge_mode == ChargeMode.LINKED:
                  lines.append("")
                  lines.append("// 次数与耐久挂钩：自动更新 charge")
                  lines.append(f"charge = floor((_duration / _maxDuration) * {item.effective_charge});")
@@ -1079,12 +1079,12 @@ popz.v"""
                      lines.append("    event_user(12);")
         
         # 使用次数恢复逻辑（仅非无消耗模式）
-        if item.has_charge_recovery and item.charge_mode != "unlimited":
+        if item.has_charge_recovery and item.charge_mode != ChargeMode.UNLIMITED:
             lines.append("")
             
             # 公共的回合计算逻辑
             lines.append("// 使用次数恢复")
-            if item.charge_mode == "linked":
+            if item.charge_mode == ChargeMode.LINKED:
                 lines.append("// （恢复耐久，次数由耐久换算）")
             lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')
             lines.append("if (!is_undefined(_lastTurn)) {")
@@ -1096,7 +1096,7 @@ popz.v"""
             lines.append(f"        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});")
             
             # 恢复方式分歧
-            if item.charge_mode == "linked":
+            if item.charge_mode == ChargeMode.LINKED:
                 lines.append(f"        var _durPerCharge = _maxDuration / {item.effective_charge};")
                 lines.append('        var _dur = ds_map_find_value(data, "Duration");')
                 lines.append("        var _newVal = min(_maxDuration, _dur + (_recoveries * _durPerCharge));")
@@ -1119,7 +1119,7 @@ popz.v"""
             lines.append("}")
         
         # 技能释放状态跟踪（仅技能模式有效）
-        if item.active_effect_mode == "skill" and item.skill_object:
+        if item.trigger_mode == TriggerMode.SKILL and item.skill_object:
             lines.append("")
             lines.append("// 技能释放状态跟踪")
             lines.append('var _active_skill = ds_map_find_value(data, "_active_skill");')
@@ -1362,13 +1362,13 @@ popz.v"""
     def _generate_hybrid_other24_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Other_24 (使用效果) GML 代码
         
-        根据 active_effect_mode 生成不同代码：
+        根据 trigger_mode 生成不同代码：
         - "none": 无主动效果
         - "consumable": 消耗品使用效果
         - "skill": 技能释放
         """
         # 未勾选使用次数或模式为 none 时，生成空白代码
-        if not item.has_charges or item.active_effect_mode == "none":
+        if not item.has_charges or item.trigger_mode == TriggerMode.NONE:
             return "// 空白 Other_24（未启用主动效果）"
         
         lines = []
@@ -1390,7 +1390,7 @@ popz.v"""
         
         # ====== 根据模式生成不同的效果代码 ======
         
-        if item.active_effect_mode == "skill":
+        if item.trigger_mode == TriggerMode.SKILL:
             # 技能释放模式
             lines.append("// 技能释放模式")
             
@@ -1502,7 +1502,7 @@ popz.v"""
         
             # 消耗品模式：充能和耐久扣减（has_charges 在此代码路径必定为 true）
             # 无消耗模式下跳过充能扣减
-            if item.charge_mode != "unlimited":
+            if item.charge_mode != ChargeMode.UNLIMITED:
                 lines.append("charge--;")
                 lines.append("ds_map_replace(data, \"charge\", charge);")
                 
@@ -2490,8 +2490,8 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         # 收集需要装备路径生成的混合物品（仅 weapon/armor/passive 模式）
         equipment_hybrids = []
         for h in project.hybrid_items:
-            # 只有 equipment_mode 为 weapon/armor/passive 的才能从装备路径生成
-            if h.equipment_mode not in ("weapon", "armor", "passive"):
+            # 只有 equipment_mode 为 weapon/armor/charm 的才能从装备路径生成
+            if h.equipment_mode not in (EquipmentMode.WEAPON, EquipmentMode.ARMOR, EquipmentMode.CHARM):
                 continue
             if h.spawn_mode == SpawnMode.EQUIPMENT:
                 equipment_hybrids.append(h)
@@ -2504,9 +2504,9 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         item_entries = []
         for h in equipment_hybrids:
             # 确定槽位
-            if h.equipment_mode == "weapon":
+            if h.equipment_mode == EquipmentMode.WEAPON:
                 slot = h.weapon_type
-            elif h.equipment_mode == "armor":
+            elif h.equipment_mode == EquipmentMode.ARMOR:
                 slot = h.armor_type
             else:
                 slot = h.slot
@@ -2514,7 +2514,7 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
             # 生成数组元素 (effective_tags 不含 'special')
             item_entries.append(
                 f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material.lower()}\"\", '
-                f'\"\"{h.effective_tags}\"\", \"\"{h.spawn_mode.value}\"\", \"\"{h.equipment_mode}\"\"]'
+                f'\"\"{h.effective_tags}\"\", \"\"{h.spawn_mode.value}\"\", \"\"{h.equipment_mode.value}\"\"]'
             )
         
         items_array = ", ".join(item_entries)
@@ -2590,7 +2590,7 @@ if (variable_global_exists(""hybrid_equipment_registry"")) {{
             // 原始逻辑: scr_csv_colum_parse(""Slot"", i, _weapon_array) == _type || _all_type
             if (_hslot != _type && !_all_type) continue;
         }} else {{
-            // armor/passive 模式只在 armor 表或 all 时注入
+            // armor/charm 模式只在 armor 表或 all 时注入
             if (_table != ""armor"" && _table != ""all"") continue;
             
             // Slot 检查（模拟 armor 表逻辑）

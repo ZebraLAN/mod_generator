@@ -39,6 +39,14 @@ try:
 except ImportError:
     Image = None
 
+# fonttools 可选，用于读取字体 em 信息（当前未使用，保留备用）
+# try:
+#     from fontTools.ttLib import TTFont
+#     HAS_FONTTOOLS = True
+# except ImportError:
+#     TTFont = None
+#     HAS_FONTTOOLS = False
+
 # 导入拆分后的模块
 from constants import (
     # 属性分组系统
@@ -94,7 +102,7 @@ from constants import (
     get_hybrid_attrs_for_slot,
     get_consumable_duration_attrs,
     CONSUMABLE_INSTANT_ATTRS,
-    ACTIVE_EFFECT_MODES,
+    TRIGGER_MODES,
 )
 from generator import CodeGenerator, copy_item_textures
 from models import (
@@ -102,6 +110,9 @@ from models import (
     HybridItem,
     ModProject,
     SpawnMode,
+    EquipmentMode,
+    TriggerMode,
+    ChargeMode,
     Weapon,
     validate_item,
     validate_hybrid_item,
@@ -155,10 +166,10 @@ from contextlib import contextmanager
 
 
 class Layout:
-    """布局尺寸 Design System（简化版）
+    """布局尺寸 Design System
     
-    使用 Table API 后，标签宽度自动计算，此类只保留输入框/列宽/间距。
-    所有尺寸以 em 为单位，1em ≈ font_size px。
+    所有尺寸以 em 为单位，1em = font_size px。
+    配合 apply_theme() 中的 style 缩放，确保不同字号下 UI 比例一致。
     
     使用示例:
         self.layout = Layout(lambda: self.font_size)
@@ -167,29 +178,33 @@ class Layout:
     """
     
     # ===== 输入框宽度 (em 单位) =====
+    # 收紧实现 dense UI
     INPUT_XS = 4     # 极小: 小整数 (0-99)
-    INPUT_S = 7      # 小: 一般整数、短文本
-    INPUT_M = 10     # 中: 紧凑下拉框
-    INPUT_L = 14     # 大: 标准下拉框
-    INPUT_XL = 25    # 超大: 技能选择器、长文本
+    INPUT_S = 5      # 小: 一般整数
+    INPUT_M = 7      # 中: 紧凑下拉框
+    INPUT_L = 10     # 大: 标准下拉框
+    INPUT_XL = 16    # 超大: 技能选择器
     
     # ===== 列宽 (em 单位) =====
+    LABEL_COL = 4    # 标签列（表格第一列）
     COL_NARROW = 8   # 窄列
     COL_NORMAL = 12  # 标准列
     COL_WIDE = 18    # 宽列
     
     # ===== 间距 (em 单位) =====
-    GAP_XS = 0.15    # 极紧凑间距 (按钮组内部)
-    GAP_S = 0.5      # 紧凑间距
-    GAP_M = 1        # 标准间距
-    GAP_L = 1.5      # 宽松间距
+    # 收紧 ~30% 实现 dense UI
+    GAP_XS = 0.25    # 极紧凑 (inline 元素间)
+    GAP_S = 0.5      # 紧凑 (标签与输入间)
+    GAP_M = 0.75     # 标准 (行间/区块内)
+    GAP_L = 1.0      # 宽松 (区块间)
     
     def __init__(self, get_font_size):
         self._get_font_size = get_font_size
     
     def em(self, n: float) -> float:
-        """将 em 单位转换为像素"""
+        """将 em 单位转换为像素 (1em = font_size px)"""
         return n * self._get_font_size()
+
     
     # ===== 输入框宽度属性 =====
     @property
@@ -204,6 +219,8 @@ class Layout:
     def input_xl(self) -> float: return self.em(self.INPUT_XL)
     
     # ===== 列宽属性 =====
+    @property
+    def label_col(self) -> float: return self.em(self.LABEL_COL)
     @property
     def col_narrow(self) -> float: return self.em(self.COL_NARROW)
     @property
@@ -344,27 +361,31 @@ class ModGeneratorGUI:
             print(f"保存配置失败: {e}")
 
     def apply_theme(self):
-        """应用颜色主题 - 基于 Design for Non-Designers 四原则优化"""
+        """应用颜色主题 - 基于 Design for Non-Designers 四原则优化
+        
+        所有间距值按 font_size/16 缩放，替代 ScaleAllSizes() (pyimgui 不支持)
+        """
         style = imgui.get_style()
+        scale = self.font_size / 16.0  # 基准: 16px
 
-        # === 间距与布局 (亲密性 Proximity) ===
-        style.window_padding = (12, 12)
-        style.frame_padding = (8, 4)
-        style.item_spacing = (8, 6)
-        style.item_inner_spacing = (6, 4)
-        style.indent_spacing = 20
-        style.scrollbar_size = 14
-        style.grab_min_size = 12
+        # === 间距与布局 - 收紧实现 dense UI ===
+        style.window_padding = (10 * scale, 8 * scale)   # 更紧凑的窗口边距
+        style.frame_padding = (6 * scale, 3 * scale)     # 控件内边距
+        style.item_spacing = (6 * scale, 4 * scale)      # 行间距紧凑
+        style.item_inner_spacing = (4 * scale, 3 * scale) # inline 间距
+        style.indent_spacing = 16 * scale
+        style.scrollbar_size = 12 * scale
+        style.grab_min_size = 10 * scale
 
-        # === 圆角 (重复 Repetition - 统一的视觉语言) ===
-        style.window_rounding = 6
-        style.frame_rounding = 4
-        style.popup_rounding = 4
-        style.scrollbar_rounding = 6
-        style.grab_rounding = 3
-        style.tab_rounding = 4
+        # === 圆角 (重复 Repetition - 统一的视觉语言) - 按比例缩放 ===
+        style.window_rounding = 6 * scale
+        style.frame_rounding = 4 * scale
+        style.popup_rounding = 4 * scale
+        style.scrollbar_rounding = 6 * scale
+        style.grab_rounding = 3 * scale
+        style.tab_rounding = 4 * scale
 
-        # === 边框 ===
+        # === 边框 (不缩放，保持 1px 锐利) ===
         style.window_border_size = 1
         style.frame_border_size = 0
         style.popup_border_size = 1
@@ -615,6 +636,7 @@ class ModGeneratorGUI:
 
             if self.should_reload_fonts:
                 self.reload_fonts()
+                self.apply_theme()  # 同步更新 style 缩放
                 self.should_reload_fonts = False
 
             imgui.new_frame()
@@ -1334,52 +1356,27 @@ class ModGeneratorGUI:
         )
 
     def draw_hybrid_editor(self):
-        """绘制混合物品编辑器"""
+        """绘制混合物品编辑器 - 4区块结构: 基础/行为/属性/呈现"""
         hybrid = self.project.hybrid_items[self.current_hybrid_index]
 
-        if imgui.tree_node("基本属性##hybrid", flags=imgui.TREE_NODE_FRAMED | imgui.TREE_NODE_DEFAULT_OPEN):
-            self._draw_hybrid_basic_properties(hybrid)
-            imgui.tree_pop()
+        # 1. 基础 - "这是什么物品"
+        if imgui.collapsing_header("基础##hybrid", imgui.TREE_NODE_DEFAULT_OPEN)[0]:
+            self._draw_hybrid_base(hybrid)
 
-        if imgui.tree_node("功能设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_hybrid_feature_settings(hybrid)
-            imgui.tree_pop()
+        # 2. 行为 - "物品做什么"
+        if imgui.collapsing_header("行为##hybrid", imgui.TREE_NODE_DEFAULT_OPEN)[0]:
+            self._draw_hybrid_behavior(hybrid)
 
-        if hybrid.init_weapon_stats:
-            if imgui.tree_node("武器设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
-                self._draw_hybrid_weapon_settings(hybrid)
-                imgui.tree_pop()
+        # 3. 属性 - "数值配置"
+        if self._should_show_hybrid_attributes(hybrid) or hybrid.trigger_mode == TriggerMode.EFFECT:
+            if imgui.collapsing_header("属性##hybrid")[0]:
+                self._draw_hybrid_stats(hybrid)
 
-        if hybrid.init_armor_stats:
-            if imgui.tree_node("护甲设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
-                self._draw_hybrid_armor_settings(hybrid)
-                imgui.tree_pop()
+        # 4. 呈现 - "外观"
+        if imgui.collapsing_header("呈现##hybrid")[0]:
+            self._draw_hybrid_presentation(hybrid)
 
-        # 属性加成：仅在有被动效果或纯消耗品时显示
-        # 武器/护甲的属性在武器设置/护甲设置中配置
-        if self._should_show_hybrid_attributes(hybrid):
-            if imgui.tree_node("属性加成##hybrid", flags=imgui.TREE_NODE_FRAMED):
-                self._draw_hybrid_attributes_editor(hybrid)
-                imgui.tree_pop()
-
-        # 消耗品属性编辑器（仅在消耗品主动效果模式下显示）
-        if hybrid.active_effect_mode == "consumable":
-            self._draw_hybrid_consumable_attributes_editor(hybrid)
-
-        if imgui.tree_node("名称与本地化##hybrid", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_localization_editor(hybrid, "hybrid")
-            imgui.tree_pop()
-
-        if imgui.tree_node("贴图文件##hybrid", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_hybrid_textures_editor(hybrid)
-            imgui.tree_pop()
-
-        if imgui.tree_node("掉落分类设置##hybrid", flags=imgui.TREE_NODE_FRAMED):
-            self._draw_hybrid_drop_slot_settings(hybrid)
-            imgui.tree_pop()
-
-        # 移除自定义代码板块 - 让用户编写代码有悖于设计原则
-
+        # 验证错误
         errors = validate_hybrid_item(hybrid, self.project, include_warnings=True)
         self._draw_validation_errors(errors)
 
@@ -1393,8 +1390,726 @@ class ModGeneratorGUI:
             return True
         return False
 
+    # ==================== 新 4 区块结构 ====================
+
+    def _draw_hybrid_base(self, hybrid: HybridItem):
+        """绘制基础区块 - 物品身份、物理属性、分类标签"""
+        # === 系统ID ===
+        imgui.text("系统ID")
+        imgui.same_line()
+        self.text_secondary(f"(生成: {hybrid.id})")
+        with item_width(-1):
+            changed, hybrid.name = imgui.input_text("##hybrid_sysid", hybrid.name, 256)
+        tooltip("游戏识别物品的内部名称，不向玩家展示。\n确保ID独特以免与其他Mod冲突！")
+
+        imgui.dummy(0, self.layout.gap_s)
+
+        # 固定父类（不向用户显示）
+        hybrid.parent_object = "o_inv_consum"
+
+        # === 4列表单: 品质/等级/价格/重量/材质 ===
+        if imgui.begin_table("hybrid_base_table", 4, imgui.TABLE_SIZING_STRETCH_SAME):
+            imgui.table_setup_column("L1", imgui.TABLE_COLUMN_WIDTH_FIXED)
+            imgui.table_setup_column("I1", imgui.TABLE_COLUMN_WIDTH_STRETCH)
+            imgui.table_setup_column("L2", imgui.TABLE_COLUMN_WIDTH_FIXED)
+            imgui.table_setup_column("I2", imgui.TABLE_COLUMN_WIDTH_STRETCH)
+
+            # 第一行: 品质 + 等级
+            imgui.table_next_row()
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("品质")
+            imgui.table_next_column()
+            old_quality = hybrid.quality
+            with item_width(-1):
+                hybrid.quality = self._draw_enum_combo(
+                    "##quality_hybrid", hybrid.quality,
+                    list(HYBRID_QUALITY_LABELS.keys()), HYBRID_QUALITY_LABELS
+                )
+            if hybrid.quality != old_quality:
+                self._update_hybrid_rarity_from_quality(hybrid)
+
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("等级")
+            imgui.table_next_column()
+            if hybrid.quality == 7:  # 文物
+                hybrid.tier = 0
+                self.text_secondary("文物固定 0")
+            else:
+                tier_options = [0, 1, 2, 3, 4, 5]
+                tier_labels = {0: "0 (全)", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
+                with item_width(-1):
+                    hybrid.tier = self._draw_enum_combo("##tier_hybrid", hybrid.tier, tier_options, tier_labels)
+                tooltip("用于掉落/商店筛选，0 匹配所有")
+
+            # 第二行: 价格 + 重量
+            imgui.table_next_row()
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("价格")
+            imgui.table_next_column()
+            with item_width(-1):
+                changed, hybrid.base_price = imgui.input_int("##price_hybrid", hybrid.base_price)
+            if changed:
+                hybrid.base_price = max(0, hybrid.base_price)
+
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("重量")
+            imgui.table_next_column()
+            with item_width(-1):
+                hybrid.weight = self._draw_enum_combo(
+                    "##weight_hybrid", hybrid.weight,
+                    list(HYBRID_WEIGHT_LABELS.keys()), HYBRID_WEIGHT_LABELS
+                )
+            tooltip("影响游泳；护甲时决定护甲类别")
+
+            # 第三行: 材质 (只占左半边)
+            imgui.table_next_row()
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("材质")
+            imgui.table_next_column()
+            with item_width(-1):
+                hybrid.material = self._draw_enum_combo(
+                    "##material_hybrid", hybrid.material,
+                    list(HYBRID_MATERIALS.keys()), HYBRID_MATERIALS
+                )
+            imgui.table_next_column()
+            imgui.table_next_column()
+
+            imgui.end_table()
+
+        imgui.dummy(0, self.layout.gap_m)
+
+        # === 分类/标签/生成路径 ===
+        self._draw_hybrid_distribution_settings(hybrid)
+
+    def _draw_hybrid_distribution_settings(self, hybrid: HybridItem):
+        """绘制分类/标签/生成路径设置（嵌入基础区块）"""
+        # 排除随机生成开关
+        changed, hybrid.exclude_from_random = imgui.checkbox(
+            "排除随机生成##hybrid", hybrid.exclude_from_random
+        )
+        tooltip("开启后物品不会在宝箱/商店随机出现")
+
+        if hybrid.exclude_from_random:
+            imgui.same_line()
+            self.text_secondary("(special exc)")
+            imgui.same_line(spacing=self.layout.gap_l)
+            # 即使排除也显示预测按钮
+            if imgui.small_button("?##gen_preview"):
+                imgui.open_popup("generation_preview_popup")
+            tooltip("查看生成预测")
+            self._draw_generation_preview_popup(hybrid)
+            return
+
+        imgui.same_line(spacing=self.layout.gap_l)
+
+        # 生成路径
+        spawn_mode_labels = {
+            SpawnMode.EQUIPMENT: "装备品",
+            SpawnMode.NON_EQUIPMENT: "非装备品",
+        }
+        imgui.text("路径:")
+        imgui.same_line()
+        imgui.set_next_item_width(self.layout.input_m)  # ~10em
+        if imgui.begin_combo("##spawn_mode", spawn_mode_labels[hybrid.spawn_mode]):
+            for mode in [SpawnMode.NON_EQUIPMENT, SpawnMode.EQUIPMENT]:
+                if imgui.selectable(spawn_mode_labels[mode], hybrid.spawn_mode == mode)[0]:
+                    hybrid.spawn_mode = mode
+            imgui.end_combo()
+        tooltip("装备品: 与原生装备一起筛选生成\n非装备品: 按分类/标签匹配")
+        # TODO: 详细解释装备/非装备路径的区别，涉及容器掉落、商店进货、击杀掉落的不同匹配逻辑
+
+        imgui.same_line(spacing=self.layout.gap_l)
+
+        # 生成预测按钮
+        if imgui.small_button("?##gen_preview"):
+            imgui.open_popup("generation_preview_popup")
+        tooltip("查看生成预测")
+        self._draw_generation_preview_popup(hybrid)
+
+        imgui.dummy(0, self.layout.gap_s)
+
+        # 主分类
+        imgui.text("分类:")
+        imgui.same_line()
+        imgui.set_next_item_width(150)
+        if hybrid.quality == 7:  # 文物
+            hybrid.cat = "treasure"
+            self.text_secondary("treasure (文物固定)")
+        else:
+            available_cats = [c for c in ITEM_CATEGORIES if c != "treasure"]
+            if hybrid.cat == "treasure":
+                hybrid.cat = ""
+            cat_options = [""] + available_cats
+            cat_labels = {"": "-- 无 --"}
+            cat_labels.update({c: CATEGORY_TRANSLATIONS.get(c, c) for c in available_cats})
+            hybrid.cat = self._draw_enum_combo("##cat_hybrid", hybrid.cat, cat_options, cat_labels)
+
+        imgui.same_line(spacing=self.layout.gap_l)
+
+        # 子分类 (折叠显示)
+        subcat_count = len(hybrid.subcats)
+        if imgui.small_button(f"子分类 ({subcat_count})##subcats"):
+            imgui.open_popup("subcats_popup")
+        tooltip("点击选择子分类")
+
+        if imgui.begin_popup("subcats_popup"):
+            subcat_options = ALL_SUBCATEGORY_OPTIONS if hybrid.quality == 7 else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
+            if "treasure" in hybrid.subcats and hybrid.quality != 7:
+                hybrid.subcats.remove("treasure")
+
+            for subcat in subcat_options:
+                is_selected = subcat in hybrid.subcats
+                is_disabled = (subcat == hybrid.cat)
+                if is_disabled:
+                    imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+                changed, new_value = imgui.checkbox(
+                    f"{CATEGORY_TRANSLATIONS.get(subcat, subcat)}##subcat_{subcat}",
+                    is_selected
+                )
+                if changed and not is_disabled:
+                    if new_value:
+                        hybrid.subcats.append(subcat)
+                    else:
+                        hybrid.subcats.remove(subcat)
+                if is_disabled:
+                    imgui.pop_style_var()
+            imgui.end_popup()
+
+        # 标签设置 (折叠显示)
+        imgui.same_line(spacing=self.layout.gap_l)
+        tag_count = sum([
+            1 if hybrid.quality_tag else 0,
+            1 if hybrid.dungeon_tag else 0,
+            1 if hybrid.country_tag else 0,
+            len(hybrid.extra_tags)
+        ])
+        if imgui.small_button(f"标签 ({tag_count})##tags"):
+            imgui.open_popup("tags_popup")
+        tooltip("点击设置标签")
+
+        if imgui.begin_popup("tags_popup"):
+            # 品质标签自动设置
+            hybrid.quality_tag = "unique" if hybrid.quality == 6 else ""
+
+            # 地牢标签
+            imgui.text("地牢")
+            for tag_val, tag_label in DUNGEON_TAGS.items():
+                if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
+                    hybrid.dungeon_tag = tag_val
+
+            imgui.separator()
+            imgui.text("国家/地区")
+            for tag_val, tag_label in COUNTRY_TAGS.items():
+                if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
+                    hybrid.country_tag = tag_val
+
+            imgui.separator()
+            imgui.text("其他")
+            for tag_val, tag_label in EXTRA_TAGS.items():
+                is_selected = tag_val in hybrid.extra_tags
+                changed, new_value = imgui.checkbox(f"{tag_label}##extra_{tag_val}", is_selected)
+                if changed:
+                    if new_value:
+                        hybrid.extra_tags.append(tag_val)
+                    else:
+                        hybrid.extra_tags.remove(tag_val)
+            imgui.end_popup()
+
+        # 有效标签
+        if hybrid.effective_tags:
+            imgui.same_line(spacing=self.layout.gap_l)
+            self.text_secondary(f"[{hybrid.effective_tags}]")
+
+    def _draw_generation_preview_popup(self, hybrid: HybridItem):
+        """绘制生成预测弹窗 - 简化版"""
+        imgui.set_next_window_size(450, 280, imgui.ALWAYS)
+        if imgui.begin_popup("generation_preview_popup"):
+            imgui.text("生成预测")
+            imgui.separator()
+
+            if hybrid.exclude_from_random:
+                self.text_secondary("物品已排除随机生成 (special exc)")
+                imgui.text("不会出现在宝箱掉落和商店库存中")
+            else:
+                # 容器掉落
+                imgui.text("容器掉落:")
+                if hybrid.spawn_mode == SpawnMode.NON_EQUIPMENT:
+                    self._draw_container_preview_simplified(hybrid, is_equipment=False)
+                else:
+                    self._draw_container_preview_simplified(hybrid, is_equipment=True)
+
+                imgui.dummy(0, self.layout.gap_m)
+
+                # 商店进货
+                imgui.text("商店进货:")
+                self._draw_shop_preview_simplified(hybrid)
+
+            imgui.end_popup()
+
+    def _draw_container_preview_simplified(self, hybrid: HybridItem, is_equipment: bool):
+        """简化版容器预测 - 只显示容器名称"""
+        if is_equipment:
+            # 装备路径
+            eq_categories = []
+            if hybrid.equipment_mode == EquipmentMode.WEAPON and hybrid.weapon_type:
+                eq_categories.append(hybrid.weapon_type)
+                eq_categories.append("weapon")
+            elif hybrid.equipment_mode == EquipmentMode.ARMOR and hybrid.armor_type:
+                eq_categories.append(hybrid.armor_type)
+                if hybrid.armor_type in ("Ring", "Amulet"):
+                    eq_categories.append("jewelry")
+                else:
+                    eq_categories.append("armor")
+
+            if not eq_categories:
+                self.text_secondary("  (无匹配)")
+                return
+
+            all_matches = []
+            for eq_cat in eq_categories:
+                matches = find_matching_eq_slots(eq_cat, hybrid.tags_tuple, hybrid.tier)
+                all_matches.extend(matches)
+
+            if not all_matches:
+                self.text_secondary("  (无匹配)")
+                return
+
+            # 去重并只显示名称
+            names = list(dict.fromkeys(m["entry_name_cn"] for m in all_matches))
+            display = ", ".join(names[:8])
+            if len(names) > 8:
+                display += f"... 共{len(names)}处"
+            imgui.text_wrapped(f"  {display}")
+        else:
+            # 非装备路径
+            if not (hybrid.cat or hybrid.subcats):
+                self.text_secondary("  (请设置分类)")
+                return
+
+            matches = find_matching_slots(
+                hybrid.cat, tuple(hybrid.subcats),
+                hybrid.tags_tuple, hybrid.tier
+            )
+
+            if not matches:
+                self.text_secondary("  (无匹配)")
+                return
+
+            names = list(dict.fromkeys(m["entry_name_cn"] for m in matches))
+            display = ", ".join(names[:8])
+            if len(names) > 8:
+                display += f"... 共{len(names)}处"
+            imgui.text_wrapped(f"  {display}")
+
+    def _draw_shop_preview_simplified(self, hybrid: HybridItem):
+        """简化版商店预测 - 只显示城镇·商店名"""
+        if hybrid.spawn_mode == SpawnMode.NON_EQUIPMENT:
+            # 非装备路径
+            if not (hybrid.cat or hybrid.subcats):
+                self.text_secondary("  (请设置分类)")
+                return
+            item_cats = set([hybrid.cat] + list(hybrid.subcats))
+            item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
+            matching = []
+
+            for objects_tuple, config in SHOP_CONFIGS.items():
+                selling_cats = config.get("selling_loot_category", {})
+                trade_tags = set(config.get("trade_tags", []))
+                matched_cats = item_cats & set(selling_cats.keys())
+                if not matched_cats:
+                    continue
+                if trade_tags and item_tags and not item_tags.issubset(trade_tags):
+                    continue
+                for obj in objects_tuple:
+                    meta = NPC_METADATA.get(obj, {})
+                    name = meta.get("name_zh") or meta.get("name_en")
+                    if name:
+                        town = meta.get("town_zh") or meta.get("town") or ""
+                        matching.append(f"{town}·{name}" if town else name)
+        else:
+            # 装备路径
+            item_tier = hybrid.tier
+            item_material = hybrid.material
+            item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
+            item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode == EquipmentMode.WEAPON else None
+            item_armor_slot = hybrid.slot if hybrid.equipment_mode == EquipmentMode.ARMOR else None
+            is_jewelry = item_armor_slot in ("ring", "amulet", "Ring", "Amulet") if item_armor_slot else False
+            matching = []
+
+            for objects_tuple, config in SHOP_CONFIGS.items():
+                selling_cats = set(config.get("selling_loot_category", {}).keys())
+                tier_range = config.get("tier_range", [1, 1])
+                material_spec = config.get("material_spec", ["all"])
+                trade_tags = set(config.get("trade_tags", []))
+
+                category_matched = False
+                if "weapon" in selling_cats and item_weapon_type:
+                    category_matched = True
+                elif "armor" in selling_cats and item_armor_slot and not is_jewelry:
+                    category_matched = True
+                elif "jewelry" in selling_cats and is_jewelry:
+                    category_matched = True
+
+                if not category_matched:
+                    continue
+                if item_tier > 0 and not (tier_range[0] <= item_tier <= tier_range[1]):
+                    continue
+                if "all" not in material_spec and item_material not in material_spec:
+                    continue
+                if trade_tags and (not item_tags or not item_tags.issubset(trade_tags)):
+                    continue
+
+                for obj in objects_tuple:
+                    meta = NPC_METADATA.get(obj, {})
+                    name = meta.get("name_zh") or meta.get("name_en")
+                    if name:
+                        town = meta.get("town_zh") or meta.get("town") or ""
+                        matching.append(f"{town}·{name}" if town else name)
+
+        if not matching:
+            self.text_secondary("  (无匹配)")
+            return
+
+        display = ", ".join(matching[:6])
+        if len(matching) > 6:
+            display += f"... 共{len(matching)}家"
+        imgui.text_wrapped(f"  {display}")
+
+    def _draw_fragments_popup(self, hybrid: HybridItem):
+        """绘制拆解碎片材料弹窗"""
+        if imgui.begin_popup("fragments_popup"):
+            imgui.text("拆解碎片")
+            imgui.separator()
+            self.text_secondary("拆解物品时可获得的材料碎片")
+
+            frag_data = [
+                ("cloth01", "布1"), ("cloth02", "布2"), ("cloth03", "布3"), ("cloth04", "布4"),
+                ("leather01", "皮1"), ("leather02", "皮2"), ("leather03", "皮3"), ("leather04", "皮4"),
+                ("metal01", "铁1"), ("metal02", "铁2"), ("metal03", "铁3"), ("metal04", "铁4"),
+                ("gold", "金"),
+            ]
+
+            imgui.dummy(0, self.layout.gap_s)
+
+            # 4列布局
+            if imgui.begin_table("frag_popup_table", 4, imgui.TABLE_SIZING_STRETCH_SAME):
+                imgui.table_setup_column("L1", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
+                imgui.table_setup_column("I1", imgui.TABLE_COLUMN_WIDTH_FIXED, 50)
+                imgui.table_setup_column("L2", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
+                imgui.table_setup_column("I2", imgui.TABLE_COLUMN_WIDTH_FIXED, 50)
+
+                for i, (frag_key, frag_label) in enumerate(frag_data):
+                    if i % 2 == 0:
+                        imgui.table_next_row()
+
+                    imgui.table_next_column()
+                    imgui.text(frag_label)
+
+                    imgui.table_next_column()
+                    val = hybrid.fragments.get(frag_key, 0)
+                    with item_width(-1):
+                        changed, new_val = imgui.input_int(f"##{frag_key}_popup", val, step=0, step_fast=0)
+                    if changed:
+                        hybrid.fragments[frag_key] = max(0, new_val)
+
+                imgui.end_table()
+
+            imgui.end_popup()
+
+    def _draw_hybrid_behavior(self, hybrid: HybridItem):
+        """绘制行为区块 - 单表格布局，更紧凑
+        
+        布局：2列表格，子区块用分隔行区分
+        """
+        # UI 标签映射
+        EQUIPMENT_MODE_LABELS = {
+            EquipmentMode.NONE: "无",
+            EquipmentMode.WEAPON: "武器",
+            EquipmentMode.ARMOR: "护甲",
+            EquipmentMode.CHARM: "护符",
+        }
+        TRIGGER_MODE_LABELS = {
+            TriggerMode.NONE: "无",
+            TriggerMode.EFFECT: "效果",
+            TriggerMode.SKILL: "技能",
+        }
+        CHARGE_MODE_LABELS = {
+            ChargeMode.LIMITED: "有限",
+            ChargeMode.UNLIMITED: "无限",
+            ChargeMode.LINKED: "联动",
+        }
+        
+        if imgui.begin_table("behavior_table", 2, imgui.TABLE_SIZING_FIXED_FIT):
+            imgui.table_setup_column("label", imgui.TABLE_COLUMN_WIDTH_FIXED, self.layout.label_col)
+            imgui.table_setup_column("content", imgui.TABLE_COLUMN_WIDTH_STRETCH)
+
+            # ━━━ 装备形态 ━━━
+            imgui.table_next_row()
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("形态")
+            
+            imgui.table_next_column()
+            imgui.set_next_item_width(self.layout.input_m)
+            old_mode = hybrid.equipment_mode
+            hybrid.equipment_mode = self._draw_mode_combo(
+                "##eq_mode", hybrid.equipment_mode,
+                EquipmentMode, EQUIPMENT_MODE_LABELS
+            )
+            if hybrid.equipment_mode != old_mode:
+                if hybrid.equipment_mode == EquipmentMode.WEAPON:
+                    hybrid.slot = "hand"
+                elif hybrid.equipment_mode == EquipmentMode.ARMOR:
+                    hybrid.slot = "hand" if hybrid.armor_type == "shield" else hybrid.armor_type
+                else:
+                    hybrid.slot = "heal"
+
+            # 武器：类型 + 平衡 (inline)
+            if hybrid.init_weapon_stats:
+                imgui.same_line(spacing=self.layout.gap_m)
+                imgui.text("类型")
+                imgui.same_line()
+                imgui.set_next_item_width(self.layout.input_m)
+                hybrid.weapon_type = self._draw_enum_combo(
+                    "##wep_type", hybrid.weapon_type,
+                    list(HYBRID_WEAPON_TYPES.keys()), HYBRID_WEAPON_TYPES
+                )
+                imgui.same_line(spacing=self.layout.gap_m)
+                imgui.text("平衡")
+                imgui.same_line()
+                imgui.set_next_item_width(self.layout.input_s)
+                balance_options = {"0": "0", "1": "1", "2": "2", "3": "3", "4": "4"}
+                hybrid.balance = int(self._draw_enum_combo(
+                    "##wep_balance", str(hybrid.balance),
+                    list(balance_options.keys()), balance_options
+                ))
+
+            # 护甲：类型 + 类别 + 碎片 (inline)
+            elif hybrid.init_armor_stats:
+                imgui.same_line(spacing=self.layout.gap_m)
+                imgui.text("类型")
+                imgui.same_line()
+                imgui.set_next_item_width(self.layout.input_m)
+                old_armor_type = hybrid.armor_type
+                hybrid.armor_type = self._draw_enum_combo(
+                    "##armor_type", hybrid.armor_type,
+                    list(HYBRID_ARMOR_TYPES.keys()), HYBRID_ARMOR_TYPES
+                )
+                if hybrid.armor_type != old_armor_type:
+                    hybrid.slot = "hand" if hybrid.armor_type == "shield" else hybrid.armor_type
+                imgui.same_line(spacing=self.layout.gap_m)
+                self.text_secondary(f"类别:{hybrid.armor_class}")
+                if hybrid.slot not in ["hand", "Ring", "Amulet"]:
+                    imgui.same_line(spacing=self.layout.gap_m)
+                    frag_count = sum(hybrid.fragments.values())
+                    if imgui.small_button(f"碎片({frag_count})##frags"):
+                        imgui.open_popup("fragments_popup")
+                    self._draw_fragments_popup(hybrid)
+
+            # ━━━ 触发效果 ━━━
+            imgui.table_next_row()
+            imgui.table_next_column()
+            imgui.align_text_to_frame_padding()
+            imgui.text("触发")
+            
+            imgui.table_next_column()
+            imgui.set_next_item_width(self.layout.input_m)
+            old_trigger = hybrid.trigger_mode
+            hybrid.trigger_mode = self._draw_mode_combo(
+                "##trigger_mode", hybrid.trigger_mode,
+                TriggerMode, TRIGGER_MODE_LABELS
+            )
+            if hybrid.trigger_mode != old_trigger:
+                if hybrid.trigger_mode != TriggerMode.SKILL:
+                    hybrid.skill_object = ""
+                if hybrid.trigger_mode != TriggerMode.EFFECT:
+                    hybrid.consumable_attributes.clear()
+
+            if hybrid.trigger_mode == TriggerMode.SKILL:
+                imgui.same_line(spacing=self.layout.gap_m)
+                imgui.text("技能")
+                imgui.same_line()
+                imgui.set_next_item_width(self.layout.input_xl)
+                current_skill = hybrid.skill_object
+                current_label = SKILL_OBJECT_NAMES.get(current_skill, current_skill) if current_skill else "-- 选择 --"
+                if imgui.begin_combo("##skill_object", current_label):
+                    if imgui.selectable("-- 无 --", current_skill == "")[0]:
+                        hybrid.skill_object = ""
+                    imgui.separator()
+                    for branch in sorted(SKILL_BY_BRANCH.keys()):
+                        branch_label = SKILL_BRANCH_TRANSLATIONS.get(branch, branch)
+                        skills = SKILL_BY_BRANCH[branch]
+                        if not skills or branch in ("none", "unknown"):
+                            continue
+                        if imgui.tree_node(f"{branch_label}##branch_{branch}"):
+                            for skill_obj in skills:
+                                skill_info = SKILL_OBJECTS.get(skill_obj, {})
+                                skill_name = skill_info.get("name_chinese", skill_obj)
+                                if imgui.selectable(f"{skill_name}##{skill_obj}", current_skill == skill_obj)[0]:
+                                    hybrid.skill_object = skill_obj
+                            imgui.tree_pop()
+                    imgui.end_combo()
+
+            # ━━━ 耐久（条件显示）━━━
+            if hybrid.has_durability:
+                imgui.table_next_row()
+                imgui.table_next_column()
+                imgui.align_text_to_frame_padding()
+                self.text_secondary("耐久")
+                
+                imgui.table_next_column()
+                imgui.set_next_item_width(self.layout.input_s)
+                changed, hybrid.duration_max = imgui.input_int("##dur_max", hybrid.duration_max)
+                if changed:
+                    hybrid.duration_max = max(1, hybrid.duration_max)
+                imgui.same_line(spacing=self.layout.gap_s)
+                changed, hybrid.destroy_on_durability_zero = imgui.checkbox("损毁##dur_del", hybrid.destroy_on_durability_zero)
+                if hybrid.has_charges:
+                    imgui.same_line(spacing=self.layout.gap_s)
+                    imgui.set_next_item_width(self.layout.input_xs)
+                    changed, hybrid.wear_per_use = imgui.input_int("##wear", hybrid.wear_per_use)
+                    imgui.same_line(spacing=2)
+                    imgui.text("%损耗")
+                    if changed:
+                        min_wear = 1 if hybrid.charge_mode == ChargeMode.LINKED else 0
+                        hybrid.wear_per_use = max(min_wear, min(100, hybrid.wear_per_use))
+
+            # ━━━ 使用次数（条件显示）━━━
+            if hybrid.has_charges:
+                # 构建可用选项
+                charge_options = [ChargeMode.LIMITED, ChargeMode.UNLIMITED]
+                if hybrid.has_durability:
+                    charge_options.append(ChargeMode.LINKED)
+
+                imgui.table_next_row()
+                imgui.table_next_column()
+                imgui.align_text_to_frame_padding()
+                self.text_secondary("次数")
+                
+                imgui.table_next_column()
+                imgui.set_next_item_width(self.layout.input_m)
+                old_mode = hybrid.charge_mode
+                hybrid.charge_mode = self._draw_mode_combo(
+                    "##charge_mode", hybrid.charge_mode,
+                    ChargeMode, CHARGE_MODE_LABELS, options=charge_options
+                )
+                if hybrid.charge_mode != old_mode and hybrid.charge_mode == ChargeMode.LINKED and hybrid.wear_per_use < 1:
+                    hybrid.wear_per_use = 10
+
+                imgui.same_line(spacing=self.layout.gap_s)
+                if hybrid.charge_mode == ChargeMode.UNLIMITED:
+                    hybrid.charge = 1
+                    hybrid.has_charge_recovery = False
+                    self.text_secondary("∞")
+                elif hybrid.charge_mode == ChargeMode.LINKED:
+                    self.text_secondary(f"={hybrid.effective_charge}")
+                else:
+                    imgui.set_next_item_width(self.layout.input_xs)
+                    changed, hybrid.charge = imgui.input_int("##charge", hybrid.charge)
+                    if changed:
+                        hybrid.charge = max(1, hybrid.charge)
+
+                imgui.same_line(spacing=self.layout.gap_s)
+                changed, hybrid.draw_charges = imgui.checkbox("标记##show_charge", hybrid.draw_charges)
+
+                # 恢复设置（延续行，标签列留空）
+                if hybrid.charge_mode != ChargeMode.UNLIMITED:
+                    is_artifact_limited = hybrid.quality == 7 and hybrid.charge_mode == ChargeMode.LIMITED
+                    imgui.table_next_row()
+                    imgui.table_next_column()  # 标签列留空
+                    
+                    imgui.table_next_column()
+                    if is_artifact_limited:
+                        hybrid.has_charge_recovery = True
+                        imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+                        imgui.checkbox("恢复(文物)##recovery", True)
+                        imgui.pop_style_var()
+                    else:
+                        changed, hybrid.has_charge_recovery = imgui.checkbox("恢复##recovery", hybrid.has_charge_recovery)
+                    
+                    if hybrid.has_charge_recovery:
+                        imgui.same_line(spacing=self.layout.gap_s)
+                        imgui.set_next_item_width(self.layout.input_xs)
+                        changed, hybrid.charge_recovery_interval = imgui.input_int("##interval", hybrid.charge_recovery_interval)
+                        if changed:
+                            hybrid.charge_recovery_interval = max(1, hybrid.charge_recovery_interval)
+                        imgui.same_line(spacing=2)
+                        imgui.text("回合")
+
+                    if not hybrid.has_durability and hybrid.quality != 7:
+                        imgui.same_line(spacing=self.layout.gap_s)
+                        changed, hybrid.delete_on_charge_zero = imgui.checkbox("耗尽删##charge_del", hybrid.delete_on_charge_zero)
+
+            imgui.end_table()
+        else:
+            # 无使用次数时清除相关设置
+            hybrid.charge = 1
+            hybrid.draw_charges = False
+            hybrid.charge_mode = ChargeMode.LIMITED
+            hybrid.has_charge_recovery = False
+            hybrid.charge_recovery_interval = 10
+            hybrid.wear_per_use = 0
+            hybrid.delete_on_charge_zero = False
+
+    def _draw_hybrid_stats(self, hybrid: HybridItem):
+        """绘制属性区块 - 属性编辑器"""
+        # 装备属性
+        if self._should_show_hybrid_attributes(hybrid):
+            self._draw_hybrid_attributes_editor(hybrid)
+
+        # 消耗品属性
+        if hybrid.trigger_mode == TriggerMode.EFFECT:
+            if self._should_show_hybrid_attributes(hybrid):
+                imgui.dummy(0, self.layout.gap_m)
+            self._draw_hybrid_consumable_attributes_editor(hybrid)
+
+    def _draw_hybrid_presentation(self, hybrid: HybridItem):
+        """绘制呈现区块 - 贴图、音效、本地化"""
+        # 贴图
+        self._draw_hybrid_textures_editor(hybrid)
+
+        imgui.dummy(0, self.layout.gap_m)
+
+        # 音效
+        imgui.text("音效")
+        imgui.same_line(spacing=self.layout.gap_l)
+        imgui.text("放下:")
+        imgui.same_line()
+        imgui.set_next_item_width(120)
+        current_drop_label = HYBRID_DROP_SOUNDS.get(hybrid.drop_sound, f"{hybrid.drop_sound}")
+        if imgui.begin_combo("##drop_sound", current_drop_label):
+            for sound_id, sound_label in HYBRID_DROP_SOUNDS.items():
+                if imgui.selectable(sound_label, sound_id == hybrid.drop_sound)[0]:
+                    hybrid.drop_sound = sound_id
+            imgui.end_combo()
+
+        imgui.same_line(spacing=self.layout.gap_l)
+        imgui.text("拾取:")
+        imgui.same_line()
+        imgui.set_next_item_width(120)
+        current_pickup_label = HYBRID_PICKUP_SOUNDS.get(hybrid.pickup_sound, f"{hybrid.pickup_sound}")
+        if imgui.begin_combo("##pickup_sound", current_pickup_label):
+            for sound_id, sound_label in HYBRID_PICKUP_SOUNDS.items():
+                if imgui.selectable(sound_label, sound_id == hybrid.pickup_sound)[0]:
+                    hybrid.pickup_sound = sound_id
+            imgui.end_combo()
+
+        imgui.dummy(0, self.layout.gap_m)
+
+        # 本地化 - 直接显示与贴图/音效并列
+        imgui.text("名称与描述")
+        imgui.dummy(0, self.layout.gap_s)
+        self._draw_localization_editor(hybrid, "hybrid")
+
+    # ==================== 旧函数（保留供参考，可删除） ====================
+
     def _draw_hybrid_basic_properties(self, hybrid: HybridItem):
-        """绘制混合物品基本属性 - 使用 ImGui Table API 自动对齐"""
+        """绘制混合物品基本属性 - 使用 ImGui Table API 自动对齐（已弃用，使用 _draw_hybrid_base）"""
         # 系统ID（独立一行，填满宽度）
         imgui.text("混合物品系统ID")
         imgui.same_line()
@@ -1513,7 +2228,7 @@ class ModGeneratorGUI:
             )
         
         # 计算当前选中的类型索引
-        # 0=无, 1=武器, 2=护甲, 3=被动
+        # 0=无, 1=武器, 2=护甲, 3=护符
         if hybrid.init_weapon_stats:
             current_type = 1
         elif hybrid.init_armor_stats:
@@ -1523,16 +2238,16 @@ class ModGeneratorGUI:
         else:
             current_type = 0
         
-        type_labels = ["无 (纯消耗品)", "武器类", "护甲饰品类", "被动类"]
+        type_labels = ["无 (纯消耗品)", "武器类", "护甲饰品类", "护符类"]
         
         # 使用 radio_button 实现单选
-        EQUIPMENT_MODES = ["none", "weapon", "armor", "passive"]
+        EQUIPMENT_MODES_LIST = [EquipmentMode.NONE, EquipmentMode.WEAPON, EquipmentMode.ARMOR, EquipmentMode.CHARM]
         for i, label in enumerate(type_labels):
             if i > 0:
                 imgui.same_line(spacing=self.layout.gap_m)
             if imgui.radio_button(f"{label}##hybrid_type", current_type == i):
                 # 更新装备模式
-                hybrid.equipment_mode = EQUIPMENT_MODES[i]
+                hybrid.equipment_mode = EQUIPMENT_MODES_LIST[i]
                 
                 # 自动推断装备设置
                 if i == 1:  # 武器类
@@ -1544,37 +2259,42 @@ class ModGeneratorGUI:
                         hybrid.slot = "hand"
                     else:
                         hybrid.slot = hybrid.armor_type
-                else:  # 纯消耗品(i==0) 或 被动类(i==3)
+                else:  # 纯消耗品(i==0) 或 护符类(i==3)
                     hybrid.slot = "heal"
         
         # equipable/is_weapon/mark_as_weapon 现在都是计算属性，由 equipment_mode 自动推断
 
-        # ====== 主动效果模式 ======
+        # ====== 触发效果模式 ======
         imgui.dummy(0, self.layout.gap_m)
-        imgui.text_colored("主动效果模式", *self.theme_colors["accent"])
+        imgui.text_colored("触发效果模式", *self.theme_colors["accent"])
         if imgui.is_item_hovered():
             imgui.set_tooltip(
                 "选择物品使用时触发的效果模式：\n"
                 "• 无：不触发任何效果\n"
-                "• 消耗品使用效果：应用消耗品属性中设置的效果\n"
-                "• 技能释放：释放指定技能（支持目标选择）"
+                "• 效果：应用消耗品属性中设置的效果\n"
+                "• 技能：释放指定技能（支持目标选择）"
             )
         
-        # 主动效果模式选择
+        # 触发效果模式选择
         # 使用 radio_button 实现单选
-        for i, (key, label) in enumerate(ACTIVE_EFFECT_MODES.items()):
+        TRIGGER_MODE_LABELS = {
+            TriggerMode.NONE: "无",
+            TriggerMode.EFFECT: "效果",
+            TriggerMode.SKILL: "技能",
+        }
+        for i, (mode, label) in enumerate(TRIGGER_MODE_LABELS.items()):
             if i > 0:
                 imgui.same_line(spacing=self.layout.gap_m)
-            if imgui.radio_button(f"{label}##active_effect_mode", hybrid.active_effect_mode == key):
-                hybrid.active_effect_mode = key
+            if imgui.radio_button(f"{label}##trigger_mode", hybrid.trigger_mode == mode):
+                hybrid.trigger_mode = mode
                 # 切换模式时清除不相关的数据
-                if key != "skill":
+                if mode != TriggerMode.SKILL:
                     hybrid.skill_object = ""
-                if key != "consumable":
+                if mode != TriggerMode.EFFECT:
                     hybrid.consumable_attributes.clear()
         
         # 技能选择（仅在技能释放模式下显示）
-        if hybrid.active_effect_mode == "skill":
+        if hybrid.trigger_mode == TriggerMode.SKILL:
             imgui.text("技能:")
             imgui.same_line()
             imgui.push_item_width(400)
@@ -1697,25 +2417,25 @@ class ModGeneratorGUI:
             changed, hybrid.destroy_on_durability_zero = imgui.checkbox("耐久耗尽后删除##hybrid", hybrid.destroy_on_durability_zero)
             tooltip("开启：耐久归零时删除物品\n关闭：允许0耐久")
 
-            # 磨损设置（固定在耐久区块，所有模式都在这里设置）
+            # 损耗设置（固定在耐久区块，所有模式都在这里设置）
             if hybrid.has_charges:
-                imgui.text("每次使用磨损耐久 (%):")
+                imgui.text("每次使用损耗耐久 (%):")
                 imgui.same_line()
                 imgui.push_item_width(120)
                 changed, hybrid.wear_per_use = imgui.input_int("##wear_per_use", hybrid.wear_per_use)
                 if changed:
-                    # linked 模式下最小为1，normal 模式可为0
-                    min_wear = 1 if hybrid.charge_mode == "linked" else 0
+                    # linked 模式下最小为1，limited 模式可为0
+                    min_wear = 1 if hybrid.charge_mode == ChargeMode.LINKED else 0
                     hybrid.wear_per_use = max(min_wear, min(100, hybrid.wear_per_use))
                 imgui.pop_item_width()
                 
                 # linked 模式下显示计算出的最大次数
-                if hybrid.charge_mode == "linked":
+                if hybrid.charge_mode == ChargeMode.LINKED:
                     computed_charge = hybrid.effective_charge
                     imgui.same_line(spacing=self.layout.gap_s)
                     self.text_secondary(f"→ 最大 {computed_charge} 次")
                     if imgui.is_item_hovered():
-                        imgui.set_tooltip(f"最大使用次数 = floor(100 / {hybrid.wear_per_use}) = {computed_charge}\n（次数与耐久挂钩模式）")
+                        imgui.set_tooltip(f"最大使用次数 = floor(100 / {hybrid.wear_per_use}) = {computed_charge}\n（次数与耐久联动模式）")
                 else:
                     if imgui.is_item_hovered():
                         imgui.set_tooltip("每次使用消耗最大耐久的百分比\n无论耐久是否低于消耗都不阻止使用\n物品是否消失取决于\"耐久耗尽后删除\"设置")
@@ -1735,51 +2455,51 @@ class ModGeneratorGUI:
             imgui.push_item_width(180)
             
             # 构建可用模式列表
-            mode_options = ["normal", "unlimited"]
-            mode_labels = {"normal": "正常消耗", "unlimited": "无消耗"}
+            mode_options = [ChargeMode.LIMITED, ChargeMode.UNLIMITED]
+            mode_labels = {ChargeMode.LIMITED: "有限消耗", ChargeMode.UNLIMITED: "无限"}
             
-            # 只有当物品有耐久时才显示"与耐久挂钩"选项
+            # 只有当物品有耐久时才显示"联动"选项
             if hybrid.has_durability:
-                mode_options.append("linked")
-                mode_labels["linked"] = "与耐久挂钩"
+                mode_options.append(ChargeMode.LINKED)
+                mode_labels[ChargeMode.LINKED] = "联动耐久"
             
-            current_mode_label = mode_labels.get(hybrid.charge_mode, "正常消耗")
+            current_mode_label = mode_labels.get(hybrid.charge_mode, "有限消耗")
             if imgui.begin_combo("##charge_mode", current_mode_label):
-                for mode_key in mode_options:
-                    is_selected = hybrid.charge_mode == mode_key
-                    if imgui.selectable(mode_labels[mode_key], is_selected)[0]:
-                        hybrid.charge_mode = mode_key
+                for mode_enum in mode_options:
+                    is_selected = hybrid.charge_mode == mode_enum
+                    if imgui.selectable(mode_labels[mode_enum], is_selected)[0]:
+                        hybrid.charge_mode = mode_enum
                         # 切换到 linked 模式时，确保 wear_per_use >= 1
-                        if mode_key == "linked" and hybrid.wear_per_use < 1:
+                        if mode_enum == ChargeMode.LINKED and hybrid.wear_per_use < 1:
                             hybrid.wear_per_use = 10  # 默认10%
                 imgui.end_combo()
             imgui.pop_item_width()
             
             if imgui.is_item_hovered():
                 imgui.set_tooltip(
-                    "• 正常消耗：每次使用减少1次\n"
-                    "• 无消耗：次数永不减少（固定为1次）\n"
-                    "• 与耐久挂钩：次数由耐久度和磨损%计算\n"
+                    "• 有限消耗：每次使用减少1次\n"
+                    "• 无限：次数永不减少（固定为1次）\n"
+                    "• 联动耐久：次数由耐久度和损耗%计算\n"
                     "  (仅武器/护甲类可选)"
                 )
             
             # 根据模式显示不同的设置
-            if hybrid.charge_mode == "unlimited":
+            if hybrid.charge_mode == ChargeMode.UNLIMITED:
                 # 无消耗模式：强制设置
                 hybrid.charge = 1
                 hybrid.has_charge_recovery = False
                 imgui.same_line(spacing=self.layout.gap_l)
                 self.text_secondary("（次数固定为 1，永不减少）")
                 
-            elif hybrid.charge_mode == "linked":
+            elif hybrid.charge_mode == ChargeMode.LINKED:
                 # 与耐久挂钩模式：显示计算出的最大次数
                 computed_charge = hybrid.effective_charge
                 imgui.same_line(spacing=self.layout.gap_l)
                 imgui.text(f"最大次数: {computed_charge}")
                 imgui.same_line(spacing=self.layout.gap_s)
-                self.text_secondary("（由耐久设置区的磨损%计算）")
+                self.text_secondary("（由耐久设置区的损耗%计算）")
                 
-            else:  # normal 模式
+            else:  # LIMITED 模式
                 # 正常模式：次数输入
                 imgui.same_line(spacing=self.layout.gap_l)
                 imgui.text("次数:")
@@ -1791,14 +2511,14 @@ class ModGeneratorGUI:
                 imgui.pop_item_width()
 
             imgui.same_line(spacing=self.layout.gap_l)
-            changed, hybrid.draw_charges = imgui.checkbox("显示次数##hybrid", hybrid.draw_charges)
+            changed, hybrid.draw_charges = imgui.checkbox("标记次数##hybrid", hybrid.draw_charges)
             tooltip("是否在物品图标上显示使用次数")
             
             # 使用次数恢复设置（无消耗模式下不可用）
-            if hybrid.charge_mode != "unlimited":
-                # 文物 + 正常消耗模式 强制启用次数恢复
-                is_artifact_normal = hybrid.quality == 7 and hybrid.charge_mode == "normal"
-                if is_artifact_normal:
+            if hybrid.charge_mode != ChargeMode.UNLIMITED:
+                # 文物 + 有限消耗模式 强制启用次数恢复
+                is_artifact_limited = hybrid.quality == 7 and hybrid.charge_mode == ChargeMode.LIMITED
+                if is_artifact_limited:
                     hybrid.has_charge_recovery = True
                     imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
                     imgui.checkbox("启用次数恢复##hybrid", True)
@@ -1809,10 +2529,10 @@ class ModGeneratorGUI:
                     changed, hybrid.has_charge_recovery = imgui.checkbox("启用次数恢复##hybrid", hybrid.has_charge_recovery)
                 if imgui.is_item_hovered():
                     tip = "启用后，使用次数会随时间自动恢复"
-                    if hybrid.charge_mode == "linked":
+                    if hybrid.charge_mode == ChargeMode.LINKED:
                         tip += "\n（实际恢复的是耐久度）"
-                    if is_artifact_normal:
-                        tip += "\n\n文物使用正常消耗模式时强制启用"
+                    if is_artifact_limited:
+                        tip += "\n\n文物使用有限消耗模式时强制启用"
                     imgui.set_tooltip(tip)
                 
                 if hybrid.has_charge_recovery:
@@ -2614,8 +3334,8 @@ class ModGeneratorGUI:
         item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
         
         # 获取物品的装备分类
-        item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode == "weapon" else None
-        item_armor_slot = hybrid.slot if hybrid.equipment_mode == "armor" else None
+        item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode == EquipmentMode.WEAPON else None
+        item_armor_slot = hybrid.slot if hybrid.equipment_mode == EquipmentMode.ARMOR else None
         is_jewelry = item_armor_slot in ("ring", "amulet") if item_armor_slot else False
         
         matching_shops = []
@@ -2807,12 +3527,12 @@ class ModGeneratorGUI:
         """绘制装备路径容器掉落预览"""
         # 确定装备类别
         eq_categories = []
-        if hybrid.equipment_mode == "weapon":
+        if hybrid.equipment_mode == EquipmentMode.WEAPON:
             # 武器: 添加具体武器类型(如 sword, axe)和通用 weapon
             if hybrid.weapon_type:
                 eq_categories.append(hybrid.weapon_type)
             eq_categories.append("weapon")
-        elif hybrid.equipment_mode == "armor":
+        elif hybrid.equipment_mode == EquipmentMode.ARMOR:
             # 护甲: 添加具体护甲类型，再添加 jewelry 或 armor
             if hybrid.armor_type:
                 eq_categories.append(hybrid.armor_type)
@@ -4781,6 +5501,38 @@ class ModGeneratorGUI:
         if tooltip and imgui.is_item_hovered():
             imgui.set_tooltip(tooltip)
 
+        return new_value
+    
+    def _draw_mode_combo(self, label, current_enum, enum_class, labels: dict, 
+                         options=None, tooltip=""):
+        """Enum 类型的下拉框
+        
+        Args:
+            label: imgui 标签
+            current_enum: 当前 Enum 值
+            enum_class: Enum 类型
+            labels: {Enum成员: 显示文本} 映射
+            options: 可选的选项列表（Enum成员），默认为所有成员
+            tooltip: 提示文本
+        Returns:
+            选中的 Enum 值
+        """
+        if options is None:
+            options = list(enum_class)
+        
+        current_label = labels.get(current_enum, str(current_enum.value))
+        new_value = current_enum
+        
+        if imgui.begin_combo(label, current_label):
+            for opt in options:
+                display = labels.get(opt, str(opt.value))
+                if imgui.selectable(display, opt == current_enum)[0]:
+                    new_value = opt
+            imgui.end_combo()
+        
+        if tooltip and imgui.is_item_hovered():
+            imgui.set_tooltip(tooltip)
+        
         return new_value
 
     def _draw_validation_errors(self, errors):

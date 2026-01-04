@@ -790,11 +790,11 @@ HYBRID_QUALITY_LABELS = {
     7: "文物",
 }
 
-# 主动效果模式
-ACTIVE_EFFECT_MODES = {
+# 触发效果模式（UI 标签映射）
+TRIGGER_MODES = {
     "none": "无",
-    "consumable": "消耗品使用效果",
-    "skill": "技能释放",
+    "effect": "效果",
+    "skill": "技能",
 }
 
 # 混合物品武器类型

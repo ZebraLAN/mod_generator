@@ -38,6 +38,44 @@ class SpawnMode(Enum):
     NON_EQUIPMENT = "non_equipment"
 
 
+class EquipmentMode(Enum):
+    """装备形态
+    
+    NONE: 普通背包物品
+    WEAPON: 武器 - 可装备到手部，具有伤害和武器属性
+    ARMOR: 护甲 - 可装备到身体槽位，提供防御和属性加成（含饰品）
+    CHARM: 护符 - 存在于背包即可生效的被动效果（类似暗黑2的charm）
+    """
+    NONE = "none"
+    WEAPON = "weapon"
+    ARMOR = "armor"
+    CHARM = "charm"  # 原 passive
+
+
+class TriggerMode(Enum):
+    """触发效果模式 - 使用物品时触发什么
+    
+    NONE: 无触发效果
+    EFFECT: 应用效果 - 像喝药水那样应用一组属性变化
+    SKILL: 技能释放 - 释放指定技能
+    """
+    NONE = "none"
+    EFFECT = "effect"  # 原 consumable
+    SKILL = "skill"
+
+
+class ChargeMode(Enum):
+    """使用次数模式
+    
+    LIMITED: 有限次数 - 每次使用减少1次
+    UNLIMITED: 无限次数 - 次数永不减少
+    LINKED: 联动耐久 - 次数由耐久度和损耗百分比计算
+    """
+    LIMITED = "limited"  # 原 normal
+    UNLIMITED = "unlimited"
+    LINKED = "linked"
+
+
 # ============== 辅助函数 ==============
 
 
@@ -384,16 +422,16 @@ class HybridItem:
     
     混合物品由两个独立维度组合而成：
     
-    1. 装备模式 (init_weapon_stats / init_armor_stats / has_passive)：
-       - 无：普通背包物品
-       - 武器：可装备到手部，具有伤害和武器属性
-       - 护甲/饰品：可装备到身体槽位，提供防御和属性加成
-       - 携带增益：存在于背包即可生效的被动效果
+    1. 装备形态 (equipment_mode: EquipmentMode)：
+       - NONE：普通背包物品
+       - WEAPON：武器 - 可装备到手部，具有伤害和武器属性
+       - ARMOR：护甲 - 可装备到身体槽位，提供防御和属性加成（含饰品）
+       - CHARM：护符 - 存在于背包即可生效的被动效果
     
-    2. 主动效果模式 (active_effect_mode)：
-       - none：无主动效果
-       - consumable：使用后触发消耗品效果
-       - skill：使用后释放指定技能
+    2. 触发效果模式 (trigger_mode: TriggerMode)：
+       - NONE：无触发效果
+       - EFFECT：应用效果 - 像喝药水那样应用一组属性变化
+       - SKILL：技能释放 - 释放指定技能
     
     这种组合允许创建多种物品类型，如可释放技能的武器、带消耗品效果的护甲等。
     """
@@ -416,12 +454,8 @@ class HybridItem:
     slot: str = "heal"  # hand/Head/Chest/Arms/Legs/Waist/Back/Ring/Amulet/heal
     # hands 已删除，由 weapon_type 计算
     
-    # ====== 装备模式 ======
-    # "none"    = 普通背包物品
-    # "weapon"  = 武器：可装备到手部，具有伤害和武器属性
-    # "armor"   = 护甲/饰品：可装备到身体槽位，提供防御和属性加成
-    # "passive" = 携带增益：存在于背包即可生效的被动效果
-    equipment_mode: str = "none"
+    # ====== 装备形态 ======
+    equipment_mode: EquipmentMode = EquipmentMode.NONE
     
     # ====== 武器设置（仅 equipment_mode="weapon" 时使用）======
     weapon_type: str = "sword"  # 武器类型
@@ -437,28 +471,21 @@ class HybridItem:
     # armor_class 已删除，由 weight 计算
     # defense 字段已删除，使用 attributes["DEF"] 代替
     
-    # ====== 主动效果模式 ======
-    # "none" = 无主动效果
-    # "consumable" = 消耗品使用效果
-    # "skill" = 技能释放
-    active_effect_mode: str = "none"
+    # ====== 触发效果 ======
+    trigger_mode: TriggerMode = TriggerMode.NONE
     
-    # ====== 技能释放设置（仅 active_effect_mode="skill" 时使用）======
+    # ====== 技能设置（仅 trigger_mode=SKILL 时使用）======
     skill_object: str = ""  # 技能对象名称，如 "o_skill_fire_barrage"
     
-    # ====== 被动效果（equipment_mode="passive" 时生效）======
-    # has_passive 字段已删除，使用 equipment_mode == "passive" 代替
+    # ====== 注释：has_passive 字段已删除，使用 equipment_mode == CHARM 代替 ======
     
     # ====== 使用次数 ======
     # has_charges 改为计算属性（见下方 property）
     charge: int = 1  # 使用次数（仅 charge_mode="normal" 时使用）
     draw_charges: bool = False  # 是否绘制次数条
     
-    # 充能消耗模式
-    # "normal"    - 正常消耗：每次使用减少1次
-    # "unlimited" - 无消耗：次数永不减少
-    # "linked"    - 与耐久挂钩：次数由耐久度和 wear_per_use 计算
-    charge_mode: str = "normal"
+    # ====== 使用次数模式 ======
+    charge_mode: ChargeMode = ChargeMode.LIMITED
     
     # ====== 使用次数恢复 ======
     has_charge_recovery: bool = False  # 是否启用使用次数恢复
@@ -561,8 +588,8 @@ class HybridItem:
     # ====== 装备相关计算属性 ======
     @property
     def equipable(self) -> bool:
-        """是否可装备（武器和护甲模式可装备）"""
-        return self.equipment_mode in ("weapon", "armor")
+        """是否可装备（武器和护甲形态可装备）"""
+        return self.equipment_mode in (EquipmentMode.WEAPON, EquipmentMode.ARMOR)
     
     @property
     def hands(self) -> int:
@@ -572,7 +599,7 @@ class HybridItem:
         - 护甲模式: 始终返回 1（包括盾牌，因为盾牌是 armor 模式的单手装备）
         - 其他模式: 返回 1
         """
-        if self.equipment_mode == "weapon" and self.weapon_type in self.TWO_HAND_WEAPONS:
+        if self.equipment_mode == EquipmentMode.WEAPON and self.weapon_type in self.TWO_HAND_WEAPONS:
             return 2
         return 1
     
@@ -583,28 +610,28 @@ class HybridItem:
         注意：此属性名称与语义不完全匹配。在游戏中，护甲类物品（o_inv_slot 子类）
         也设置 is_weapon=true，这是游戏机制决定的。
         """
-        return self.equipment_mode in ("weapon", "armor")
+        return self.equipment_mode in (EquipmentMode.WEAPON, EquipmentMode.ARMOR)
     
     @property
     def armor_class(self) -> str:
         """护甲类别（Light/Medium/Heavy）- 由 weight 决定"""
         return self.WEIGHT_TO_ARMOR_CLASS.get(self.weight, "Light")
     
-    # ====== 装备模式计算属性 ======
+    # ====== 装备形态计算属性 ======
     @property
     def init_weapon_stats(self) -> bool:
-        """是否初始化武器数值（装备模式为武器时）"""
-        return self.equipment_mode == "weapon"
+        """是否初始化武器数值"""
+        return self.equipment_mode == EquipmentMode.WEAPON
     
     @property
     def init_armor_stats(self) -> bool:
-        """是否初始化护甲数值（装备模式为护甲时）"""
-        return self.equipment_mode == "armor"
+        """是否初始化护甲数值"""
+        return self.equipment_mode == EquipmentMode.ARMOR
     
     @property
     def has_passive(self) -> bool:
-        """是否有被动效果（装备模式为携带增益时）"""
-        return self.equipment_mode == "passive"
+        """是否有护符效果（装备形态为护符时）"""
+        return self.equipment_mode == EquipmentMode.CHARM
     
     @property
     def has_durability(self) -> bool:
@@ -613,19 +640,19 @@ class HybridItem:
     
     @property
     def has_charges(self) -> bool:
-        """主动效果模式非'无'时自动有使用次数"""
-        return self.active_effect_mode != "none"
+        """触发效果模式非'无'时自动有使用次数"""
+        return self.trigger_mode != TriggerMode.NONE
     
     @property
     def effective_charge(self) -> int:
         """实际最大使用次数（根据 charge_mode 计算）"""
-        if self.charge_mode == "unlimited":
+        if self.charge_mode == ChargeMode.UNLIMITED:
             return 1
-        elif self.charge_mode == "linked":
+        elif self.charge_mode == ChargeMode.LINKED:
             if self.wear_per_use <= 0:
                 return 1
             return max(1, int(100 / self.wear_per_use))
-        else:  # normal
+        else:  # LIMITED
             return self.charge
     
     def _build_tags_list(self, prefix: list = None) -> list:  # <- extracted helper
@@ -781,16 +808,16 @@ def validate_hybrid_item(
     # 互斥检查已不再需要（由 equipment_mode 枚举保证）
 
     # 技能检查
-    if item.active_effect_mode == "skill" and not item.skill_object:
-        errors.append("WARNING: 启用了技能释放模式但未设置技能对象")
+    if item.trigger_mode == TriggerMode.SKILL and not item.skill_object:
+        errors.append("WARNING: 启用了技能触发模式但未设置技能对象")
 
     # charge_mode 检查
-    if item.charge_mode == "linked":
+    if item.charge_mode == ChargeMode.LINKED:
         if not item.has_durability:
-            errors.append("充能模式'与耐久挂钩'需要物品有耐久度（武器/护甲且非文物）")
+            errors.append("次数模式'联动'需要物品有耐久度（武器/护甲且非文物）")
         if item.wear_per_use <= 0:
-            errors.append("充能模式'与耐久挂钩'需要设置每次磨损百分比")
-    elif item.charge_mode == "normal":
+            errors.append("次数模式'联动'需要设置每次损耗百分比")
+    elif item.charge_mode == ChargeMode.LIMITED:
         if item.has_charges and item.charge <= 0:
             errors.append("使用次数应大于0")
 
@@ -931,7 +958,7 @@ class ModProject:
             "quality": item.quality,
             # equipable, hands, mark_as_weapon, armor_class 现在是计算属性
             "slot": item.slot,
-            "equipment_mode": item.equipment_mode,
+            "equipment_mode": item.equipment_mode.value,
             "weapon_type": item.weapon_type,
             # damage_type 和 primary_damage 字段已删除，伤害通过 attributes 设置
             "material": item.material,  # 武器和护甲共用
@@ -941,13 +968,13 @@ class ModProject:
             "armor_type": item.armor_type,
             # armor_material 已删除，使用 material 代替
             # defense 字段已删除，使用 attributes["DEF"] 代替
-            "active_effect_mode": item.active_effect_mode,
+            "trigger_mode": item.trigger_mode.value,
             "skill_object": item.skill_object,
             # init_weapon_stats, init_armor_stats, has_passive 现在是计算属性
             # has_charges 现在是计算属性，不需要保存
             "charge": item.charge,
             "draw_charges": item.draw_charges,
-            "charge_mode": item.charge_mode,
+            "charge_mode": item.charge_mode.value,
             "has_charge_recovery": item.has_charge_recovery,
             "charge_recovery_interval": item.charge_recovery_interval,
             # has_durability 现在是计算属性，不需要保存
@@ -1190,19 +1217,53 @@ class ModProject:
         item.no_drop = item_data.get("no_drop", False)
         return item
 
-    def _get_charge_mode(self, item_data: dict) -> str:
+    def _get_charge_mode(self, item_data: dict) -> ChargeMode:
         """从项目数据获取 charge_mode，支持旧格式向后兼容"""
         # 新格式：直接使用 charge_mode
         if "charge_mode" in item_data:
-            return item_data["charge_mode"]
+            value = item_data["charge_mode"]
+            # 值映射：旧值 -> 新值
+            value_map = {"normal": "limited"}
+            value = value_map.get(value, value)
+            return ChargeMode(value)
         
         # 旧格式：从布尔字段推断
         if item_data.get("link_charges_to_durability", False):
-            return "linked"
+            return ChargeMode.LINKED
         elif item_data.get("is_unlimited_use", False):
-            return "unlimited"
+            return ChargeMode.UNLIMITED
         else:
-            return "normal"
+            return ChargeMode.LIMITED
+    
+    def _get_equipment_mode(self, item_data: dict) -> EquipmentMode:
+        """从项目数据获取 equipment_mode，支持旧格式向后兼容"""
+        value = item_data.get("equipment_mode")
+        if value is None:
+            # 旧格式：从布尔字段推断
+            if item_data.get("init_weapon_stats", False):
+                return EquipmentMode.WEAPON
+            elif item_data.get("init_armor_stats", False):
+                return EquipmentMode.ARMOR
+            elif item_data.get("has_passive", False):
+                return EquipmentMode.CHARM
+            else:
+                return EquipmentMode.NONE
+        # 值映射：旧值 -> 新值
+        value_map = {"passive": "charm"}
+        value = value_map.get(value, value)
+        return EquipmentMode(value)
+    
+    def _get_trigger_mode(self, item_data: dict) -> TriggerMode:
+        """从项目数据获取 trigger_mode，支持旧格式向后兼容"""
+        # 先尝试新字段名
+        value = item_data.get("trigger_mode")
+        if value is None:
+            # 兼容旧字段名
+            value = item_data.get("active_effect_mode", "none")
+        # 值映射：旧值 -> 新值
+        value_map = {"consumable": "effect"}
+        value = value_map.get(value, value)
+        return TriggerMode(value)
 
     def _deserialize_hybrid_item(self, item_data: dict, project_dir: str) -> HybridItem:
         """反序列化混合物品数据（支持旧版字段向后兼容）"""
@@ -1229,21 +1290,12 @@ class ModProject:
         if old_weapon_range > 1 and attributes.get("Range", 0) == 0:
             attributes["Range"] = old_weapon_range
         
-        # 向后兼容：从旧字段推断 equipment_mode
-        equipment_mode = item_data.get("equipment_mode")
-        if equipment_mode is None:
-            if item_data.get("init_weapon_stats", False):
-                equipment_mode = "weapon"
-            elif item_data.get("init_armor_stats", False):
-                equipment_mode = "armor"
-            elif item_data.get("has_passive", False):
-                equipment_mode = "passive"
-            else:
-                equipment_mode = "none"
+        # 获取 equipment_mode（使用辅助方法处理兼容性）
+        equipment_mode = self._get_equipment_mode(item_data)
         
         # 向后兼容：armor_material 迁移到 material
         material = item_data.get("material", "metal")
-        if equipment_mode == "armor":
+        if equipment_mode == EquipmentMode.ARMOR:
             # 如果是护甲模式，优先使用 armor_material（旧项目）
             armor_material = item_data.get("armor_material")
             if armor_material and material in ("metal", "Steel"):  # 默认值，可能未设置
@@ -1258,25 +1310,17 @@ class ModProject:
             name=item_data.get("name", ""),
             parent_object=item_data.get("parent_object", "o_inv_consum"),
             quality=item_data.get("quality", 1),
-            # equipable, hands, mark_as_weapon, armor_class 现在是计算属性
             slot=item_data.get("slot", "heal"),
             equipment_mode=equipment_mode,
             weapon_type=item_data.get("weapon_type", "sword"),
-            # damage_type 和 primary_damage 字段已删除，伤害通过 attributes 设置
-            material=material,  # 武器和护甲共用
+            material=material,
             tier=item_data.get("tier", 1),
             balance=item_data.get("balance", 2),
-            # weapon_range 已迁移到 attributes["Range"]
             armor_type=item_data.get("armor_type", "Head"),
-            # armor_material 已删除，使用 material 代替
-            # 向后兼容：如果旧项目有 defense 字段，迁移到 attributes["DEF"]
-            active_effect_mode=item_data.get("active_effect_mode", "none"),
+            trigger_mode=self._get_trigger_mode(item_data),
             skill_object=item_data.get("skill_object", ""),
-            # init_weapon_stats, init_armor_stats, has_passive 现在是计算属性
-            # has_charges 现在是计算属性，不需要加载
             charge=item_data.get("charge", 1),
             draw_charges=item_data.get("draw_charges", False),
-            # charge_mode 向后兼容：从旧字段推断
             charge_mode=self._get_charge_mode(item_data),
             has_charge_recovery=item_data.get("has_charge_recovery", False),
             charge_recovery_interval=item_data.get("charge_recovery_interval", 10),
