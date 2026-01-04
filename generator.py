@@ -427,6 +427,8 @@ public partial class {code_namespace} : Mod
 
         # 如果有混合物品，先注入辅助脚本和 o_hoverHybrid（只需要一次）
         if has_hybrids:
+            main_code += "        // 注入缺失的属性本地化（仅执行一次，使用 Mark 防止重复）\n"
+            main_code += "        InjectMissingAttributeLocalizations();\n\n"
             main_code += "        // 注入 hover 辅助脚本（仅执行一次）\n"
             main_code += "        EnsureHoverScriptsExist();\n"
             main_code += "        // 注入混合物品专用 hover 对象（仅执行一次）\n"
@@ -471,6 +473,7 @@ public partial class {code_namespace}
         
         # 只在有混合物品时生成辅助方法
         if has_hybrids:
+            helpers_code += self._generate_missing_attribute_localizations_method()
             helpers_code += self._generate_hover_scripts_injection_method()
             helpers_code += self._generate_hover_hybrid_method()
             helpers_code += self._generate_inject_item_stats_method()
@@ -487,6 +490,70 @@ public partial class {code_namespace}
             f"{code_namespace}.cs": main_code,
             f"{code_namespace}.Helpers.cs": helpers_code,
         }
+
+    def _generate_missing_attribute_localizations_method(self) -> str:
+        """生成缺失属性本地化注入方法
+        
+        这些属性在 ATTRIBUTE_TO_GROUP 中定义但 attributes.json 中没有翻译。
+        使用 Mark 防止重复注入。
+        """
+        # 缺失属性及其英文/中文翻译
+        missing_attrs = {
+            "Arcanistic_Distance": ("Arcanistic Distance", "奥术距离"),
+            "Arcanistic_Miscast_Chance": ("Arcanistic Miscast Chance", "奥术施法失误几率"),
+            "Astromantic_Miscast_Chance": ("Astromantic Miscast Chance", "星象施法失误几率"),
+            "Avoiding_Trap": ("Trap Avoidance", "陷阱回避"),
+            "Bleeding_Chance_Main": ("Main Hand Bleed Chance", "主手流血几率"),
+            "Bleeding_Chance_Off": ("Off-Hand Bleed Chance", "副手流血几率"),
+            "Bleeding_Resistance_Hands": ("Hands Bleed Resistance", "手部流血抗性"),
+            "Bleeding_Resistance_Head": ("Head Bleed Resistance", "头部流血抗性"),
+            "Bleeding_Resistance_Legs": ("Legs Bleed Resistance", "腿部流血抗性"),
+            "Bleeding_Resistance_Tors": ("Torso Bleed Resistance", "躯干流血抗性"),
+            "BlockPowerBonus": ("Block Power Bonus", "格挡力量加成"),
+            "CRTD_Main": ("Main Hand Crit Efficiency", "主手暴击效果"),
+            "CRTD_Off": ("Off-Hand Crit Efficiency", "副手暴击效果"),
+            "CRT_Main": ("Main Hand Crit Chance", "主手暴击几率"),
+            "CRT_Off": ("Off-Hand Crit Chance", "副手暴击几率"),
+            "Charge_Distance": ("Charge Distance", "冲锋距离"),
+            "Cryomantic_Miscast_Chance": ("Cryomantic Miscast Chance", "冰霜施法失误几率"),
+            "Duration_Resistance": ("Duration Resistance", "持续时间抗性"),
+            "Electromantic_Miscast_Chance": ("Electromantic Miscast Chance", "雷电施法失误几率"),
+            "Geomantic_Miscast_Chance": ("Geomantic Miscast Chance", "大地施法失误几率"),
+            "HP_turn": ("Health per Turn", "每回合生命"),
+            "Immunity_Influence": ("Immunity Influence", "免疫影响"),
+            "Psimantic_Miscast_Chance": ("Psimantic Miscast Chance", "灵能施法失误几率"),
+            "Pyromantic_Miscast_Chance": ("Pyromantic Miscast Chance", "火焰施法失误几率"),
+            "ReputationGainContract": ("Contract Reputation Gain", "合同声望获取"),
+            "Venomantic_Miscast_Chance": ("Venomantic Miscast Chance", "毒素施法失误几率"),
+            "Weapon_Damage_Main": ("Main Hand Weapon Damage", "主手武器伤害"),
+            "Weapon_Damage_Off": ("Off-Hand Weapon Damage", "副手武器伤害"),
+        }
+        
+        # 生成注入代码行
+        attr_lines = []
+        for attr_id, (en_text, zh_text) in missing_attrs.items():
+            attr_lines.append(f'''            new LocalizationAttribute(
+                "{attr_id}",
+                new Dictionary<ModLanguage, string>() {{
+                    {{ModLanguage.English, "{en_text}"}},
+                    {{ModLanguage.Chinese, "{zh_text}"}}
+                }}
+            )''')
+        
+        attrs_code = ",\n".join(attr_lines)
+        
+        return f'''    // 注入缺失的属性本地化（使用 Mark 防止重复）
+    void InjectMissingAttributeLocalizations()
+    {{
+        if (Mark.Has(DataLoader.data, "AttrLocInjected")) return;
+        Mark.Set(DataLoader.data, "AttrLocInjected");
+        
+        AttributeLocalizationHelper.InjectTableAttributesLocalization(
+{attrs_code}
+        );
+    }}
+
+'''
 
     def _generate_item_method(self, item: Item) -> str:
         """生成单个物品的 C# 方法"""
@@ -2551,6 +2618,36 @@ public static class Mark
         return data.Scripts
             .Where(s => s.Name.Content.StartsWith(PREFIX))
             .Select(s => s.Name.Content.Substring(PREFIX.Length));
+    }
+}
+
+// ============== 属性本地化辅助类 ==============
+
+public class LocalizationAttribute : ILocalizationElement
+{
+    public string Id { get; }
+    public Dictionary<ModLanguage, string> Text { get; }
+    
+    public LocalizationAttribute(string id, Dictionary<ModLanguage, string> text)
+    {
+        Id = id;
+        Text = text;
+    }
+}
+
+public static class AttributeLocalizationHelper
+{
+    public static Func<IEnumerable<string>, IEnumerable<string>> CreateInjectionAttributesLocalization(params LocalizationAttribute[] attributes)
+    {
+        LocalizationBaseTable localizationBaseTable = new(
+            ("attribute_text_end;", "text")
+        );
+        return localizationBaseTable.CreateInjectionTable(attributes.Select(x => x as ILocalizationElement).ToList());
+    }
+    
+    public static void InjectTableAttributesLocalization(params LocalizationAttribute[] attributes)
+    {
+        Localization.InjectTable("gml_GlobalScript_table_attributes", CreateInjectionAttributesLocalization(attributes));
     }
 }
 
