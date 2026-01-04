@@ -393,11 +393,19 @@ class CodeGenerator:
             for h in self.project.hybrid_items
         )
 
-    def generate(self) -> str:
-        """生成完整的 C# 模组代码"""
+    def generate(self) -> dict[str, str]:
+        """生成完整的 C# 模组代码
+        
+        Returns:
+            dict[str, str]: 文件名到内容的映射
+                - "{code_name}.cs": 主文件，包含 PatchMod() 和物品方法
+                - "{code_name}.Helpers.cs": 辅助文件，包含所有 helper 方法
+        """
         code_namespace = self.project.code_name.strip() or "ModNamespace"
-
-        code = f"""using ModShardLauncher;
+        has_hybrids = bool(self.project.hybrid_items)
+        
+        # ==================== 主文件 ====================
+        main_code = f"""using ModShardLauncher;
 using ModShardLauncher.Mods;
 using UndertaleModLib;
 using UndertaleModLib.Models;
@@ -405,7 +413,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace {code_namespace};
-public class {code_namespace} : Mod
+public partial class {code_namespace} : Mod
 {{
     public override string Author => "{self.project.author}";
     public override string Name => "{self.project.name}";
@@ -418,44 +426,67 @@ public class {code_namespace} : Mod
 """
 
         # 如果有混合物品，先注入辅助脚本和 o_hoverHybrid（只需要一次）
-        if self.project.hybrid_items:
-            code += "        // 注入 hover 辅助脚本（仅执行一次）\n"
-            code += "        EnsureHoverScriptsExist();\n"
-            code += "        // 注入混合物品专用 hover 对象（仅执行一次）\n"
-            code += "        EnsureHoverHybridExists();\n"
+        if has_hybrids:
+            main_code += "        // 注入 hover 辅助脚本（仅执行一次）\n"
+            main_code += "        EnsureHoverScriptsExist();\n"
+            main_code += "        // 注入混合物品专用 hover 对象（仅执行一次）\n"
+            main_code += "        EnsureHoverHybridExists();\n"
             # 仅当有装备路径混合物品时才调用注册系统
             if self._has_equipment_spawn_hybrids():
-                code += "        // 注入混合装备注册系统（仅执行一次）\n"
-                code += "        EnsureHybridEquipmentRegistry();\n"
-            code += "\n"
+                main_code += "        // 注入混合装备注册系统（仅执行一次）\n"
+                main_code += "        EnsureHybridEquipmentRegistry();\n"
+            main_code += "\n"
 
         for weapon in self.project.weapons:
-            code += f"        Add{weapon.id}();\n"
+            main_code += f"        Add{weapon.id}();\n"
         for armor in self.project.armors:
-            code += f"        AddArmor{armor.id}();\n"
+            main_code += f"        AddArmor{armor.id}();\n"
         for hybrid in self.project.hybrid_items:
-            code += f"        AddHybrid{hybrid.id}();\n"
+            main_code += f"        AddHybrid{hybrid.id}();\n"
 
-        code += "    }\n\n"
-
-        # 生成 hover 辅助脚本注入方法和 o_hoverHybrid 注入方法（如果有混合物品）
-        if self.project.hybrid_items:
-            code += self._generate_hover_scripts_injection_method()
-            code += self._generate_hover_hybrid_method()
-            code += self._generate_inject_item_stats_method()
-            code += self._generate_gml_helper_methods()
-            # 仅当有装备路径混合物品时才生成注册方法
-            if self._has_equipment_spawn_hybrids():
-                code += self._generate_hybrid_equipment_registry_method()
+        main_code += "    }\n\n"
 
         for item in self.project.weapons + self.project.armors:
-            code += self._generate_item_method(item)
+            main_code += self._generate_item_method(item)
 
         for hybrid in self.project.hybrid_items:
-            code += self._generate_hybrid_item_method(hybrid)
+            main_code += self._generate_hybrid_item_method(hybrid)
 
-        code += "}\n"
-        return code
+        main_code += "}\n"
+        
+        # ==================== 辅助文件 ====================
+        helpers_code = f"""using ModShardLauncher;
+using ModShardLauncher.Mods;
+using UndertaleModLib;
+using UndertaleModLib.Models;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace {code_namespace};
+
+// ============== 辅助方法（partial class） ==============
+public partial class {code_namespace}
+{{
+"""
+        
+        # 只在有混合物品时生成辅助方法
+        if has_hybrids:
+            helpers_code += self._generate_hover_scripts_injection_method()
+            helpers_code += self._generate_hover_hybrid_method()
+            helpers_code += self._generate_inject_item_stats_method()
+            helpers_code += self._generate_gml_helper_methods()
+            # 仅当有装备路径混合物品时才生成注册方法
+            if self._has_equipment_spawn_hybrids():
+                helpers_code += self._generate_hybrid_equipment_registry_method()
+        else:
+            helpers_code += "    // 无混合物品，无需辅助方法\n"
+        
+        helpers_code += "}\n"
+        
+        return {
+            f"{code_namespace}.cs": main_code,
+            f"{code_namespace}.Helpers.cs": helpers_code,
+        }
 
     def _generate_item_method(self, item: Item) -> str:
         """生成单个物品的 C# 方法"""
@@ -2474,6 +2505,55 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
         RegisterToGlobalInit(code);
     }
 
+}
+
+// ============== Patch 标记辅助类 ==============
+// 使用空脚本作为标记，防止不同模组重复 patch 同一代码
+
+public static class Mark
+{
+    const string PREFIX = "__MK_";
+    
+    public static bool Has(UndertaleData data, string name)
+    {
+        return data.Scripts.ByName(PREFIX + name) != null;
+    }
+    
+    public static void Set(UndertaleData data, string name)
+    {
+        string fullName = PREFIX + name;
+        if (data.Scripts.ByName(fullName) != null) return;
+        
+        var str = data.Strings.MakeString(fullName);
+        var code = new UndertaleCode { Name = str };
+        data.Code.Add(code);
+        
+        data.Scripts.Add(new UndertaleScript
+        {
+            Name = str,
+            Code = code
+        });
+    }
+    
+    public static void Remove(UndertaleData data, string name)
+    {
+        string fullName = PREFIX + name;
+        var script = data.Scripts.ByName(fullName);
+        if (script == null) return;
+        
+        if (script.Code != null)
+            data.Code.Remove(script.Code);
+        data.Scripts.Remove(script);
+    }
+    
+    public static IEnumerable<string> GetAll(UndertaleData data)
+    {
+        return data.Scripts
+            .Where(s => s.Name.Content.StartsWith(PREFIX))
+            .Select(s => s.Name.Content.Substring(PREFIX.Length));
+    }
+}
+
 '''
 
 
@@ -2565,9 +2645,11 @@ for (var _i = 0; _i < array_length(_items); _i++) {{
         
         // 4. Patch scr_find_weapon_params (敌人击杀 + 商店进货)
         // 完全模拟原始筛选逻辑：tier, material, tags, slot, _all_type, _check_repeat
-        Msl.LoadGML("gml_GlobalScript_scr_find_weapon_params")
-            .MatchFrom("ds_list_shuffle(list)")
-            .InsertAbove(@"
+        if (!Mark.Has(DataLoader.data, "patch_scr_find_weapon_params"))
+        {{
+            Msl.LoadGML("gml_GlobalScript_scr_find_weapon_params")
+                .MatchFrom("ds_list_shuffle(list)")
+                .InsertAbove(@"
 // === 混合装备注入 ===
 if (variable_global_exists(""hybrid_equipment_registry"")) {{
     var _hybrid_ids = variable_struct_get_names(global.hybrid_equipment_registry);
@@ -2619,12 +2701,16 @@ if (variable_global_exists(""hybrid_equipment_registry"")) {{
 }}
 // === 混合装备注入结束 ===
             ")
-            .Save();
+                .Save();
+            Mark.Set(DataLoader.data, "patch_scr_find_weapon_params");
+        }}
         
         // 5. Patch scr_find_weapon (容器/宝箱)
-        Msl.LoadGML("gml_GlobalScript_scr_find_weapon")
-            .MatchFrom("var _array_size = array_length(_weapon_array)")
-            .InsertAbove(@"
+        if (!Mark.Has(DataLoader.data, "patch_scr_find_weapon"))
+        {{
+            Msl.LoadGML("gml_GlobalScript_scr_find_weapon")
+                .MatchFrom("var _array_size = array_length(_weapon_array)")
+                .InsertAbove(@"
 // === 混合装备注入 ===
 if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
     var _hybrid_slot_items = variable_struct_get(global.hybrid_equipment_by_slot, argument0);
@@ -2642,12 +2728,16 @@ if (variable_global_exists(""hybrid_equipment_by_slot"")) {{
 }}
 // === 混合装备注入结束 ===
             ")
-            .Save();
+                .Save();
+            Mark.Set(DataLoader.data, "patch_scr_find_weapon");
+        }}
         
         // 6. Patch scr_weapon_loot (掉落创建)
-        Msl.LoadGML("gml_GlobalScript_scr_weapon_loot")
-            .MatchFrom(@"var checkSpecialPool = (argument4 == (6 << 0) && argument5 == ""dynamic"")")
-            .InsertAbove(@"
+        if (!Mark.Has(DataLoader.data, "patch_scr_weapon_loot"))
+        {{
+            Msl.LoadGML("gml_GlobalScript_scr_weapon_loot")
+                .MatchFrom(@"var checkSpecialPool = (argument4 == (6 << 0) && argument5 == ""dynamic"")")
+                .InsertAbove(@"
 // === 混合物品直接创建 ===
 if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argument0)) {{
     if (variable_struct_exists(global.hybrid_equipment_registry, argument0)) {{
@@ -2668,12 +2758,16 @@ if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argum
 }}
 // === 混合物品处理结束 ===
             ")
-            .Save();
+                .Save();
+            Mark.Set(DataLoader.data, "patch_scr_weapon_loot");
+        }}
         
         // 7. Patch scr_inventory_add_weapon (背包添加)
-        Msl.LoadGML("gml_GlobalScript_scr_inventory_add_weapon")
-            .MatchFrom("var _checkSpecialPool = argument1 == (6 << 0)")
-            .InsertAbove(@"
+        if (!Mark.Has(DataLoader.data, "patch_scr_inventory_add_weapon"))
+        {{
+            Msl.LoadGML("gml_GlobalScript_scr_inventory_add_weapon")
+                .MatchFrom("var _checkSpecialPool = argument1 == (6 << 0)")
+                .InsertAbove(@"
 // === 混合物品直接创建 ===
 if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argument0)) {{
     if (variable_struct_exists(global.hybrid_equipment_registry, argument0)) {{
@@ -2706,7 +2800,9 @@ if (variable_global_exists(""hybrid_equipment_registry"") && !is_undefined(argum
 }}
 // === 混合物品处理结束 ===
             ")
-            .Save();
+                .Save();
+            Mark.Set(DataLoader.data, "patch_scr_inventory_add_weapon");
+        }}
     }}
 
 '''

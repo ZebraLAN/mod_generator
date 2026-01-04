@@ -5762,9 +5762,10 @@ class ModGeneratorGUI:
 
             print("生成 C# 代码...")
             generator = CodeGenerator(self.project)
-            code = generator.generate()
-            with open(mod_dir / f"{mod_name}.cs", "w", encoding="utf-8") as f:
-                f.write(code)
+            files = generator.generate()
+            for filename, content in files.items():
+                with open(mod_dir / filename, "w", encoding="utf-8") as f:
+                    f.write(content)
 
             print("生成空的 .csproj 文件...")
             with open(mod_dir / f"{mod_name}.csproj", "w", encoding="utf-8"):
