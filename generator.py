@@ -1278,7 +1278,7 @@ if (!is_undefined(_active_skill)) {{
     var _should_cleanup = false;
     var _was_successful = false;
 
-    if (!instance_exists(_active_skill))
+    if (!instance_exists(_active_skill)) {{
         _should_cleanup = true;
 {detection}
     }}
@@ -2850,6 +2850,7 @@ function scr_find_item_candidates() {
         // 1. 跳过表头行（Key 为 ""name""）
         if (_item_id == ""name"") continue;
 
+
         // 2. 跳过分类标题行（Key 以 ""["" 开头）
         if (string_char_at(_item_id, 1) == ""["") continue;
 
@@ -2860,7 +2861,8 @@ function scr_find_item_candidates() {
         var _item_slot = ds_map_find_value(_item_data, ""Slot"");
 
         if (_filter_table) {
-            if (ds_map_find_value(_item_data, ""Tag"") != _filter_tag) continue;
+            var _item_table = _get_table_by_slot(_item_slot);
+            if (_item_table != _table) continue;
         }
 
         if (_has_slot_filter) {
@@ -2877,20 +2879,12 @@ function scr_find_item_candidates() {
         // 严格模式：非数字且无法转换的值直接跳过
         if (is_real(_tier_raw)) {
             _tier = _tier_raw;
+        } else if (is_string(_tier_raw) && string_digits(_tier_raw) != """") {
+            // 字符串包含数字，尝试转换
+            _tier = real(string_digits(_tier_raw));
         } else {
-            var _valid_tier = false;
-            // 只有当它是字符串且包含数字时才尝试抢救一下
-            if (is_string(_tier_raw) && string_digits(_tier_raw) != """") {
-                try {
-                    _tier = real(_tier_raw);
-                    _valid_tier = true;
-                } catch(_e) {
-                    // Conversion failed
-                }
-            }
-
-            // 否则直接跳过这个物品
-            if (!_valid_tier) continue;
+            // 无法转换，跳过这个物品
+            continue;
         }
         if (_has_tier_limit && _tier != 0) {
             if (_tier < _tier_min || _tier > _tier_max) continue;
