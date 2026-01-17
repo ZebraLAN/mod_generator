@@ -30,7 +30,7 @@ from constants import (
 
 class SpawnRule(Enum):
     """生成规则 - 物品如何参与随机生成
-    
+
     EQUIPMENT: 按装备规则生成（走 scr_find_weapon_params / scr_find_weapon）
     ITEM: 按道具规则生成（走 scr_weapon_array_get_consum）
     NONE: 不参与该场景的随机生成
@@ -49,7 +49,7 @@ class SpawnMode(Enum):
 
 class EquipmentMode(Enum):
     """装备形态
-    
+
     NONE: 普通背包物品
     WEAPON: 武器 - 可装备到手部，具有伤害和武器属性
     ARMOR: 护甲 - 可装备到身体槽位，提供防御和属性加成（含饰品）
@@ -63,7 +63,7 @@ class EquipmentMode(Enum):
 
 class TriggerMode(Enum):
     """触发效果模式 - 使用物品时触发什么
-    
+
     NONE: 无触发效果
     EFFECT: 应用效果 - 像喝药水那样应用一组属性变化
     SKILL: 技能释放 - 释放指定技能
@@ -75,7 +75,7 @@ class TriggerMode(Enum):
 
 class ChargeMode(Enum):
     """使用次数模式
-    
+
     LIMITED: 有限次数 - 每次使用减少1次
     UNLIMITED: 无限次数 - 次数永不减少
     """
@@ -426,44 +426,44 @@ QUALITY_ARTIFACT = 7
 @dataclass
 class HybridItem:
     """混合物品数据类 - 灵活的模块化物品类型
-    
+
     混合物品由两个独立维度组合而成：
-    
+
     1. 装备形态 (equipment_mode: EquipmentMode)：
        - NONE：普通背包物品
        - WEAPON：武器 - 可装备到手部，具有伤害和武器属性
        - ARMOR：护甲 - 可装备到身体槽位，提供防御和属性加成（含饰品）
        - CHARM：护符 - 存在于背包即可生效的被动效果
-    
+
     2. 触发效果模式 (trigger_mode: TriggerMode)：
        - NONE：无触发效果
        - EFFECT：应用效果 - 像喝药水那样应用一组属性变化
        - SKILL：技能释放 - 释放指定技能
-    
+
     这种组合允许创建多种物品类型，如可释放技能的武器、带消耗品效果的护甲等。
     """
-    
+
     # ====== 基础信息 ======
     id: str = ""  # 系统ID (直接设置)
-    
+
     # 本地化
     localization: ItemLocalization = field(default_factory=ItemLocalization)
-    
+
     # 父对象（决定基本行为）
     parent_object: str = "o_inv_consum"
-    
+
     # ====== 品质 ======
     quality: int = 1  # 1=普通, 6=独特, 7=文物
-    
+
     # ====== 槽位与装备 ======
     # ====== 装备设置 ======
     # equipable 已删除，由 equipment_mode 计算
     slot: str = "heal"  # hand/Head/Chest/Arms/Legs/Waist/Back/Ring/Amulet/heal
     # hands 已删除，由 weapon_type 计算
-    
+
     # ====== 装备形态 ======
     equipment_mode: EquipmentMode = EquipmentMode.NONE
-    
+
     # ====== 武器设置（仅 equipment_mode="weapon" 时使用）======
     weapon_type: str = "sword"  # 武器类型
     # damage_type 和 primary_damage 字段已删除，伤害通过 attributes 设置
@@ -471,33 +471,33 @@ class HybridItem:
     tier: int = 1  # 等级 1-5
     balance: int = 2  # 平衡性
     # weapon_range 字段已删除，使用 attributes["Range"] 代替
-    
+
     # ====== 护甲设置（仅 equipment_mode="armor" 时使用）======
     armor_type: str = "Head"  # 护甲类型
     # armor_material 已删除，使用 material 代替
     # armor_class 已删除，由 weight 计算
     # defense 字段已删除，使用 attributes["DEF"] 代替
-    
+
     # ====== 触发效果 ======
     trigger_mode: TriggerMode = TriggerMode.NONE
-    
+
     # ====== 技能设置（仅 trigger_mode=SKILL 时使用）======
     skill_object: str = ""  # 技能对象名称，如 "o_skill_fire_barrage"
-    
+
     # ====== 注释：has_passive 字段已删除，使用 equipment_mode == CHARM 代替 ======
-    
+
     # ====== 使用次数 ======
     # has_charges 改为计算属性（见下方 property）
     charge: int = 1  # 使用次数（仅 charge_mode="normal" 时使用）
     draw_charges: bool = False  # 是否绘制次数条
-    
+
     # ====== 使用次数模式 ======
     charge_mode: ChargeMode = ChargeMode.LIMITED
-    
+
     # ====== 使用次数恢复 ======
     has_charge_recovery: bool = False  # 是否启用使用次数恢复
     charge_recovery_interval: int = 10  # 恢复间隔（回合数）
-    
+
     # ====== 耐久系统 ======
     # has_durability 改为计算属性（见下方 property）
     # duration_init 已删除，初始耐久固定等于最大耐久
@@ -506,23 +506,23 @@ class HybridItem:
     destroy_on_durability_zero: bool = True  # 耐久耗尽时是否删除物品
     delete_on_charge_zero: bool = False  # 使用次数耗尽后是否删除（仅当有次数、无耐久、非文物时生效）
     durability_affects_stats: bool = False  # 耐久是否影响属性
-    
+
     # ====== 价格与音效 ======
     base_price: int = 100  # 基础价格
     drop_sound: int = 911  # 放下音效ID
     pickup_sound: int = 907  # 拾取音效ID
-    
+
     # ====== 分类元数据（用于 drop/shop 随机选取）======
     cat: str = ""  # 主分类（单选）
     subcats: List[str] = field(default_factory=list)  # 子分类（多选）
-    
+
     # ====== Tags 设置 ======
     exclude_from_random: bool = True  # True 时添加 "special" 标签排除随机生成
     quality_tag: str = ""  # 品质 tag: common/uncommon/rare/unique/""
     dungeon_tag: str = ""  # 地牢 tag: crypt/catacombs/bastion/""
     country_tag: str = ""  # 国家/地区 tag: aldor/nistra/skadia/fjall/elven/maen/"" (互斥)
     extra_tags: List[str] = field(default_factory=list)  # 其他 tags（多选）
-    
+
     # ====== 生成规则配置 ======
     # 分别控制容器、商店、击杀三个场景的生成规则
     # EQUIPMENT: 按装备规则生成（被 tier/material/tags 筛选）
@@ -530,35 +530,35 @@ class HybridItem:
     # NONE: 不参与该场景的随机生成
     container_spawn: SpawnRule = SpawnRule.NONE  # 容器生成规则
     shop_spawn: SpawnRule = SpawnRule.NONE       # 商店生成规则
-    
+
     # ====== 其他元数据 ======
     rarity: str = ""  # 稀有度（由品质自动决定）
     weight: str = "Light"  # Light/Medium/VeryLight/Heavy（护甲由 armor_class 自动决定）
-    
+
     # ====== 消耗品特殊属性 ======
     poison_duration: int = 0  # 中毒持续时间（仅当 Poisoning_Chance > 0 时有效）
-    
+
     # ====== 属性 ======
     attributes: Dict[str, Any] = field(default_factory=dict)
     consumable_attributes: Dict[str, Any] = field(default_factory=dict)
-    
+
     # ====== 拆解碎片 (护甲/饰品用) ======
     fragments: Dict[str, int] = field(default_factory=dict)
-    
+
     # ====== 贴图 ======
     textures: ItemTextures = field(default_factory=ItemTextures)
-    
+
     # id 现在是直接字段，不再是计算属性
-    
+
     @classmethod
     def get_type_key(cls) -> str:
         return "hybrid"
-    
+
     @classmethod
     def get_config(cls) -> dict:
         """返回物品类型配置"""
         return ITEM_TYPE_CONFIG[cls.get_type_key()]
-    
+
     def needs_char_texture(self) -> bool:
         """判断是否需要角色/穿戴贴图"""
         # 手持槽位或可装备的身体槽位需要角色贴图
@@ -567,46 +567,46 @@ class HybridItem:
         if self.slot in ["Head", "Chest", "Arms", "Legs", "Back"] and self.equipable:
             return True
         return False
-    
+
     def needs_left_texture(self) -> bool:
         """判断是否需要左手贴图"""
         if self.slot == "hand" and self.equipable and self.hands == 1:
             # 单手武器需要左手贴图
             return self.weapon_type in ["sword", "axe", "mace", "dagger"]
         return False
-    
+
     def needs_multi_pose_textures(self) -> bool:
         """判断是否需要多姿势穿戴贴图 (头/身/手/腿/背)"""
         return self.init_armor_stats and self.slot in ARMOR_SLOTS_MULTI_POSE
-    
+
 
     def get_quality_label(self) -> str:
         """获取品质显示文本"""
         from constants import HYBRID_QUALITY_LABELS
         return HYBRID_QUALITY_LABELS.get(self.quality, "普通")
-    
+
     def get_loot_parent(self) -> str:
         """获取 Loot 对象的父类"""
         # if self.is_weapon:
         #     return "o_weapon_loot"
         return "o_consument_loot"
-    
+
     # ====== 双手武器类型 ======
     TWO_HAND_WEAPONS = {"2hsword", "2haxe", "2hmace", "2hStaff", "bow", "crossbow", "spear"}
-    
+
     # ====== Weight 到 ArmorClass 的映射 ======
     WEIGHT_TO_ARMOR_CLASS = {"Light": "Light", "Medium": "Medium", "Heavy": "Heavy", "VeryLight": "Light"}
-    
+
     # ====== 装备相关计算属性 ======
     @property
     def equipable(self) -> bool:
         """是否可装备（武器和护甲形态可装备）"""
         return self.equipment_mode in (EquipmentMode.WEAPON, EquipmentMode.ARMOR)
-    
+
     @property
     def hands(self) -> int:
         """手数（1=单手, 2=双手）
-        
+
         - 武器模式: 由 weapon_type 决定（双手武器返回 2）
         - 护甲模式: 始终返回 1（包括盾牌，因为盾牌是 armor 模式的单手装备）
         - 其他模式: 返回 1
@@ -614,47 +614,47 @@ class HybridItem:
         if self.equipment_mode == EquipmentMode.WEAPON and self.weapon_type in self.TWO_HAND_WEAPONS:
             return 2
         return 1
-    
+
     @property
     def is_weapon(self) -> bool:
         """是否标记为 is_weapon（武器和护甲类均为 true）
-        
+
         注意：此属性名称与语义不完全匹配。在游戏中，护甲类物品（o_inv_slot 子类）
         也设置 is_weapon=true，这是游戏机制决定的。
         """
         return self.equipment_mode in (EquipmentMode.WEAPON, EquipmentMode.ARMOR)
-    
+
     @property
     def armor_class(self) -> str:
         """护甲类别（Light/Medium/Heavy）- 由 weight 决定"""
         return self.WEIGHT_TO_ARMOR_CLASS.get(self.weight, "Light")
-    
+
     # ====== 装备形态计算属性 ======
     @property
     def init_weapon_stats(self) -> bool:
         """是否初始化武器数值"""
         return self.equipment_mode == EquipmentMode.WEAPON
-    
+
     @property
     def init_armor_stats(self) -> bool:
         """是否初始化护甲数值"""
         return self.equipment_mode == EquipmentMode.ARMOR
-    
+
     @property
     def has_passive(self) -> bool:
         """是否有护符效果（装备形态为护符时）"""
         return self.equipment_mode == EquipmentMode.CHARM
-    
+
     @property
     def has_durability(self) -> bool:
         """品质非文物且物品类型为武器/护甲时自动有耐久"""
         return self.quality != QUALITY_ARTIFACT and (self.init_weapon_stats or self.init_armor_stats)  # <- use constant
-    
+
     @property
     def has_charges(self) -> bool:
         """触发效果模式非'无'时自动有使用次数"""
         return self.trigger_mode != TriggerMode.NONE
-    
+
     @property
     def effective_charge(self) -> int:
         """实际最大使用次数（根据 charge_mode 计算）"""
@@ -662,7 +662,7 @@ class HybridItem:
             return 1
         else:  # LIMITED
             return self.charge
-    
+
     def _build_tags_list(self, prefix: list = None) -> list:  # <- extracted helper
         """构建 tags 列表（内部方法）"""
         parts = list(prefix) if prefix else []
@@ -678,35 +678,35 @@ class HybridItem:
     @property
     def effective_tags(self) -> str:
         """组合所有 tags 为空格分隔的字符串
-        
+
         排除随机生成时：在现有标签前添加 'special' 前缀
         """
         prefix = ["special"] if self.exclude_from_random else []
         return " ".join(self._build_tags_list(prefix))
-    
+
     @property
     def tags_tuple(self) -> tuple:
         """获取 tags 元组（用于预览匹配等）
-        
+
         排除随机生成时：包含 'special' 前缀
         """
         prefix = ["special"] if self.exclude_from_random else []
         return tuple(self._build_tags_list(prefix))
-    
+
     @property
     def has_equipment_spawn(self) -> bool:
         """是否有任何场景使用装备规则"""
         return SpawnRule.EQUIPMENT in (self.container_spawn, self.shop_spawn)
-    
+
     @property
     def has_item_spawn(self) -> bool:
         """是否有任何场景使用道具规则"""
         return SpawnRule.ITEM in (self.container_spawn, self.shop_spawn)
-    
+
     @property
     def needs_registration(self) -> bool:
         """是否需要注册到混合物品系统
-        
+
         需要注册的情况：
         1. 有装备规则 (has_equipment_spawn)
         2. 商店或容器规则不是纯 ITEM (即包含 NONE 或 EQUIPMENT 或自定义规则)
@@ -714,14 +714,14 @@ class HybridItem:
         """
         if self.exclude_from_random:
             return False
-            
+
         if self.has_equipment_spawn:
             return True
-            
+
         # Register if any spawn rule is NON-STANDARD (i.e., not ITEM)
         # If both are ITEM, we don't need registration (handled by standard system)
         return self.shop_spawn != SpawnRule.ITEM or self.container_spawn != SpawnRule.ITEM
-    
+
 
 
 
@@ -817,7 +817,7 @@ def validate_hybrid_item(
     # 槽位与装备一致性检查
     if item.equipable and item.slot == "heal":
         errors.append("可装备物品的槽位不能是 'heal'（背包道具）")
-    
+
     if not item.equipable and item.slot != "heal":
         errors.append("WARNING: 不可装备物品的槽位应为 'heal'（背包道具）")
 
@@ -861,7 +861,7 @@ def validate_hybrid_item(
         errors.append("必须提供战利品贴图")
     if not item.textures.inventory:
         errors.append("至少需要提供一张常规贴图")
-    
+
     # 角色贴图检查
     if item.needs_char_texture() and not item.textures.has_char():
         slot_labels = HYBRID_SLOT_LABELS
@@ -1224,14 +1224,14 @@ class ModProject:
             container_spawn=SpawnRule(item_data.get("container_spawn", "none")),
             shop_spawn=SpawnRule(item_data.get("shop_spawn", "none")),
         )
-        
+
         item.localization = ItemLocalization(
             languages=item_data.get("localization", {})
         )
         item.textures = self._deserialize_textures(
             item_data.get("textures", {}), project_dir
         )
-        
+
         return item
 
 
@@ -1287,7 +1287,7 @@ class ModProject:
                 item.textures.clear_char()
             if not item.needs_left_texture():
                 item.textures.clear_left()
-        
+
         for hybrid in self.hybrid_items:
             if not hybrid.needs_char_texture():
                 hybrid.textures.clear_char()

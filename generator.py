@@ -346,7 +346,7 @@ def copy_item_textures(
 
 def format_description(text: str) -> str:
     """处理描述文本：strip -> splitlines -> join('#') -> 转义双引号
-    
+
     用于通过 C# 接口注入的物品描述（普通武器/护甲）
     """
     if not text:
@@ -358,7 +358,7 @@ def format_description(text: str) -> str:
 
 def format_description_gml(text: str) -> str:
     """处理描述文本：仅转义双引号
-    
+
     用于直接写入 GML 的物品描述（混合物品），不需要换行转译
     GML 中 # 本身就是换行符，用户可以直接在描述中使用 # 换行
     """
@@ -394,7 +394,7 @@ class CodeGenerator:
 
     def generate(self) -> dict[str, str]:
         """生成完整的 C# 模组代码
-        
+
         Returns:
             dict[str, str]: 文件名到内容的映射
                 - "{code_name}.cs": 主文件，包含 PatchMod() 和物品方法
@@ -402,7 +402,7 @@ class CodeGenerator:
         """
         code_namespace = self.project.code_name.strip() or "ModNamespace"
         has_hybrids = bool(self.project.hybrid_items)
-        
+
         # ==================== 主文件 ====================
         main_code = f"""using ModShardLauncher;
 using ModShardLauncher.Mods;
@@ -454,13 +454,13 @@ public partial class {code_namespace} : Mod
 
         for hybrid in self.project.hybrid_items:
             main_code += self._generate_hybrid_item_method(hybrid)
-        
+
         # 生成项目特定的混合装备注册方法（写入主文件）
         if self.registered_hybrids:
             main_code += self._generate_hybrid_item_registration()
 
         main_code += "}\n"
-        
+
         # ==================== 辅助文件 ====================
         helpers_code = f"""using ModShardLauncher;
 using ModShardLauncher.Mods;
@@ -475,7 +475,7 @@ namespace {code_namespace};
 public partial class {code_namespace}
 {{
 """
-        
+
         # 只在有混合物品时生成辅助方法
         if has_hybrids:
             helpers_code += self._generate_missing_attribute_localizations_method()
@@ -489,7 +489,7 @@ public partial class {code_namespace}
             helpers_code += self._generate_gml_helper_methods()
         else:
             helpers_code += "    // 无混合物品，无需辅助方法\n}\n"
-        
+
         return {
             f"{code_namespace}.cs": main_code,
             f"{code_namespace}.Helpers.cs": helpers_code,
@@ -497,7 +497,7 @@ public partial class {code_namespace}
 
     def _generate_missing_attribute_localizations_method(self) -> str:
         """生成缺失属性本地化注入方法
-        
+
         这些属性在 ATTRIBUTE_TO_GROUP 中定义但 attributes.json 中没有翻译。
         使用 Mark 防止重复注入。
         """
@@ -532,7 +532,7 @@ public partial class {code_namespace}
             "Weapon_Damage_Main": ("Main Hand Weapon Damage", "主手武器伤害"),
             "Weapon_Damage_Off": ("Off-Hand Weapon Damage", "副手武器伤害"),
         }
-        
+
         # 生成注入代码行
         attr_lines = []
         for attr_id, (en_text, zh_text) in missing_attrs.items():
@@ -543,15 +543,15 @@ public partial class {code_namespace}
                     {{ModLanguage.Chinese, "{zh_text}"}}
                 }}
             )''')
-        
+
         attrs_code = ",\n".join(attr_lines)
-        
+
         return f'''    // 注入缺失的属性本地化（使用 Mark 防止重复）
     void InjectMissingAttributeLocalizations()
     {{
         if (Mark.Has(DataLoader.data, "AttrLocInjected")) return;
         Mark.Set(DataLoader.data, "AttrLocInjected");
-        
+
         AttributeLocalizationHelper.InjectTableAttributesLocalization(
 {attrs_code}
         );
@@ -783,7 +783,7 @@ popz.v"""
     def _generate_hybrid_item_method(self, item: HybridItem) -> str:
         """生成单个混合物品的 C# 方法"""
         method_name = f"AddHybrid{item.id}"
-        
+
         code = f"    private void {method_name}()\n    {{\n"
         code += self._generate_hybrid_objects_code(item)
         code += self._generate_hybrid_events_code(item)
@@ -792,7 +792,7 @@ popz.v"""
             code += self._generate_hybrid_gml_offset_code(item)
         code += self._generate_hybrid_loot_animation_code(item)
         code += "    }\n\n"
-        
+
         return code
 
 
@@ -803,37 +803,37 @@ popz.v"""
         inv_sprite = f"s_inv_{item.id}"
         loot_sprite = f"s_loot_{item.id}"
         loot_parent = item.get_loot_parent()
-        
+
         # 确定材质枚举值（首字母大写）
         if item.init_weapon_stats or item.init_armor_stats:
             material_enum = item.material.capitalize()
         else:
             material_enum = "Organic"
-        
+
         # 确定重量枚举值
         weight_enum = WEIGHT_TO_ENUM.get(item.weight, "Light")  # <- use module constant
-        
+
         # 确定 tier 枚举值
         tier_enum = TIER_TO_ENUM.get(item.tier, "None")  # <- use module constant
-        
+
         # 生成本地化字典（确保至少有 English 条目）
         languages = item.localization.languages
         if "English" not in languages:
             languages = {"English": {"name": "", "description": ""}, **languages}
-        
+
         localization_entries = []
         for lang, data in languages.items():
             name = data.get("name", "").replace('"', '\\"')
             localization_entries.append(f'                    {{ModLanguage.{lang}, "{name}"}}')
-        
+
         localization_desc_entries = []
         for lang, data in languages.items():
             desc = format_description(data.get("description", ""))
             localization_desc_entries.append(f'                    {{ModLanguage.{lang}, "{desc}"}}')
-        
+
         name_dict = ",\n".join(localization_entries)
         desc_dict = ",\n".join(localization_desc_entries)
-        
+
         code = f"""        // 创建 Inventory 对象
         UndertaleGameObject {inv_obj_name} = Msl.AddObject(
             name: "{inv_obj_name}",
@@ -891,7 +891,7 @@ popz.v"""
     def _generate_hybrid_events_code(self, item: HybridItem) -> str:
         """生成混合物品的事件代码"""
         inv_obj_name = f"o_inv_{item.id}"
-        
+
         # 生成 GML 代码
         create_code = self._generate_hybrid_create_gml(item)
         alarm_code = self._generate_hybrid_alarm_gml(item)
@@ -900,31 +900,31 @@ popz.v"""
         other13_code = self._generate_hybrid_other13_gml(item)  # Hover 事件
         other16_code = self._generate_hybrid_other16_gml(item)  # 属性衰减生效
         other24_code = self._generate_hybrid_other24_gml(item)
-        
+
         code = f"""        // 应用事件代码
         {inv_obj_name}.ApplyEvent(
             new MslEvent(eventType: EventType.Create, subtype: 0, code: @"
 {self._escape_multiline_string(create_code)}
             ")"""
-        
+
         if alarm_code:
             code += f""",
             new MslEvent(eventType: EventType.Alarm, subtype: 0, code: @"
 {self._escape_multiline_string(alarm_code)}
             ")"""
-        
+
         if step_code:
             code += f""",
             new MslEvent(eventType: EventType.Step, subtype: 0, code: @"
 {self._escape_multiline_string(step_code)}
             ")"""
-        
+
         if other10_code:
             code += f""",
             new MslEvent(eventType: EventType.Other, subtype: 10, code: @"
 {self._escape_multiline_string(other10_code)}
             ")"""
-        
+
         # Other_13: Hover 事件（使用 o_hoverHybrid）
         code += f""",
             new MslEvent(eventType: EventType.Other, subtype: 13, code: @"
@@ -937,18 +937,18 @@ popz.v"""
             new MslEvent(eventType: EventType.Other, subtype: 16, code: @"
 {self._escape_multiline_string(other16_code)}
             ")"""
-        
+
         code += f""",
             new MslEvent(eventType: EventType.Other, subtype: 24, code: @"
 {self._escape_multiline_string(other24_code)}
             ")"""
-        
+
         code += "\n        );\n\n"
         return code
 
     def _generate_hybrid_create_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Create_0 GML 代码
-        
+
         简化策略：
         - 所有常量直接在 Create_0 设置（无需 is_new 保护）
         - 设置 duration/charge 变量供父类 Alarm_0 在 is_new 时存入 data
@@ -958,22 +958,22 @@ popz.v"""
         lines = []
         lines.append("event_inherited();")
         lines.append("")
-        
+
         # 使用 scr_consum_atr 从 global.consum_stat_data 初始化基础属性
         lines.append("// 从 global.consum_stat_data 初始化基础属性")
         lines.append(f'scr_consum_atr("{item.id}");')
         lines.append("")
-        
+
         # poison_duration（仅当 Poisoning_Chance > 0 时设置）
         poisoning_chance = item.consumable_attributes.get("Poisoning_Chance", 0)
         if poisoning_chance > 0 and item.poison_duration > 0:
             lines.append(f"poison_duration = {item.poison_duration};")
             lines.append("")
-        
+
         lines.append("empty = false;")
         lines.append("is_hybrid_item = true;")
         lines.append("")
-        
+
         # ============== 品质设置 ==============
         lines.append(f"quality = {item.quality};")
         if item.quality == QUALITY_ARTIFACT:  # <- use constant
@@ -990,7 +990,7 @@ popz.v"""
             lines.append("// 品质: 普通")
             lines.append('ds_map_set(data, "quality", 1);')
         lines.append("")
-        
+
         # ============== 槽位与装备 ==============
         if item.equipable:
             lines.append(f'slot = "{item.slot}";')
@@ -1002,24 +1002,24 @@ popz.v"""
             lines.append('slot = "heal";')
             lines.append("can_equip = false;")
         lines.append("")
-        
+
         # ============== Tier 变量（hover 和修理费需要） ==============
         lines.append(f"Tier = {item.tier};")
         lines.append("")
-        
+
         # ============== 武器/护甲标记与数值 ==============
         if item.is_weapon:
             lines.append("is_weapon = true;")
-        
+
         if item.init_weapon_stats:
             lines.append("// 武器数值")
             lines.append(f'type = "{item.weapon_type}";')
             lines.append(f"Balance = {item.balance};")
-            
+
             # 计算 DamageType
             best_type = _compute_damage_type(item.attributes)  # <- use helper
             lines.append(f'DamageType = "{best_type}";')
-            
+
             # 弓/弩弹药槽
             if item.weapon_type == "crossbow":
                 lines.append("haveAmmunitionSlot = true;")
@@ -1029,12 +1029,12 @@ popz.v"""
                 lines.append("haveAmmunitionSlot = true;")
                 lines.append('ammunitionType = "arrow";')
             lines.append("")
-        
+
         if item.init_armor_stats:
             lines.append("// 护甲数值")
             lines.append(f'type = "{item.armor_type}";')
             lines.append(f'armor_type = "{item.armor_class}";')
-            
+
             # 非盾牌/戒指/项链的装备需要设置 fragment_*（用于拆解）
             if item.slot not in ["hand", "Ring", "Amulet"]:
                 lines.append("")
@@ -1046,7 +1046,7 @@ popz.v"""
                     val = item.fragments.get(frag, 0)
                     lines.append(f"fragment_{frag} = {val};")
             lines.append("")
-        
+
         # ============== 使用次数（供父类 Alarm_0 持久化） ==============
         if item.has_charges:
             lines.append("// 使用次数（父类 Alarm_0 会处理持久化）")
@@ -1054,7 +1054,7 @@ popz.v"""
             lines.append(f"max_charge = {item.effective_charge};")
             lines.append(f"draw_charges = {'true' if item.draw_charges else 'false'};")
             lines.append("")
-            
+
             # 消耗品属性 (attributes_data)
             lines.append("// 消耗品属性 (attributes_data)")
             has_consum_attr = False
@@ -1065,22 +1065,22 @@ popz.v"""
             if not has_consum_attr:
                 lines.append("// 无消耗品属性")
             lines.append("")
-        
+
         # ============== 耐久（供父类 Alarm_0 持久化） ==============
         if item.has_durability:
             lines.append("// 耐久度（父类 Alarm_0 会处理持久化）")
             lines.append(f"duration = {item.duration_max};")
             lines.append("")
-        
+
         lines.append(f"duration_change = {item.wear_per_use};")
         lines.append(f"delete_after_use = {'true' if item.delete_on_charge_zero else 'false'};")
         lines.append("")
-        
+
         # ============== 被动效果 ==============
         if item.has_passive:
             lines.append("check_inventory_data = true;")
             lines.append("")
-        
+
         # ============== 音效与价格 ==============
         lines.append("// 音效与价格")
         lines.append(f"drop_gui_sound = {item.drop_sound};")
@@ -1088,7 +1088,7 @@ popz.v"""
         lines.append(f"base_price = {item.base_price};")
         lines.append("price = base_price;")
         lines.append("")
-        
+
         # ============== 精灵 ==============
         lines.append("// 精灵")
         lines.append(f"s_index = s_inv_{item.id};")
@@ -1105,31 +1105,31 @@ popz.v"""
         lines.append("rest_char_sprite = -4;")
         lines.append("rest_char_upper_sprite = -4;")
         lines.append("")
-        
+
         # ============== data map 静态属性写入 ==============
         # 使用 ds_map_replace 确保每次覆盖都安全（常量值）
-        
+
         lines.append("// data map 元数据")
         lines.append(f'ds_map_replace(data, "tags", "{item.effective_tags}");')
         lines.append(f'ds_map_replace(data, "rarity", "{item.rarity}");')
         lines.append('ds_map_replace(data, "key", "");')
         lines.append("ds_map_replace(data, \"identified\", true);")
-        
+
         if item.has_durability:
             lines.append(f'ds_map_replace(data, "MaxDuration", {item.duration_max});')
-        
+
         if item.init_weapon_stats:
             best_type = _compute_damage_type(item.attributes)  # <- use helper
             lines.append(f'ds_map_replace(data, "DamageType", "{best_type}");')
             lines.append('ds_map_replace(data, "Metatype", "Weapon");')
-        
+
         if item.init_armor_stats:
             lines.append('ds_map_replace(data, "Metatype", "Armor");')
             lines.append("ds_map_replace(data, \"Armor_Type\", Weight);")
-        
+
         if item.init_weapon_stats or item.init_armor_stats:
             lines.append(f'ds_map_replace(data, "Suffix", string({item.quality}) + " " + type);')
-            
+
             # 生成 type_text（类型+稀有度文本）
             lines.append("")
             lines.append("// 生成 type_text")
@@ -1152,11 +1152,11 @@ popz.v"""
             lines.append("    type_text = scr_stringTransformFirst(_rar) + _space + _armor + _type;")
 
         return "\n".join(lines)
-    
+
     def _generate_hybrid_step_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Step_0 GML 代码"""
         sections = ["event_inherited();"]
-        
+
         # 耐久度控制逻辑
         if item.has_durability:
             sections.append("""\
@@ -1204,12 +1204,12 @@ if (!is_undefined(_lastTurn)) {{
             ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));
     }}
 }}""")
-        
+
         # 技能释放状态跟踪
         if item.trigger_mode == TriggerMode.SKILL:
             skill_info = SKILL_OBJECTS[item.skill_object]
             is_no_target = skill_info.get("target", "") == "No Target"
-            
+
             # 技能完成检测逻辑
             if is_no_target:
                 detection = """\
@@ -1229,10 +1229,10 @@ if (!is_undefined(_lastTurn)) {{
     } else if (!_active_skill.is_activate) {
         _should_cleanup = true;
         _was_successful = _active_skill.last_activated;"""
-            
+
             # 成功时的处理逻辑
             success_logic_parts = []
-            
+
             # 充能扣减
             if item.charge_mode == ChargeMode.LIMITED:
                 charge_block = """\
@@ -1248,7 +1248,7 @@ charge--;
                 ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));
             }"""
                 success_logic_parts.append(charge_block)
-            
+
             # 耐久扣减
             if item.has_durability and item.wear_per_use > 0:
                 durability_block = f"""\
@@ -1260,9 +1260,9 @@ charge--;
             var _dur = ds_map_find_value(data, "Duration");
             ds_map_replace(data, "Duration", max(0, _dur - _cost));"""
                 success_logic_parts.append(durability_block)
-            
+
             success_logic = "".join(success_logic_parts) if success_logic_parts else "// 无限模式：不扣减"
-            
+
             # 销毁检查（集中处理次数和耐久）
             destruction_parts = []
             if item.delete_on_charge_zero and item.charge_mode == ChargeMode.LIMITED:
@@ -1270,7 +1270,7 @@ charge--;
             if item.has_durability and item.destroy_on_durability_zero:
                 destruction_parts.append('if (ds_map_find_value(data, "Duration") <= 0) { event_user(12); exit; }')
             destruction_logic = "\n        ".join(destruction_parts) if destruction_parts else ""
-            
+
             sections.append(f"""\
 // 技能释放状态跟踪
 var _active_skill = ds_map_find_value(data, "_active_skill");
@@ -1298,37 +1298,37 @@ if (!is_undefined(_active_skill)) {{
         {destruction_logic}
     }}
 }}""")
-        
+
         return "\n\n".join(sections)
 
     def _generate_hybrid_alarm_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Alarm_0 GML 代码
-        
+
         简化策略：
         - 调用 event_inherited() 让父类 o_inv_consum.Alarm_0 处理 is_new 逻辑
         - 静态元数据已移到 Create_0
         - 这里只保留需要 is_new 的属性写入（ds_map_add 在 key 存在时会失败）
         """
         lines = ["event_inherited();"]
-        
+
         # 检查是否有需要写入的属性
         attrs = {k: v for k, v in item.attributes.items() if v != 0}
         if not attrs:
             return "\n".join(lines)
-        
+
         lines.append("")
         lines.append("if (is_new) {")
         lines.append('    var _main = ds_map_find_value(data, "Main");')
-        
+
         if item.init_weapon_stats:
             damage_attrs = {k: v for k, v in attrs.items() if k in DAMAGE_ATTRIBUTES}
             total_dmg = sum(damage_attrs.values())
-            
+
             for t, v in damage_attrs.items():
                 lines.append(f'    ds_list_add(_main, "{t}", {v});')
                 lines.append(f'    ds_map_add(data, "{t}", {v});')
             lines.append(f'    ds_map_add(data, "DMG", {total_dmg});')
-            
+
             for attr, val in attrs.items():
                 if attr in DAMAGE_ATTRIBUTES:
                     continue
@@ -1337,7 +1337,7 @@ if (!is_undefined(_active_skill)) {{
                     lines.append(f'    ds_map_add(data, "Range", {val});')
                 else:
                     lines.append(f'    ds_map_add(data, "{attr}", {val});')
-        
+
         elif item.init_armor_stats:
             for attr, val in attrs.items():
                 if attr == "DEF":
@@ -1345,24 +1345,24 @@ if (!is_undefined(_active_skill)) {{
                     lines.append(f'    ds_list_add(_main, "DEF", {val});')
                 else:
                     lines.append(f'    ds_map_add(data, "{attr}", {val});')
-        
+
         else:
             for attr, val in attrs.items():
                 lines.append(f'    ds_map_add(data, "{attr}", {val});')
-        
+
         lines.append("}")
         return "\n".join(lines)
 
     def _generate_hybrid_other10_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Other_10 GML 代码
-        
+
         简单地调用 event_inherited() 然后覆盖需要的值。
         o_inv_consum.Other_10 会设置 sprite_index=s_inv_cell, matatype="heal", slot="heal" 等，
         并调用 event_user(1) 计算尺寸。
         """
         lines = []
         lines.append("event_inherited();")
-        
+
         if item.init_weapon_stats:
             lines.append('matatype = "weapon";')
             lines.append(f'slot = "{item.slot}";')
@@ -1372,28 +1372,28 @@ if (!is_undefined(_active_skill)) {{
         elif item.equipable:
             lines.append(f'slot = "{item.slot}";')
         # 纯消耗品不需要覆盖任何值
-        
+
         return "\n".join(lines)
 
     def _generate_hybrid_other13_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Other_13 (Hover) GML 代码
-        
+
         完整复制 o_inv_slot.Other_13 的 switch 结构，包括：
         - case 0: hover 显示
         - case 1: hover 销毁
         - case 2: 左键点击（必须有，否则无法左键交互）
         - case 5: 右键点击（必须有，否则无法右键交互）
         - case 37: select 状态处理
-        
+
         结合武器/护甲和消耗品的 hover 逻辑。
         注意：使用次数由 o_hoverHybrid 的 Other_20 通过 chargesLeft/Right 显示，
         这里只处理冷却时间（因为 Other_20 不处理冷却）。
         """
         lines = []  # <- removed dead 'if lines' check
-        
+
         # 完整的 switch 结构（基于 o_inv_slot.Other_13）
         lines.append("switch (guiInteractiveState) {")
-        
+
         # ===== case 0: hover 显示 =====
         lines.append("    case 0:")
         lines.append("        inmouse = true;")
@@ -1430,7 +1430,7 @@ if (!is_undefined(_active_skill)) {{
         lines.append("        }")
         lines.append("        ")
         lines.append('        if (ds_map_find_value_ext(data, "identified", true)) {')
-        
+
         # 根据物品类型选择 hover 类型
         if item.init_weapon_stats or item.init_armor_stats:
             # 武器/护甲类：使用 o_hoverHybrid + 对比逻辑
@@ -1458,39 +1458,39 @@ if (!is_undefined(_active_skill)) {{
             # 消耗品类：也使用 o_hoverHybrid（可以同时显示使用次数和其他属性）
             lines.append("            // 消耗品类混合物品：使用混合 hover")
             lines.append("            hoverID = scr_hoverCreate(id, id, o_hoverHybrid, _hoverPlacementsArray, _hoverDepthOffset);")
-        
+
         lines.append("        } else {")
         lines.append("            // 未鉴定物品")
         lines.append("            hoverID = scr_hoverCreate(id, id, o_hoverUnidentified, _hoverPlacementsArray, _hoverDepthOffset);")
         lines.append("        }")
         lines.append("        break;")
-        
+
         # ===== case 1: hover 销毁 =====
         lines.append("    ")
         # ===== case 1/2/5/37: 复用 o_inv_slot 的实现 =====
         lines.append("    default:")
         lines.append("        event_perform_object(o_inv_slot, ev_other, 13);")
         lines.append("        break;")
-        
+
         lines.append("}")
-        
+
         return "\n".join(lines)
 
     def _generate_hybrid_other16_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Other_16 GML 代码
-        
+
         某些混合物品（如可装备）继承自 o_inv_consum，后者覆盖了 o_inv_slot 的 Other_16，
         导致属性衰减失效。这里手动恢复。
         """
         if not item.has_durability or not item.equipable:
             return ""
-            
+
         # 直接复用 o_inv_slot 的 Other_16 逻辑
         return "event_perform_object(o_inv_slot, ev_other, 16);"
 
     def _generate_hybrid_other24_gml(self, item: HybridItem) -> str:
         """生成混合物品的 Other_24 (使用效果) GML 代码
-        
+
         根据 trigger_mode 生成不同代码：
         - "none": 无主动效果
         - "consumable": 消耗品使用效果
@@ -1499,15 +1499,15 @@ if (!is_undefined(_active_skill)) {{
         # 未勾选使用次数或模式为 none 时，生成空白代码
         if not item.has_charges or item.trigger_mode == TriggerMode.NONE:
             return "// 空白 Other_24（未启用主动效果）"
-        
+
         lines = []
-        
+
         # 通用充能检查
         lines.append("// 充能检查")
         lines.append("if (charge <= 0)")
         lines.append("    exit;")
         lines.append("")
-        
+
         # 耐久消耗前检查与前置变量
         # 需求6：有耐久时允许设置磨损，但不阻止使用
         if item.has_durability and item.wear_per_use > 0:
@@ -1516,18 +1516,18 @@ if (!is_undefined(_active_skill)) {{
             lines.append("if (_cost <= 0) _cost = 1;")
             lines.append("var _dur = ds_map_find_value(data, \"Duration\");")
             lines.append("")
-        
+
         # ====== 根据模式生成不同的效果代码 ======
-        
+
         if item.trigger_mode == TriggerMode.SKILL:
             # 技能释放模式
             lines.append("// 技能释放模式")
-            
+
             if item.skill_object:
                 # 创建对应的 _ico 对象作为 owner_skill
                 # 技能对象名格式: o_skill_xxx -> o_skill_xxx_ico
                 ico_object = f"{item.skill_object}_ico"
-                
+
                 lines.append(f"// 创建对应的技能图标对象作为 owner_skill")
                 lines.append(f"var _owner_skill = instance_create_depth(-10000, -10000, 0, {ico_object});")
                 lines.append("with (_owner_skill) {")
@@ -1551,9 +1551,9 @@ if (!is_undefined(_active_skill)) {{
                 lines.append('ds_map_set(data, "_active_ico", _owner_skill);')
             else:
                 lines.append("// 警告：未设置技能对象")
-            
+
             # 技能模式：充能扣减移至 Step_0 中技能成功执行后处理
-            
+
         else:  # consumable 模式
             # 消耗品使用效果
             lines.append('scr_actionsLog("useItem", [scr_id_get_name(o_player), log_text, ds_map_find_value(data, "Name")]);')
@@ -1628,13 +1628,13 @@ if (!is_undefined(_active_skill)) {{
             lines.append("with (o_player)")
             lines.append("    scr_guiAnimation(o_b_gamekeeper_brew, 1, 1, 0);")
             lines.append("")
-        
+
             # 消耗品模式：充能和耐久扣减（has_charges 在此代码路径必定为 true）
             # 无消耗模式下跳过充能扣减
             if item.charge_mode != ChargeMode.UNLIMITED:
                 lines.append("charge--;")
                 lines.append("ds_map_replace(data, \"charge\", charge);")
-                
+
                 # 记录恢复起始回合
                 if item.has_charge_recovery:
                     lines.append("")
@@ -1644,7 +1644,7 @@ if (!is_undefined(_active_skill)) {{
                     lines.append('    var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");')
                     lines.append('    ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
                     lines.append("}")
-            
+
             # 耐久扣减（需求6：磨损不阻止使用）
             if item.has_durability and item.wear_per_use > 0:
                 if item.destroy_on_durability_zero:
@@ -1656,20 +1656,20 @@ if (!is_undefined(_active_skill)) {{
                 else:
                     # 0耐久不删除，允许0耐久
                     lines.append("ds_map_replace(data, \"Duration\", max(0, _dur - _cost));")
-            
+
             lines.append("scr_allturn();")
             lines.append("scr_characterStatsConsumUse();")
             lines.append("")
             lines.append("with (o_player)")
             lines.append("    scr_noise_produce(scr_noise_food(), grid_x, grid_y);")
             lines.append("")
-            
+
             # 充能耗尽后的处理（仅在开启用尽删除时生成，has_charges 必定为 true）
             if item.delete_on_charge_zero:
                 lines.append("// 充能耗尽后的处理")
                 lines.append("if (charge <= 0)")
                 lines.append("    event_user(12);")
-        
+
         return "\n".join(lines)
 
     def _generate_hybrid_loot_animation_code(self, item: HybridItem) -> str:
@@ -1757,29 +1757,29 @@ popz.v"""
 
     def _generate_ensure_extended_order_lists_gml(self) -> str:
         """生成 scr_hoversEnsureExtendedOrderLists.gml 脚本内容
-        
+
         惰性初始化扩展的属性排序列表
         """
         # 按 ATTRIBUTE_TO_GROUP 的分组顺序排列额外属性（而非字母顺序）
         from constants import ATTRIBUTE_TO_GROUP, DEFAULT_GROUP_ORDER
-        
+
         # 创建分组索引
         group_order_map = {g: i for i, g in enumerate(DEFAULT_GROUP_ORDER)}
-        
+
         def get_sort_key(attr):
             group = ATTRIBUTE_TO_GROUP.get(attr, "其他")
             return group_order_map.get(group, len(DEFAULT_GROUP_ORDER))
-        
+
         sorted_attrs = sorted(EXTRA_ORDER_ATTRS, key=get_sort_key)
         extra_attrs_str = ", ".join(f'"{attr}"' for attr in sorted_attrs)
-        
+
         return f'''function scr_hoversEnsureExtendedOrderLists() {{
     // 额外属性列表（ATTRIBUTE_TO_GROUP 中不在游戏 order lists 的）
     if (!variable_global_exists("attribute_order_extra")) {{
         global.attribute_order_extra = ds_list_create();
         ds_list_add(global.attribute_order_extra, {extra_attrs_str});
     }}
-    
+
     // 扩展 order_all（包含伤害）
     if (!variable_global_exists("attribute_order_all_extended")) {{
         global.attribute_order_all_extended = ds_list_create();
@@ -1788,7 +1788,7 @@ popz.v"""
             ds_list_add(global.attribute_order_all_extended, ds_list_find_value(global.attribute_order_all, _i));
         ds_list_add(global.attribute_order_all_extended, global.attribute_order_extra);
     }}
-    
+
     // 扩展 order_all_without_damage
     if (!variable_global_exists("attribute_order_all_without_damage_extended")) {{
         global.attribute_order_all_without_damage_extended = ds_list_create();
@@ -1802,7 +1802,7 @@ popz.v"""
 
     def _generate_draw_hybrid_consum_attrs_gml(self) -> str:
         """生成 scr_hoversDrawHybridConsumAttributes.gml 脚本内容
-        
+
         用于绘制消耗品属性，为非即时效果属性显示持续时间
         """
         # 收集所有即时效果属性
@@ -1810,7 +1810,7 @@ popz.v"""
         for attrs in CONSUMABLE_INSTANT_ATTRS.values():
             instant_attrs.extend(attrs)
         instant_attrs_str = ", ".join(f'"{attr}"' for attr in instant_attrs)
-        
+
         return f'''function scr_hoversDrawHybridConsumAttributes() {{
     // 使用 GML 内置 argument0-argument7 避免 bytecode 歧义
     var _x = argument0;
@@ -1821,45 +1821,45 @@ popz.v"""
     var _attributesArray = argument5;
     var _duration = argument6;
     var _textScale = argument7;
-    
+
     // 即时效果属性列表（不显示持续时间）
     var _instantAttrs = [{instant_attrs_str}];
-    
+
     var _arrLen = array_length(_attributesArray);
     var _durationStr = "N/A";
     var _offsetY = 0;
-    
+
     if (_duration > 0) {{
         var _space = scr_actionsLogGetSpace();
         var _open = scr_actionsLogGetSymbol("openRoundBracket");
         var _close = scr_actionsLogGetSymbol("closeRoundBracket");
         _durationStr = _space + _open + string(_duration) + _space + ds_list_find_value(global.other_hover, 57) + _close;
     }}
-    
+
     for (var _i = 0; _i < _arrLen; _i++) {{
         var _part = _attributesArray[_i];
         var _partLen = array_length(_part);
-        
+
         for (var _j = 0; _j < _partLen; _j += 2) {{
             var _key = _part[_j];
             var _val = scr_hoversGetAttributeValue(_key, _part[_j + 1]);
             var _name = scr_hoversGetAttributeName(_key);
             var _valStr = scr_hoversGetAttributeString(_key, _val);
             var _color = scr_hoversGetAttributeColor(_key, _val, make_colour_rgb(114, 222, 142), make_colour_rgb(158, 27, 49), 16777215);
-            
+
             scr_drawText(_x, _y + _offsetY, _name, 16777215, 0, 0, global.f_dmg, _textScale);
-            
+
             // 检查是否为即时效果属性
             var _isInstant = false;
             for (var _k = 0; _k < array_length(_instantAttrs); _k++) {{
                 if (_instantAttrs[_k] == _key) {{ _isInstant = true; break; }}
             }}
-            
+
             if (_duration > 0 && !_isInstant)
                 scr_draw_text_doublecolor(_x + _width, _y + _offsetY, _valStr, _durationStr, _color, 16777215, 2, 0, _textScale);
             else
                 scr_drawText(_x + _width, _y + _offsetY, _valStr, _color, 2, 0, global.f_dmg, _textScale);
-            
+
             _offsetY += _lineHeight;
         }}
         _offsetY += _spaceHeight;
@@ -1877,7 +1877,7 @@ popz.v"""
         {
             AddGlobalFunction("scr_hoversEnsureExtendedOrderLists", ModFiles.GetCode("scr_hoversEnsureExtendedOrderLists.gml"));
         }
-        
+
         // 注入 scr_hoversDrawHybridConsumAttributes
         if (!FunctionExists("scr_hoversDrawHybridConsumAttributes"))
         {
@@ -1891,7 +1891,7 @@ popz.v"""
 
     def _generate_hover_hybrid_method(self) -> str:
         """生成 o_hoverHybrid 对象创建方法
-        
+
         包含存在性检查：多个使用本编辑器的模组可能同时尝试注入此对象，
         因此需要先检查是否已存在。
         """
@@ -1899,7 +1899,7 @@ popz.v"""
         other20_code = self._generate_hover_hybrid_other20_gml()
         other21_code = self._generate_hover_hybrid_other21_gml()
         cleanup_code = self._generate_hover_hybrid_cleanup_gml()
-        
+
         code = """    private void EnsureHoverHybridExists()
     {
         // 检查 o_hoverHybrid 是否已存在（可能由其他模组创建）
@@ -1946,7 +1946,7 @@ popz.v"""
 
     def _generate_hover_hybrid_create_gml(self) -> str:
         """生成 o_hoverHybrid 的 Create_0 GML 代码
-        
+
         合并 o_hoverWeapon 和 o_hoverConsum 的变量初始化
         """
         return """event_inherited();
@@ -2008,7 +2008,7 @@ priceHeight = 0;
 
     def _generate_hover_hybrid_other20_gml(self) -> str:
         """生成 o_hoverHybrid 的 Other_20 GML 代码
-        
+
         智能从 owner 获取数据，同时支持武器和消耗品特性
         """
         return """event_inherited();
@@ -2022,7 +2022,7 @@ with (owner)
 {
     other.title = scr_loot_name(id);
     other.titleColor = scr_loot_color(id);
-    
+
     // 智能选择类型文本
     if (variable_instance_exists(id, "type_text") && type_text != "")
         other.type = type_text;
@@ -2030,7 +2030,7 @@ with (owner)
         other.type = type;
     else
         other.type = "";
-    
+
     // 武器/护甲属性
     // 需求2：注释掉 enchantedAttributes 部分，暂时不处理区分
     if (variable_instance_exists(id, "cursedName"))
@@ -2040,14 +2040,14 @@ with (owner)
         other.cursedAttributesArray = scr_hoversGetCursedAttributes();
     }
     // other.enchantedAttributesArray = scr_hoversGetEnchantedAttributes();
-    
+
     // 伤害属性（从 data）
     other.damageAttributesArray = scr_hoversGetAttributesPart(data, global.attribute_order_damage, [other.cursedAttributesArray, other.enchantedAttributesArray]);
-    
+
     // 普通属性（仅显示 data 中的属性 - 武器/装备属性）
     // 需求1：来自 data 的数据用 scr_hoversDrawWeaponAttributes，来自 attributes_data 的数据用 scr_hoversDrawConsumAttributes
     other.attributesArray = scr_hoversGetAttributes(data, global.attribute_order_all_without_damage_extended, [other.cursedAttributesArray, other.enchantedAttributesArray]);
-    
+
     // 消耗品属性（仅显示 attributes_data 中的属性）
     if (variable_instance_exists(id, "attributes_data") && ds_exists(attributes_data, ds_type_map))
     {
@@ -2068,27 +2068,27 @@ with (owner)
         }
 
         other.consumAttributesArray = scr_hoversGetAttributes(attributes_data, global.attribute_order_all_extended, [other.cursedAttributesArray, other.enchantedAttributesArray]);
-        
+
         // 还原 MoraleDiet
         if (!is_undefined(_moraleDiet))
         {
              ds_map_replace(attributes_data, "MoraleDiet", _moraleDiet);
         }
     }
-    
+
     // 消耗品效果持续时间
     other.attributesDuration = ds_map_find_value_ext(attributes_data, "Duration", 0);
-    
+
     // mid_text
     var _middleText = "";
     if (variable_instance_exists(id, "mid_text") && mid_text != "")
         _middleText = mid_text;
-    
+
     if (scr_caravanPositionGetX() != -1 && scr_caravanPositionGetY() != -1)
     {
         var _upgradesArray = scr_hoversCaravanUpgradesArrayGenerate(id);
         var _upgradesArrayLength = array_length(_upgradesArray);
-        
+
         for (var _i = 0; _i < _upgradesArrayLength; _i++)
         {
             if (!scr_caravanUpgradeIsOpen(_upgradesArray[_i]))
@@ -2100,7 +2100,7 @@ with (owner)
         }
     }
     other.middleText = (_middleText == "") ? "N/A" : _middleText;
-    
+
     // 耐久度（武器特性）
     var _hasDuration = ds_map_exists(data, "Duration") && ds_map_exists(data, "MaxDuration");
     if (_hasDuration)
@@ -2114,14 +2114,14 @@ with (owner)
             other.durabilityColor = (_durability < (_durabilityMax / 2)) ? make_colour_rgb(158, 27, 49) : 16777215;
         }
     }
-    
+
     // 使用次数（消耗品特性）
     if (variable_instance_exists(id, "draw_charges") && draw_charges)
     {
         other.chargesLeft = ds_list_find_value(global.other_hover, 2) + scr_actionsLogGetSpace();
         other.chargesRight = string(charge) + "/" + string(max_charge);
     }
-    
+
     // 新鲜度（消耗品特性）
     var _canChange = variable_instance_exists(id, "can_change") ? can_change : false;
     if (_canChange)
@@ -2135,7 +2135,7 @@ with (owner)
             other.freshColor = (_freshValue == 1) ? make_colour_rgb(158, 27, 49) : 16777215;
         }
     }
-    
+
     // 被盗标记
     if (scr_inv_atr("HasOwner") == 2)
     {
@@ -2143,7 +2143,7 @@ with (owner)
         var _town = ds_map_find_value_ext(global.location_titles, _townKey, "N/A");
         other.stolen = string_replace_all(ds_list_find_value(global.other_hover, 65), "%faction%", _town);
     }
-    
+
     // 材质（武器特性）
     other.materialLeft = "N/A";
     other.materialRight = "N/A";
@@ -2155,7 +2155,7 @@ with (owner)
             other.materialRight = scr_stringTransformFirst(ds_map_find_value_ext(global.item_material, Material, Material), true);
         }
     }
-    
+
     // 价格
     other.price = 0;
     if (base_price != 0)
@@ -2173,7 +2173,7 @@ with (owner)
             other.priceColor = scr_hoversGetPriceColor(owner, price, false);
         }
     }
-    
+
     other.description = variable_instance_exists(id, "desc") ? desc : "";
 }
 
@@ -2309,7 +2309,7 @@ contentHeight = titleHeight + typeHeight + damageAttributesHeight + attributesHe
 
     def _generate_hover_hybrid_other21_gml(self) -> str:
         """生成 o_hoverHybrid 的 Other_21 GML 代码
-        
+
         组合渲染武器和消耗品特性
         """
         return """event_inherited();
@@ -2359,7 +2359,7 @@ if (consumAttributesHeight)
 {
     // 如果之前有 weapon attributes，可能需要分隔线？(原逻辑没有额外分隔线，只是累加高度)
     // 但原逻辑 attributesHeight += spaceHeight 处理了间距。
-    
+
     with (owner)
         scr_hoversDrawHybridConsumAttributes(other.contentX, other.contentY + _offsetY, other.contentWidth, other.fontDmgHeight, other.spaceHeight, other.consumAttributesArray, other.attributesDuration, other.textScale);
     _offsetY += consumAttributesHeight;
@@ -2453,15 +2453,15 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
 
     def _generate_inject_item_stats_method(self) -> str:
         """生成 InjectItemStats 辅助方法
-        
+
         将 Category, Subcategory, Tags 从枚举类型改为字符串，
         提供更灵活的物品属性定义。
-        
+
         注意：
         - 消耗品效果参数（Hunger 到 Poisoning_Duration）在 GML 端处理，此处仅保留物品元数据参数
         - Duration 控制消耗品持续效果时间，属于具体效果属性的一部分而非元数据，因此不在 C# 端设定
         - EffPrice 参数疑似无用，已移除但保留数据行占位
-        
+
         统计信息（来自 items_stats.json）：
         - Weight: Heavy, Light, Medium, Net, Very Light
         - Material: cloth, gem, glass, gold, leather, metal, organic, paper, pottery, silver, stone, wood
@@ -2568,7 +2568,7 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
 
     def _generate_gml_helper_methods(self) -> str:
         """生成 GML 脚本管理辅助函数的 C# 代码
-        
+
         包含:
         - FunctionExists: 检查全局函数是否存在
         - InitScriptExists: 检查初始化脚本是否存在
@@ -2595,7 +2595,7 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
     {
         if (DataLoader.data.GlobalInitScripts.Any(g => g.Code?.Name?.Content == code.Name?.Content))
             return;
-        
+
         UndertaleGlobalInit globalInit = new UndertaleGlobalInit();
         globalInit.Code = code;
         DataLoader.data.GlobalInitScripts.Add(globalInit);
@@ -2604,26 +2604,26 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
     void AddGlobalFunction(string functionName, string gmlCode)
     {
         string codeName = $"gml_GlobalScript_{functionName}";
-        
+
         // Code
         UndertaleCode code = new UndertaleCode();
         code.Name = DataLoader.data.Strings.MakeString(codeName);
         DataLoader.data.Code.Add(code);
-        
+
         // CodeLocals
         UndertaleCodeLocals locals = new UndertaleCodeLocals();
         locals.Name = code.Name;
         DataLoader.data.CodeLocals.Add(locals);
-        
+
         // 编译
         code.ReplaceGML(gmlCode, DataLoader.data);
-        
+
         // Script
         UndertaleScript script = new UndertaleScript();
         script.Name = DataLoader.data.Strings.MakeString(functionName);
         script.Code = code;
         DataLoader.data.Scripts.Add(script);
-        
+
         // GlobalInit
         RegisterToGlobalInit(code);
     }
@@ -2631,20 +2631,20 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
     void AddInitScript(string scriptId, string gmlCode)
     {
         string codeName = $"gml_GlobalScript_init_{scriptId}";
-        
+
         // Code
         UndertaleCode code = new UndertaleCode();
         code.Name = DataLoader.data.Strings.MakeString(codeName);
         DataLoader.data.Code.Add(code);
-        
+
         // CodeLocals
         UndertaleCodeLocals locals = new UndertaleCodeLocals();
         locals.Name = code.Name;
         DataLoader.data.CodeLocals.Add(locals);
-        
+
         // 编译
         code.ReplaceGML(gmlCode, DataLoader.data);
-        
+
         // GlobalInit
         RegisterToGlobalInit(code);
     }
@@ -2657,39 +2657,39 @@ middleTextMap = __dsDebuggerMapDestroy(middleTextMap);
 public static class Mark
 {
     const string PREFIX = "__MK_";
-    
+
     public static bool Has(UndertaleData data, string name)
     {
         return data.Scripts.ByName(PREFIX + name) != null;
     }
-    
+
     public static void Set(UndertaleData data, string name)
     {
         string fullName = PREFIX + name;
         if (data.Scripts.ByName(fullName) != null) return;
-        
+
         var str = data.Strings.MakeString(fullName);
         var code = new UndertaleCode { Name = str };
         data.Code.Add(code);
-        
+
         data.Scripts.Add(new UndertaleScript
         {
             Name = str,
             Code = code
         });
     }
-    
+
     public static void Remove(UndertaleData data, string name)
     {
         string fullName = PREFIX + name;
         var script = data.Scripts.ByName(fullName);
         if (script == null) return;
-        
+
         if (script.Code != null)
             data.Code.Remove(script.Code);
         data.Scripts.Remove(script);
     }
-    
+
     public static IEnumerable<string> GetAll(UndertaleData data)
     {
         return data.Scripts
@@ -2704,13 +2704,13 @@ public class LocalizationAttribute : ILocalizationElement
 {
     public string Id { get; }
     public Dictionary<ModLanguage, string> Text { get; }
-    
+
     public LocalizationAttribute(string id, Dictionary<ModLanguage, string> text)
     {
         Id = id;
         Text = Localization.SetDictionary(text);
     }
-    
+
     public IEnumerable<string> CreateLine(string? selector)
     {
         switch(selector)
@@ -2731,7 +2731,7 @@ public static class AttributeLocalizationHelper
         );
         return localizationBaseTable.CreateInjectionTable(attributes.Select(x => x as ILocalizationElement).ToList());
     }
-    
+
     public static void InjectTableAttributesLocalization(params LocalizationAttribute[] attributes)
     {
         Localization.InjectTable("gml_GlobalScript_table_attributes", CreateInjectionAttributesLocalization(attributes));
@@ -2743,11 +2743,11 @@ public static class AttributeLocalizationHelper
 
     def _generate_hybrid_item_registry_helper(self) -> str:
         """生成混合装备注册系统的公共 Helper 代码
-        
+
         包含:
         1. 全局注册表初始化脚本（使用 InitScriptExists 保证唯一性）
         2. 所有 patch 逻辑（scr_find_weapon_params 等）
-        
+
         这是公共代码，写入 Helper 文件中。
         """
         return '''
@@ -2814,7 +2814,7 @@ function _struct_get() {
 }
 ");
         }
-        
+
         // --- Candidate Finders ---
 
         if (!FunctionExists("scr_find_item_candidates")) {
@@ -2824,7 +2824,7 @@ function scr_find_item_candidates() {
     var _candidates = [];
     var _keys = ds_map_keys_to_array(global.weapons_stat);
     var _len = array_length(_keys);
-    
+
     var _slot            = _struct_get(_options, ""slot"", undefined);
     var _tier_range      = _struct_get(_options, ""tier_range"", undefined);
     var _material        = _struct_get(_options, ""material"", ""all"");
@@ -2834,7 +2834,7 @@ function scr_find_item_candidates() {
     var _exclude_special = _struct_get(_options, ""exclude_special"", false);
     var _exclude_slots   = _struct_get(_options, ""exclude_slots"", undefined);
     var _table           = _struct_get(_options, ""table"", ""all"");
-    
+
     var _special_pool = _exclude_special ? scr_atr(""specialItemsPool"") : undefined;
     var _has_tier_limit = is_array(_tier_range);
     var _tier_min = _has_tier_limit ? _tier_range[0] : 0;
@@ -2842,27 +2842,27 @@ function scr_find_item_candidates() {
     var _has_slot_filter = (!is_undefined(_slot));
     var _has_exclude_slots = is_array(_exclude_slots);
     var _filter_table = (_table != ""all"");
-    
+
     for (var i = 0; i < _len; i++) {
         var _item_id = _keys[i];
-        
+
         // 优化过滤逻辑：根据数据分析结果
         // 1. 跳过表头行（Key 为 ""name""）
         if (_item_id == ""name"") continue;
-        
+
         // 2. 跳过分类标题行（Key 以 ""["" 开头）
         if (string_char_at(_item_id, 1) == ""["") continue;
-        
+
         var _item_data = ds_map_find_value(global.weapons_stat, _item_id);
-        
+
         if (!ds_exists(_item_data, ds_type_map)) continue;
-        
+
         var _item_slot = ds_map_find_value(_item_data, ""Slot"");
-        
+
         if (_filter_table) {
             if (ds_map_find_value(_item_data, ""Tag"") != _filter_tag) continue;
         }
-        
+
         if (_has_slot_filter) {
             if (_all_type) {
                 if (_has_exclude_slots && _is_in_array(_item_slot, _exclude_slots)) continue;
@@ -2870,10 +2870,10 @@ function scr_find_item_candidates() {
                 if (_item_slot != _slot) continue;
             }
         }
-        
+
         var _tier_raw = ds_map_find_value(_item_data, ""Tier"");
         var _tier = 0;
-        
+
         // 严格模式：非数字且无法转换的值直接跳过
         if (is_real(_tier_raw)) {
             _tier = _tier_raw;
@@ -2888,28 +2888,28 @@ function scr_find_item_candidates() {
                     // Conversion failed
                 }
             }
-            
+
             // 否则直接跳过这个物品
             if (!_valid_tier) continue;
         }
         if (_has_tier_limit && _tier != 0) {
             if (_tier < _tier_min || _tier > _tier_max) continue;
         }
-        
+
         if (_material != ""all"") {
             var _mat = string(ds_map_find_value(_item_data, ""Mat""));
             if (!scr_material_compare(_mat, _material)) continue;
         }
-        
+
         if (!is_undefined(_tags)) {
             var _item_tags_str = ds_map_find_value(_item_data, ""tags"");
             var _item_tags = string_split_custom(_item_tags_str, "" "");
             if (!scr_weapon_tags_compare(_item_tags, _tags)) continue;
         }
-        
+
         if (_exclude_special && ds_list_find_index(_special_pool, _item_id) != -1) continue;
         if (_check_repeat && ds_list_find_index(global.item_buffer, _item_id) >= 0) continue;
-        
+
         array_push(_candidates, _item_id);
     }
     return _candidates;
@@ -2922,7 +2922,7 @@ function scr_find_item_candidates() {
 function scr_find_hybrid_candidates() {
     var _options = (argument_count > 0) ? argument0 : {};
     var _candidates = [];
-    
+
     var _slot            = _struct_get(_options, ""slot"", undefined);
     var _tier_range      = _struct_get(_options, ""tier_range"", undefined);
     var _material        = _struct_get(_options, ""material"", ""all"");
@@ -2931,7 +2931,7 @@ function scr_find_hybrid_candidates() {
     var _all_type        = _struct_get(_options, ""all_type"", false);
     var _check_repeat    = _struct_get(_options, ""check_repeat"", false);
     var _exclude_special = _struct_get(_options, ""exclude_special"", false);
-    
+
     var _special_pool = _exclude_special ? scr_atr(""specialItemsPool"") : undefined;
 
     var _slots_to_check = [];
@@ -2951,48 +2951,48 @@ function scr_find_hybrid_candidates() {
 
     var _tags_arr = undefined;
     if (!is_undefined(_tags) && _tags != """") _tags_arr = string_split_custom(_tags, "" "");
-    
+
     var _tmin = -4, _tmax = -4;
     if (is_array(_tier_range)) { _tmin = _tier_range[0]; _tmax = _tier_range[1]; }
 
     for (var k = 0; k < array_length(_slots_to_check); k++) {
         var _s = _slots_to_check[k];
-        _s = string_replace_all(_s, "" "", """"); 
-        
+        _s = string_replace_all(_s, "" "", """");
+
         if (!variable_struct_exists(global.hybrid_item_by_slot, _s)) continue;
-        
+
         var _cands = variable_struct_get(global.hybrid_item_by_slot, _s);
         for (var i = 0; i < array_length(_cands); i++) {
             var _id = _cands[i];
             var _data = variable_struct_get(global.hybrid_item_registry, _id);
-            
+
             if (_mode == ""shop"") {
                 if (_data.shop_spawn != ""equipment"") continue;
             } else if (_mode == ""container"") {
                 if (_data.container_spawn != ""equipment"") continue;
             }
-            
+
             if (_tmin != -4) {
                  if (_data.tier < _tmin || _data.tier > _tmax) continue;
             }
-            
+
             if (_material != ""all"") {
-                 // Hybrid doesn't always have material field fully populated for all types? 
+                 // Hybrid doesn't always have material field fully populated for all types?
                  // Model has it.
                  if (!scr_material_compare(_data.material, _material)) continue;
             }
-            
+
             if (!is_undefined(_tags_arr)) {
                  var _data_tags = string_split_custom(_data.tags, "" "");
                  if (!scr_weapon_tags_compare(_data_tags, _tags_arr)) continue;
             }
-            
+
             if (_exclude_special && (_data.quality == 6 || _data.quality == 7)) {
                  if (ds_list_find_index(_special_pool, _id) != -1) continue;
             }
-            
+
             if (_check_repeat && ds_list_find_index(global.item_buffer, _id) >= 0) continue;
-            
+
             array_push(_candidates, _id);
         }
     }
@@ -3005,26 +3005,26 @@ function scr_find_hybrid_candidates() {
             AddGlobalFunction("scr_find_unified_item", @"
 function scr_find_unified_item() {
     var _options = (argument_count > 0) ? argument0 : {};
-    
+
     // 1. Resolve vanilla and hybrid candidates
     var _vanilla_pool = scr_find_item_candidates(_options);
     var _hybrid_pool = scr_find_hybrid_candidates(_options);
-    
+
     var _vanilla_count = array_length(_vanilla_pool);
     var _pool = _vanilla_pool;
     for (var i = 0; i < array_length(_hybrid_pool); i++) {
         array_push(_pool, _hybrid_pool[i]);
     }
-    
+
     var _winner = -4;
     var _is_hybrid = false;
-    
+
     if (array_length(_pool) > 0) {
         var _idx = irandom(array_length(_pool) - 1);
         _winner = _pool[_idx];
-        
+
         if (_idx >= _vanilla_count) _is_hybrid = true;
-        
+
         var _chk = _struct_get(_options, ""check_repeat"", false);
         if (_struct_get(_options, ""mode"") == ""shop"" && _chk) {
              ds_list_add(global.item_buffer, _winner);
@@ -3033,7 +3033,7 @@ function scr_find_unified_item() {
     } else {
         return -4;
     }
-    
+
     return { id: _winner, is_hybrid: _is_hybrid };
 }
 ");
@@ -3059,14 +3059,14 @@ function scr_shop_spawn_unified_item() {
         all_type: _all_type,
         mode: ""shop""
     };
-    
+
     if (!_all_type) _opts.slot = _category;
     else if (_table == ""armor"") _opts.exclude_slots = [""Ring"", ""Amulet""];
-    
+
     var _res = scr_find_unified_item(_opts);
-    
+
     if (_res == -4) return -4; // Failed to find anything
-    
+
     if (_res.is_hybrid) {
          var _hid = _res.id;
          var _h_obj = asset_get_index(""o_inv_"" + _hid);
@@ -3100,23 +3100,23 @@ function scr_loot_spawn_hybrid() {
     var _isUnique = (_hdata.quality == 6);
     var _isTreasure = (_hdata.quality == 7);
     var _pool = scr_atr(""specialItemsPool"");
-    
+
     if (_isUnique || _isTreasure) {
          if (ds_list_find_index(_pool, _hid) != -1) return -4;
     }
-    
+
     var _loot_obj = asset_get_index(""o_loot_"" + _hid);
     if (object_exists(_loot_obj)) {
          var _px = scr_round_cell(_x) + 13;
          var _py = scr_round_cell(_y) + 13;
-         
+
          // Using 'with' on the result of scr_loot_drop to initialize
          var _drop_inst = scr_loot_drop(_px, _py, _loot_obj, true, _arg5, _arg6, _arg7);
          with (_drop_inst) {
              if (_quality != -4) determined_quality = _quality;
              event_user(1);
-             
-             if (_isUnique) { 
+
+             if (_isUnique) {
                   ds_list_add(_pool, _hid);
                   achivmentCounter(5, ""That_Belongs_In_A_Museum"");
                   scr_characterStatsUpdateAdd(""lootedUniques"", 1);
@@ -3148,7 +3148,7 @@ function scr_find_item_wrapper() {
         mode: ""container""
     };
     var _res = scr_find_unified_item(_opts);
-    
+
     if (_res != -4) return _res.id;
     return -4;
 }
@@ -3160,7 +3160,7 @@ function scr_find_item_wrapper() {
 function scr_inventory_add_item_wrapper() {
     var _item = argument0;
     var _quality = argument1;
-    
+
     if (is_string(_item) && variable_struct_exists(global.hybrid_item_registry, _item)) {
          var _h_obj = asset_get_index(""o_inv_"" + _item);
          if (object_exists(_h_obj)) {
@@ -3184,7 +3184,7 @@ function scr_loot_spawn_wrapper() {
     var _arg5 = (argument_count > 5) ? argument[5] : 1;
     var _arg6 = (argument_count > 6) ? argument[6] : 100;
     var _arg7 = (argument_count > 7) ? argument[7] : false;
-    
+
     if (is_string(_item) && variable_struct_exists(global.hybrid_item_registry, _item)) {
          return scr_loot_spawn_hybrid(_item, _x, _y, _chance, _quality, _arg5, _arg6, _arg7);
     }
@@ -3192,7 +3192,7 @@ function scr_loot_spawn_wrapper() {
 }
 ");
         }
-        
+
         // 3. Patch scr_loot_from_tables (Container)
         if (!Mark.Has(DataLoader.data, "patch_scr_loot_from_tables"))
         {
@@ -3212,7 +3212,7 @@ function scr_loot_spawn_wrapper() {
                 .Save();
             Mark.Set(DataLoader.data, "patch_scr_loot_from_tables");
         }
-        
+
         // 4. Patch o_NPC_Other_24 (Shop)
         if (!Mark.Has(DataLoader.data, "patch_o_NPC_Other_24"))
         {
@@ -3229,7 +3229,7 @@ call.i gml_Script_scr_shop_spawn_unified_item(argc=6)")
                 .Save();
             Mark.Set(DataLoader.data, "patch_o_NPC_Other_24");
         }
-        
+
         // 5. Non-Equipment Path Support (Item Filter)
         if (!Mark.Has(DataLoader.data, "patch_scr_weapon_array_get_consum"))
         {
@@ -3238,7 +3238,7 @@ call.i gml_Script_scr_shop_spawn_unified_item(argc=6)")
                 .InsertBelow(@"
                         if (variable_struct_exists(global.hybrid_item_registry, _item_id)) {
                             var _hdata = variable_struct_get(global.hybrid_item_registry, _item_id);
-                            if (arg3 == -4) { 
+                            if (arg3 == -4) {
                                 if (_hdata.shop_spawn != ""item"") continue;
                                 if (_hdata.tier > 0 && instance_exists(other) && variable_instance_exists(other, ""Equipment_Tier_Min"")) {
                                     if (_hdata.tier < other.Equipment_Tier_Min || _hdata.tier > other.Equipment_Tier_Max) continue;
@@ -3251,7 +3251,7 @@ call.i gml_Script_scr_shop_spawn_unified_item(argc=6)")
                 .Save();
             Mark.Set(DataLoader.data, "patch_scr_weapon_array_get_consum");
         }
-        
+
         // 6. Instantiation Helper for Unique in Item Path
         if (!Mark.Has(DataLoader.data, "patch_scr_inventory_add_item"))
         {
@@ -3284,10 +3284,10 @@ if (!is_undefined(argument0) && variable_struct_exists(global.hybrid_item_regist
 
     def _generate_hybrid_item_registration(self) -> str:
         """生成项目特定的混合物品注册代码
-        
+
         这是项目特定代码，写入主文件中。
         必须在 EnsureHybridItemRegistry() 之后调用。
-        
+
         registry 用于：
         1. 装备路径注入（has_equipment_spawn）
         2. 道具路径过滤（has_item_spawn）
@@ -3295,7 +3295,7 @@ if (!is_undefined(argument0) && variable_struct_exists(global.hybrid_item_regist
         # 如果没有需要注册的混合物品，不生成这个方法
         if not self.registered_hybrids:
             return ""
-        
+
         # 生成混合物品数据数组
         item_entries = []
         for h in self.registered_hybrids:
@@ -3306,17 +3306,17 @@ if (!is_undefined(argument0) && variable_struct_exists(global.hybrid_item_regist
                 slot = h.armor_type
             else:
                 slot = h.slot
-            
+
             # 生成数组元素 (包含三场景生成规则和品质)
             item_entries.append(
                 f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material}\"\", '
                 f'\"\"{h.effective_tags}\"\", \"\"{h.container_spawn.value}\"\", \"\"{h.shop_spawn.value}\"\", '
                 f'\"\"{h.equipment_mode.value}\"\", {h.quality}]'
             )
-        
+
         items_array = ", ".join(item_entries)
         code_name = self.project.code_name
-        
+
         code = f'''
     void RegisterHybridItem_{code_name}()
     {{
@@ -3331,10 +3331,10 @@ for (var _i = 0; _i < array_length(_items); _i++) {{
     var _item = _items[_i];
     var _id = _item[0];
     var _slot = _item[1];
-    
+
     // 跳过已注册的物品（避免重复）
     if (variable_struct_exists(global.hybrid_item_registry, _id)) continue;
-    
+
     var _data = {{
         id: _id,
         slot: _slot,
@@ -3346,9 +3346,9 @@ for (var _i = 0; _i < array_length(_items); _i++) {{
         equipment_mode: _item[7],
         quality: _item[8]
     }};
-    
+
     variable_struct_set(global.hybrid_item_registry, _id, _data);
-    
+
     if (!variable_struct_exists(global.hybrid_item_by_slot, _slot)) {{
         variable_struct_set(global.hybrid_item_by_slot, _slot, []);
     }}

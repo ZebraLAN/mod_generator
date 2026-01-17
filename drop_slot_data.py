@@ -133,7 +133,7 @@ ALL_TAGS = {**QUALITY_TAGS, **DUNGEON_TAGS, **COUNTRY_TAGS, **EXTRA_TAGS}
 
 def _tags_match_non_equipment(item_tags: Set[str], slot_tags_str: str) -> bool:
     """非装备路径标签匹配（宽松模式）
-    
+
     规则:
     1. 如果槽位没有标签，允许所有物品
     2. 如果槽位有标签但物品没有标签，允许（非装备不强制要求标签）
@@ -149,7 +149,7 @@ def _tags_match_non_equipment(item_tags: Set[str], slot_tags_str: str) -> bool:
 
 def _tags_match_equipment(item_tags: Set[str], slot_tags_str: str) -> bool:
     """装备路径标签匹配（严格模式，参考 scr_weapon_tags_compare）
-    
+
     规则:
     1. 如果槽位没有标签，允许所有物品
     2. 如果槽位有标签但物品没有标签，不匹配
@@ -167,43 +167,43 @@ def _tags_match_equipment(item_tags: Set[str], slot_tags_str: str) -> bool:
 @lru_cache(maxsize=256)
 def find_matching_slots(cat: str, subcats: Tuple[str, ...], item_tags: Tuple[str, ...], tier: int) -> Tuple[dict, ...]:
     """查询非装备物品可能出现的所有 drop slots
-    
+
     Args:
         cat: 主分类
         subcats: 子分类元组
         item_tags: 物品标签元组
         tier: 物品等级
-    
+
     Returns:
         Tuple of dicts: {entry_id, slot_num, category, chance, slot_tags, tier_range, ...}
     """
     if not cat and not subcats:
         return ()
-    
+
     matches: List[dict] = []
     seen = set()
     item_tags_set = set(item_tags) if item_tags else set()
-    
+
     for check_cat in {cat} | set(subcats):
         if not check_cat:
             continue
-        
+
         key = (check_cat, tier)
         if key not in TIER_INDEX:
             continue
-        
+
         for slot_id in TIER_INDEX[key]:
             if slot_id in seen:
                 continue
-            
+
             meta = SLOT_METADATA.get(slot_id)
             if not meta:
                 continue
-            
+
             # 使用非装备路径的宽松匹配
             if not _tags_match_non_equipment(item_tags_set, meta["slot_tags"]):
                 continue
-            
+
             seen.add(slot_id)
             tier_range = f"{meta['tier_min']}-{meta['tier_max']}" if meta["tier_min"] != meta["tier_max"] else str(meta["tier_min"])
             matches.append({
@@ -216,7 +216,7 @@ def find_matching_slots(cat: str, subcats: Tuple[str, ...], item_tags: Tuple[str
                 "slot_tags": meta["slot_tags"],
                 "tier_range": tier_range,
             })
-    
+
     matches.sort(key=lambda m: (m["entry_id"], m["slot_num"]))
     return tuple(matches)
 
@@ -224,38 +224,38 @@ def find_matching_slots(cat: str, subcats: Tuple[str, ...], item_tags: Tuple[str
 @lru_cache(maxsize=256)
 def find_matching_eq_slots(eq_category: str, item_tags: Tuple[str, ...], tier: int) -> Tuple[dict, ...]:
     """查询装备物品可能出现的所有 equipment drop slots
-    
+
     Args:
         eq_category: 装备类别 (weapon/armor/jewelry)
         item_tags: 物品标签元组
         tier: 物品等级
-    
+
     Returns:
         Tuple of dicts: {entry_id, eq_num, eq_category, eq_tags, eq_rarity, chance, tier_range, ...}
     """
     if not eq_category:
         return ()
-    
+
     matches: List[dict] = []
     seen = set()
     item_tags_set = set(item_tags) if item_tags else set()
-    
+
     key = (eq_category, tier)
     if key not in EQ_TIER_INDEX:
         return ()
-    
+
     for eq_id in EQ_TIER_INDEX[key]:
         if eq_id in seen:
             continue
-        
+
         meta = EQ_METADATA.get(eq_id)
         if not meta:
             continue
-        
+
         # 使用装备路径的严格匹配 (scr_weapon_tags_compare)
         if not _tags_match_equipment(item_tags_set, meta["eq_tags"]):
             continue
-        
+
         seen.add(eq_id)
         tier_range = f"{meta['tier_min']}-{meta['tier_max']}" if meta["tier_min"] != meta["tier_max"] else str(meta["tier_min"])
         matches.append({
@@ -269,7 +269,7 @@ def find_matching_eq_slots(eq_category: str, item_tags: Tuple[str, ...], tier: i
             "chance": meta["chance"],
             "tier_range": tier_range,
         })
-    
+
     matches.sort(key=lambda m: (m["entry_id"], m["eq_num"]))
     return tuple(matches)
 

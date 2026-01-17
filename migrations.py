@@ -29,7 +29,7 @@ def migration_pass(
     sunset_date: str = "",
 ):
     """装饰器：注册一个迁移 pass
-    
+
     Args:
         deprecated_version: 这个 pass 处理的旧版本，如 (0, 8, 0)
         description: 迁移描述
@@ -48,16 +48,16 @@ def migration_pass(
 
 def migrate(data: dict) -> Tuple[dict, List[str]]:
     """运行所有迁移 pass
-    
+
     Args:
         data: 项目数据字典
-        
+
     Returns:
         (迁移后的数据, 迁移消息列表)
     """
     messages = []
     triggered_versions = []
-    
+
     for p in MIGRATION_PASSES:
         if p["fn"](data):
             triggered_versions.append(p["deprecated_version"])
@@ -65,11 +65,11 @@ def migrate(data: dict) -> Tuple[dict, List[str]]:
             if p["sunset_date"]:
                 msg += f" (v{_version_str(p['deprecated_version'])} 将于 {p['sunset_date']} 停止支持)"
             messages.append(msg)
-    
+
     if triggered_versions:
         oldest = min(triggered_versions)
         messages.insert(0, f"此项目来自编辑器 v{_version_str(oldest)}，请保存以更新格式。")
-    
+
     return data, messages
 
 
@@ -81,4 +81,3 @@ def _version_str(v: Tuple[int, ...]) -> str:
 # ============== 迁移 Pass 定义 ==============
 # 在下方添加迁移 pass，使用 @migration_pass 装饰器
 # 函数应返回 True 表示触发了迁移，False 表示未触发
-

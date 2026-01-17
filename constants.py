@@ -251,7 +251,7 @@ ATTRIBUTE_TO_GROUP = {
     "Unholy_Damage": "伤害类型",
     "Sacred_Damage": "伤害类型",
     "Psionic_Damage": "伤害类型",
-    
+
     # === 状态效果（施加） ===
     "Bleeding_Chance": "状态效果",
     "Knockback_Chance": "状态效果",
@@ -259,7 +259,7 @@ ATTRIBUTE_TO_GROUP = {
     "Stun_Chance": "状态效果",
     "Immob_Chance": "状态效果",
     "Stagger_Chance": "状态效果",
-    
+
     # === 防护属性 ===
     "DEF": "防护属性",
     "PRR": "防护属性",
@@ -269,7 +269,7 @@ ATTRIBUTE_TO_GROUP = {
     "EVS": "防护属性",
     "Crit_Avoid": "防护属性",
     "Fortitude": "防护属性",
-    
+
     # === 战斗属性 ===
     "Hit_Chance": "战斗属性",
     "CRT": "战斗属性",
@@ -282,7 +282,7 @@ ATTRIBUTE_TO_GROUP = {
     "Bodypart_Damage": "战斗属性",
     "Mainhand_Efficiency": "战斗属性",
     "Offhand_Efficiency": "战斗属性",
-    
+
     # === 生存属性 ===
     "max_hp": "生存属性",
     "HP": "生存属性",
@@ -294,7 +294,7 @@ ATTRIBUTE_TO_GROUP = {
     "Damage_Returned": "生存属性",
     "Lifesteal": "生存属性",
     "Manasteal": "生存属性",
-    
+
     # === 精力相关 ===
     "max_mp": "精力相关",
     "MP": "精力相关",
@@ -306,7 +306,7 @@ ATTRIBUTE_TO_GROUP = {
     "Cooldown_Reduction": "精力相关",
     "Fatigue_Gain": "精力相关",
     "Swimming_Cost": "精力相关",
-    
+
     # === 魔法属性 ===
     "Magic_Power": "魔法属性",
     "Miscast_Chance": "魔法属性",
@@ -314,7 +314,7 @@ ATTRIBUTE_TO_GROUP = {
     "Miracle_Power": "魔法属性",
     "Backfire_Damage": "魔法属性",
     "Backfire_Damage_Change": "魔法属性",
-    
+
     # === 元素法力 ===
     "Pyromantic_Power": "元素法力",
     "Geomantic_Power": "元素法力",
@@ -324,7 +324,7 @@ ATTRIBUTE_TO_GROUP = {
     "Arcanistic_Power": "元素法力",
     "Astromantic_Power": "元素法力",
     "Psimantic_Power": "元素法力",
-    
+
     # === 元素法力失误 ===
     "Pyromantic_Miscast_Chance": "元素法力失误",
     "Geomantic_Miscast_Chance": "元素法力失误",
@@ -334,37 +334,37 @@ ATTRIBUTE_TO_GROUP = {
     "Arcanistic_Miscast_Chance": "元素法力失误",
     "Astromantic_Miscast_Chance": "元素法力失误",
     "Psimantic_Miscast_Chance": "元素法力失误",
-    
+
     # === 抗性（综合）- 基于 scr_atr_calc.gml ===
     "Physical_Resistance": "抗性（综合）",
     "Nature_Resistance": "抗性（综合）",
     "Magic_Resistance": "抗性（综合）",
-    
+
     # === 抗性（物理）===
     "Slashing_Resistance": "抗性（物理）",
     "Piercing_Resistance": "抗性（物理）",
     "Blunt_Resistance": "抗性（物理）",
     "Rending_Resistance": "抗性（物理）",
-    
+
     # === 抗性（元素）===
     "Fire_Resistance": "抗性（元素）",
     "Frost_Resistance": "抗性（元素）",
     "Shock_Resistance": "抗性（元素）",
     "Caustic_Resistance": "抗性（元素）",
     "Poison_Resistance": "抗性（元素）",
-    
+
     # === 抗性（魔法）===
     "Arcane_Resistance": "抗性（魔法）",
     "Unholy_Resistance": "抗性（魔法）",
     "Sacred_Resistance": "抗性（魔法）",
     "Psionic_Resistance": "抗性（魔法）",
-    
+
     # === 抗性（状态）===
     "Bleeding_Resistance": "抗性（状态）",
     "Knockback_Resistance": "抗性（状态）",
     "Stun_Resistance": "抗性（状态）",
     "Pain_Resistance": "抗性（状态）",
-    
+
     # === 生理变化 ===
     "Hunger_Change": "生理变化",
     "Hunger_Resistance": "生理变化",
@@ -374,19 +374,19 @@ ATTRIBUTE_TO_GROUP = {
     "Pain_Change": "生理变化",
     "Immunity_Change": "生理变化",
     "Immunity_Influence": "生理变化",
-    
+
     # === 心理变化 ===
     "Sanity_Change": "心理变化",
     "Morale_Change": "心理变化",
     "MoraleTemporary": "心理变化",
-    
+
     # === 角色属性 ===
     "STR": "角色属性",
     "AGL": "角色属性",
     "PRC": "角色属性",
     "Vitality": "角色属性",
     "WIL": "角色属性",
-    
+
     # === 其他 ===
     "VSN": "其他",
     "Bonus_Range": "其他",
@@ -397,7 +397,7 @@ ATTRIBUTE_TO_GROUP = {
     "ReputationGainGlobal": "其他",
     "STL": "其他",
     "Savvy": "其他",
-    
+
     # === Buff专属（仅消耗品持续效果可用）===
     "HP_turn": "Buff专属",
     "MP_turn": "Buff专属",
@@ -563,13 +563,13 @@ HYBRID_BUFF_ONLY_ATTRS = [
 
 def get_hybrid_attrs_for_slot(slot: str, has_passive: bool = False) -> list[str]:
     """根据槽位返回可编辑的装备属性列表
-    
+
     Args:
         slot: 装备槽位 ("hand", "Head", "Chest", "Arms", "Legs", "Ring", "Amulet", "Waist", "Back", "heal")
         has_passive: 是否为被动携带物品 (check_inventory_data=true)
     """
     result = list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS)
-    
+
     if slot == "hand":
         result.extend(HYBRID_DAMAGE_ATTRS)
         result.extend(HYBRID_RESISTANCE_ATTRS)
@@ -582,14 +582,14 @@ def get_hybrid_attrs_for_slot(slot: str, has_passive: bool = False) -> list[str]
         # 被动携带物品：与普通装备相同，可以使用抗性
         result.extend(HYBRID_RESISTANCE_ATTRS)
     # else: 纯消耗品 (slot=heal, has_passive=false): 仅通用 + 战斗，不需要更多装备属性
-    
+
     return result
 
 
 def get_consumable_duration_attrs() -> list[str]:
     """获取消耗品持续效果属性 = 装备通用 + 战斗 + 伤害 + 抗性 + Buff专属"""
-    return (list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS) + 
-            list(HYBRID_DAMAGE_ATTRS) + list(HYBRID_RESISTANCE_ATTRS) + 
+    return (list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS) +
+            list(HYBRID_DAMAGE_ATTRS) + list(HYBRID_RESISTANCE_ATTRS) +
             list(HYBRID_BUFF_ONLY_ATTRS))
 
 
@@ -604,11 +604,11 @@ CONSUMABLE_INSTANT_ATTRS = {
 
 def get_attribute_groups(attr_list: list, group_order: list = None) -> dict:
     """根据属性列表动态生成分组
-    
+
     Args:
         attr_list: 属性名列表
         group_order: 可选的分组排序列表
-        
+
     Returns:
         {分组名: [属性列表]}，按 group_order 排序（如提供）
     """
@@ -616,7 +616,7 @@ def get_attribute_groups(attr_list: list, group_order: list = None) -> dict:
     for attr in attr_list:
         group = ATTRIBUTE_TO_GROUP.get(attr, "其他")
         groups.setdefault(group, []).append(attr)
-    
+
     # 如果提供了排序，按顺序返回
     if group_order:
         sorted_groups = {}
@@ -626,7 +626,7 @@ def get_attribute_groups(attr_list: list, group_order: list = None) -> dict:
         # 添加剩余未排序的组
         sorted_groups.update(groups)
         return sorted_groups
-    
+
     return groups
 
 

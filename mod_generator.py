@@ -141,22 +141,22 @@ from shop_configs import NPC_METADATA, SHOP_CONFIGS
 
 def get_attr_display(attr: str, lang: str = "Chinese") -> tuple[str, str]:
     """获取属性的本地化显示名称和说明
-    
+
     Args:
         attr: 属性键名 (如 "Hit_Chance")
         lang: 语言 (默认 "Chinese")，可选: Chinese, English, Russian, German, Spanish, French, Italian, Portuguese, Polish, Turkish, Japanese, Korean
-    
+
     Returns:
         (显示名称, 详细说明) 元组
     """
     # 获取属性翻译名称
     trans = ATTRIBUTE_TRANSLATIONS.get(attr, {})
     name = trans.get(lang) or trans.get("Chinese") or trans.get("English") or attr
-    
+
     # 获取属性说明
     desc_dict = ATTRIBUTE_DESCRIPTIONS.get(attr, {})
     desc = desc_dict.get(lang) or desc_dict.get("Chinese") or desc_dict.get("English") or ""
-    
+
     return (name, desc)
 
 
@@ -168,21 +168,21 @@ from contextlib import contextmanager
 
 class Layout:
     """布局尺寸 Design System
-    
+
     所有尺寸以 em 为单位，1em = font_size px。
     配合 apply_theme() 中的 style 缩放，确保不同字号下 UI 比例一致。
-    
+
     Token 计算基于 ImGui 内部尺寸:
     - Step 按钮宽度 ≈ 1.75em (含 frame_padding)
     - 字符宽度: CJK ≈ 1em, Latin ≈ 0.5em
-    
+
     使用示例:
         self.layout = Layout(lambda: self.font_size)
         width = self.layout.input_m      # 预定义尺寸
         width = self.layout.em(12)       # 自定义 12em
         width = self.layout.span(2)      # Grid: 2列宽度
     """
-    
+
     # ===== 输入框宽度 (em) =====
     # 公式: 3.5em (step按钮) + 字符数 × 字符宽度
     INPUT_XS = 5     # 2 CJK字符
@@ -190,49 +190,49 @@ class Layout:
     INPUT_M  = 8     # 6 混合字符 (负数+小数)
     INPUT_L  = 12    # 12 拉丁字符 (ID/名称)
     INPUT_XL = 18    # 21 拉丁字符 (长技能名)
-    
+
     # ===== Grid 系统 (em) =====
     # chunk_width(n) = n * GRID_COL + (n - 1) * GRID_GAP
     GRID_COL = 3.5   # 基础列宽 (3.5em ≈ 3.5中文字)
     GRID_GAP = 0.5   # 列间距 (0.5em ≈ 8px)
     GRID_DEBUG = False  # 开启 grid 调试线
-    
+
     # ===== Grid 语义别名 (span 数) =====
     SPAN_INPUT = 2   # 输入框默认占用列数
     SPAN_BADGE = 1   # Badge 默认占用列数
     SPAN_ID = 4      # ID 输入框占用列数
-    
+
     # ===== 列宽 (em) - INPUT 别名 =====
     LABEL_COL = INPUT_S     # 6em - 标签列
     COL_NARROW = INPUT_M    # 8em - 窄列
     COL_NORMAL = INPUT_L    # 12em - 标准列
     COL_WIDE = INPUT_XL     # 18em - 宽列
-    
+
     # ===== 间距 (em) - 2× 递增节奏 =====
     GAP_XS = 0.25    # inline 紧凑
     GAP_S  = 0.5     # 标签-输入间
     GAP_M  = 1.0     # 行间
     GAP_L  = 1.5     # 区块间
-    
+
     def __init__(self, get_font_size):
         self._get_font_size = get_font_size
-    
+
     def em(self, n: float) -> float:
         """将 em 单位转换为像素 (1em = font_size px)"""
         return n * self._get_font_size()
-    
+
     def span(self, n: int) -> float:
         """Grid 系统：计算 n 列的宽度
-        
+
         公式: n * col + (n - 1) * gap
-        
+
         span(1) = 48px   (1列，无间隙)
         span(2) = 104px  (2列，1间隙)
         span(3) = 160px  (3列，2间隙)
         """
         return self.em(n * self.GRID_COL + max(0, n - 1) * self.GRID_GAP)
 
-    
+
     # ===== 输入框宽度属性 =====
     @property
     def input_xs(self) -> float: return self.em(self.INPUT_XS)
@@ -244,7 +244,7 @@ class Layout:
     def input_l(self) -> float: return self.em(self.INPUT_L)
     @property
     def input_xl(self) -> float: return self.em(self.INPUT_XL)
-    
+
     # ===== 列宽属性 =====
     @property
     def label_col(self) -> float: return self.em(self.LABEL_COL)
@@ -254,13 +254,13 @@ class Layout:
     def col_normal(self) -> float: return self.em(self.COL_NORMAL)
     @property
     def col_wide(self) -> float: return self.em(self.COL_WIDE)
-    
+
     # ===== Grid 属性 =====
     @property
     def grid_col(self) -> float: return self.em(self.GRID_COL)
     @property
     def grid_gap(self) -> float: return self.em(self.GRID_GAP)
-    
+
     # ===== 间距属性 =====
     @property
     def gap_xs(self) -> float: return self.em(self.GAP_XS)
@@ -274,32 +274,32 @@ class Layout:
 
 class WrapLayout:
     """自动换行布局器 - Context Manager API
-    
+
     使用示例:
         with WrapLayout(self.layout) as wrap:
             wrap.labeled("品质", self.layout.input_s)
             self._draw_enum_combo(...)
-            
+
             wrap.labeled("等级", self.layout.input_xs)
             ...
     """
-    
+
     def __init__(self, layout, gap=None):
         self.layout = layout
         self.gap = gap if gap is not None else layout.gap_m
         self._cursor = 0
         self._available = 0
         self._first = True
-    
+
     def __enter__(self):
         self._available = imgui.get_content_region_available_width()
         self._cursor = 0
         self._first = True
         return self
-    
+
     def __exit__(self, *args):
         pass
-    
+
     def _maybe_wrap(self, width: float) -> bool:
         """内部：判断是否需要换行，返回是否换行了"""
         wrapped = False
@@ -315,14 +315,14 @@ class WrapLayout:
         self._cursor += width
         self._first = False
         return wrapped
-    
+
     def item(self, width: float):
         """单控件占位"""
         self._maybe_wrap(width)
-    
+
     def labeled(self, label: str, input_width: float):
         """标签+输入框组合 (最常用)
-        
+
         自动计算标签实际宽度，确保 label+input 作为原子单元不被拆分。
         调用后需紧跟输入控件 (已 set_next_item_width)。
         """
@@ -333,11 +333,11 @@ class WrapLayout:
         imgui.text(label)
         imgui.same_line(spacing=self.layout.gap_s)
         imgui.set_next_item_width(input_width)
-    
+
     @contextmanager
     def group(self, width: float):
         """自定义宽度的原子组
-        
+
         用于非标准组合，用户需自行保证内部元素总宽度 ≈ width。
         """
         self._maybe_wrap(width)
@@ -346,15 +346,15 @@ class WrapLayout:
 
 class GridLayout:
     """Grid 布局助手 - 用于 label-on-top 的表单布局
-    
+
     使用示例:
         grid = GridLayout(self.layout, self.text_secondary)
-        
+
         # Label 行
         grid.label_header("品质")
         grid.next_cell()
         grid.label_header("等级")
-        
+
         # Control 行 (新的一行, 不调用 next_cell)
         grid.field_width()
         imgui.combo(...)
@@ -362,7 +362,7 @@ class GridLayout:
         grid.field_width()
         imgui.combo(...)
     """
-    
+
     def __init__(self, layout: Layout, text_secondary_fn=None):
         """
         Args:
@@ -371,21 +371,21 @@ class GridLayout:
         """
         self.layout = layout
         self.text_secondary = text_secondary_fn or (lambda t: imgui.text(t))
-    
+
     @property
     def span(self):
         """返回 layout.span 函数"""
         return self.layout.span
-    
+
     @property
     def gap(self) -> float:
         """返回 grid_gap 像素值"""
         return self.layout.grid_gap
-    
+
     def next_cell(self):
         """移动到下一个 grid cell (同一行)"""
         imgui.same_line(spacing=self.layout.grid_gap)
-    
+
     def label_header(self, text: str, cols: int = 3):
         """绘制 label header，占用 cols 列宽度"""
         target_w = self.layout.span(cols)
@@ -394,11 +394,11 @@ class GridLayout:
         if text_w < target_w:
             imgui.same_line(spacing=0)
             imgui.dummy(target_w - text_w, 0)
-    
+
     def field_width(self, cols: int = 3):
         """设置下一个控件的宽度为 span(cols)"""
         imgui.set_next_item_width(self.layout.span(cols))
-    
+
     def text_cell(self, text: str, cols: int = 3):
         """绘制只读文本，占用 cols 列宽度"""
         target_w = self.layout.span(cols)
@@ -408,7 +408,7 @@ class GridLayout:
         if text_w < target_w:
             imgui.same_line(spacing=0)
             imgui.dummy(target_w - text_w, 0)
-    
+
     def button_cell(self, label: str, cols: int = 3) -> bool:
         """绘制按钮，占用 cols 列宽度，返回是否点击"""
         target_w = self.layout.span(cols)
@@ -418,7 +418,7 @@ class GridLayout:
             imgui.same_line(spacing=0)
             imgui.dummy(target_w - btn_w, 0)
         return clicked
-    
+
     def checkbox_cell(self, label: str, value: bool, cols: int = 3) -> tuple:
         """绘制 checkbox，占用 cols 列宽度，返回 (changed, new_value)"""
         target_w = self.layout.span(cols)
@@ -431,13 +431,13 @@ class GridLayout:
 
     # ===== 流式布局支持 (Flow Layout) =====
     # 用于处理可变宽度的 badges、buttons 等
-    
+
     def begin_flow(self, max_width: float = None):
         """开始流式布局区域
-        
+
         Args:
             max_width: 可选的最大宽度限制。用于限制内容区域宽度（考虑padding）。
-        
+
         在流式布局中，使用 flow_item() 自动处理换行。
         调用后需配合 end_flow() 使用。
         """
@@ -446,22 +446,22 @@ class GridLayout:
         self._flow_available = min(available, max_width) if max_width else available
         self._flow_first = True
         self._flow_gap = self.layout.gap_s
-    
+
     def end_flow(self):
         """结束流式布局区域"""
         self._flow_cursor = 0
         self._flow_first = True
-    
+
     def flow_item(self, width: float = None) -> bool:
         """在流式布局中放置一个元素
-        
+
         Args:
             width: 元素预估宽度（可选，用于预判是否换行）
                    如果不提供，会在元素绘制后检查
-        
+
         Returns:
             是否发生了换行（True = 换到新行了）
-        
+
         使用方式:
             grid.begin_flow()
             for badge in badges:
@@ -470,13 +470,13 @@ class GridLayout:
             grid.end_flow()
         """
         wrapped = False
-        
+
         if not hasattr(self, '_flow_cursor'):
             self._flow_cursor = 0
             self._flow_available = imgui.get_content_region_available_width()
             self._flow_first = True
             self._flow_gap = self.layout.gap_s
-        
+
         if not self._flow_first:
             # 预判：如果提供了宽度，检查是否放得下
             if width is not None:
@@ -492,13 +492,13 @@ class GridLayout:
                 # 没有预判宽度，先 same_line，之后检查
                 imgui.same_line(spacing=self._flow_gap)
                 self._flow_cursor += self._flow_gap
-        
+
         self._flow_first = False
         return wrapped
-    
+
     def flow_item_after(self):
         """在元素绘制后调用，更新流式布局游标
-        
+
         如果 flow_item() 没有传入 width，需要在元素绘制后调用此方法。
         """
         if hasattr(self, '_flow_cursor'):
@@ -520,69 +520,69 @@ def item_width(width: float):
 @contextmanager
 def framed_group(title: str = "", padding: float = 6.0):
     """带1px边框的分组容器，经典工具软件风格
-    
+
     Args:
         title: 可选标题，显示在边框左上角
         padding: 内边距
-    
+
     Usage:
         with framed_group("形态"):
             # 内容...
     """
     draw_list = imgui.get_window_draw_list()
-    
+
     # 记录起始位置
     start_pos = imgui.get_cursor_screen_pos()
     start_cursor = imgui.get_cursor_pos()
-    
+
     # 标题高度计算
     title_height = 0
     if title:
         title_height = imgui.get_text_line_height()
-    
+
     # 为边框和标题留出空间
     imgui.dummy(0, padding + title_height * 0.5 if title else padding)
     imgui.indent(padding)
-    
+
     # 开始一个 group 来追踪内容尺寸
     imgui.begin_group()
-    
+
     try:
         yield
     finally:
         imgui.end_group()
-        
+
         # 获取 group 尺寸
         content_min = imgui.get_item_rect_min()
         content_max = imgui.get_item_rect_max()
-        
+
         # 取消缩进
         imgui.unindent(padding)
         imgui.dummy(0, padding)
-        
+
         # 计算边框位置
         frame_min_x = start_pos.x
         frame_min_y = start_pos.y + (title_height * 0.5 if title else 0)
         frame_max_x = content_max.x + padding
         frame_max_y = imgui.get_cursor_screen_pos().y
-        
+
         # 获取边框颜色
         border_color = imgui.get_color_u32_rgba(0.4, 0.4, 0.4, 0.6)
         bg_color = imgui.get_color_u32_rgba(0.0, 0.0, 0.0, 0.0)  # 透明背景
-        
+
         # 绘制边框（1px 实线）
         draw_list.add_rect(
             frame_min_x, frame_min_y,
             frame_max_x, frame_max_y,
             border_color, rounding=0.0, thickness=1.0
         )
-        
+
         # 绘制标题
         if title:
             title_x = frame_min_x + padding
             title_y = start_pos.y
             title_size = imgui.calc_text_size(title)
-            
+
             # 绘制标题背景（覆盖边框线）
             window_bg = imgui.get_style().colors[imgui.COLOR_WINDOW_BACKGROUND]
             bg_color = imgui.get_color_u32_rgba(window_bg.x, window_bg.y, window_bg.z, window_bg.w)
@@ -591,7 +591,7 @@ def framed_group(title: str = "", padding: float = 6.0):
                 title_x + title_size.x + 4, title_y + title_size.y,
                 bg_color
             )
-            
+
             # 绘制标题文字
             text_color = imgui.get_color_u32_rgba(0.6, 0.6, 0.6, 1.0)
             draw_list.add_text(title_x, title_y, text_color, title)
@@ -645,10 +645,10 @@ class ModGeneratorGUI:
 
         # 加载配置
         self.load_config()
-        
+
         # 布局尺寸系统（必须在 apply_theme 之前初始化）
         self.layout = Layout(lambda: self.font_size)
-        
+
         # 应用主题和字体
         self.apply_theme()
         self.reload_fonts()
@@ -712,16 +712,16 @@ class ModGeneratorGUI:
 
     def apply_theme(self):
         """应用颜色主题 - 基于 Layout 常量系统
-        
+
         使用 self.layout 的 gap_* 属性确保 style 与 Layout token 一致
         """
         style = imgui.get_style()
-        
+
         # === 间距与布局 - 直接使用 Layout 常量 ===
         gap_xs = self.layout.gap_xs  # 0.25em
         gap_s = self.layout.gap_s    # 0.5em
         gap_m = self.layout.gap_m    # 1.0em
-        
+
         style.window_padding = (gap_s, gap_s)
         style.frame_padding = (gap_s, gap_xs)
         style.item_spacing = (gap_s, gap_xs)
@@ -745,7 +745,7 @@ class ModGeneratorGUI:
         style.frame_border_size = 0
         style.popup_border_size = 1
         style.tab_border_size = 0
-        
+
         # === 表格与其他 ===
         style.cell_padding = (gap_xs, gap_xs)       # 表格单元格
         style.touch_extra_padding = (gap_xs, gap_xs)  # 触控扩展
@@ -1770,7 +1770,7 @@ class ModGeneratorGUI:
 
     def _should_show_hybrid_attributes(self, hybrid: HybridItem) -> bool:
         """判断是否显示属性加成编辑器
-        
+
         需求调整：即使是武器/护甲也允许编辑额外属性（例如 HYBRID_ITEM_TEMPLATE 中提到的武器可选属性）。
         因此只要是武器/护甲/有被动效果，就展示属性编辑器。
         """
@@ -1862,12 +1862,12 @@ class ModGeneratorGUI:
             hybrid.cat = "treasure"
         elif hybrid.cat == "treasure":
             hybrid.cat = ""
-        
+
         available_cats = [c for c in ITEM_CATEGORIES if c != "treasure"] if not is_treasure else ["treasure"]
         cat_options = (["treasure"] if is_treasure else [""]) + ([] if is_treasure else available_cats)
         cat_labels = {"": "—"}
         cat_labels.update({c: CATEGORY_TRANSLATIONS.get(c, c) for c in ITEM_CATEGORIES})
-        
+
         if is_treasure:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.6)
         grid.field_width(L.SPAN_INPUT)
@@ -1879,19 +1879,19 @@ class ModGeneratorGUI:
 
         # === 第三行：子分类（Grid对齐流式布局）===
         grid.label_header("子分类", L.SPAN_INPUT)
-        
+
         subcat_options = ALL_SUBCATEGORY_OPTIONS if hybrid.quality == 7 else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
         if "treasure" in hybrid.subcats and hybrid.quality != 7:
             hybrid.subcats.remove("treasure")
-        
+
         grid.begin_flow(L.span(8))  # 限制在8列宽度内换行
-        
+
         # 添加子分类按钮 (span=1)
         if imgui.button("+##add_subcat", L.span(L.SPAN_BADGE), 0):
             imgui.open_popup("subcats_popup")
         tooltip("添加子分类")
         grid.flow_item_after()
-        
+
         # 显示已选子分类 badges (固定 span=1 宽度)
         badge_width = L.span(L.SPAN_BADGE)
         to_remove_subcat = None
@@ -1902,7 +1902,7 @@ class ModGeneratorGUI:
             style = imgui.get_style()
             available_width = badge_width - 2 * style.frame_padding.x
             is_truncated = text_size.x > available_width
-            
+
             grid.flow_item(badge_width)
             imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, style.frame_padding.y))
             imgui.push_style_color(imgui.COLOR_BUTTON, *self.theme_colors["badge_subcat"])
@@ -1920,7 +1920,7 @@ class ModGeneratorGUI:
             grid.flow_item_after()
         if to_remove_subcat:
             hybrid.subcats.remove(to_remove_subcat)
-        
+
         if imgui.begin_popup("subcats_popup"):
             for subcat in subcat_options:
                 is_selected = subcat in hybrid.subcats
@@ -1939,15 +1939,15 @@ class ModGeneratorGUI:
                 if is_disabled:
                     imgui.pop_style_var()
             imgui.end_popup()
-        
+
         grid.end_flow()
 
         # === 第四行：标签（流式布局）===
         grid.label_header("标签", L.SPAN_INPUT)
-        
+
         # 品质标签实时更新
         hybrid.quality_tag = "unique" if hybrid.quality == 6 else ""
-        
+
         # 收集所有有效标签
         all_set_tags = []
         if hybrid.quality_tag:
@@ -1960,15 +1960,15 @@ class ModGeneratorGUI:
             all_set_tags.append(("extra", tag))
         if hybrid.exclude_from_random:
             all_set_tags.append(("special", "special"))
-        
+
         grid.begin_flow(L.span(8))  # 限制在8列宽度内换行
-        
+
         # 添加标签按钮
         if imgui.button("+##add_tag", L.span(L.SPAN_BADGE), 0):
             imgui.open_popup("tags_popup")
         tooltip("添加标签")
         grid.flow_item_after()
-        
+
         # 显示标签 badges (固定 span=1 宽度)
         badge_width = L.span(L.SPAN_BADGE)
         to_remove_tag = None
@@ -1999,27 +1999,27 @@ class ModGeneratorGUI:
                 badge_color = self.theme_colors["badge_tag"]
                 can_remove = True
                 locked_reason = ""
-            
+
             # 检测是否需要截断
             text_size = imgui.calc_text_size(full_label)
             style = imgui.get_style()
             available_width = badge_width - 2 * style.frame_padding.x
             is_truncated = text_size.x > available_width
-            
+
             # 选择 hover 颜色
             hover_color = self.theme_colors["badge_hover_remove"] if can_remove else self.theme_colors["badge_hover_locked"]
-            
+
             grid.flow_item(badge_width)
             imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, style.frame_padding.y))
             imgui.push_style_color(imgui.COLOR_BUTTON, *badge_color)
             imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *hover_color)
-            
+
             if imgui.button(f"{full_label}##{tag_type}_{tag_val}_badge", badge_width, 0):
                 if can_remove:
                     to_remove_tag = (tag_type, tag_val)
             imgui.pop_style_color(2)
             imgui.pop_style_var()
-            
+
             # 组合 tooltip: 截断文本 + 操作提示
             tooltip_parts = []
             if is_truncated:
@@ -2031,7 +2031,7 @@ class ModGeneratorGUI:
             if tooltip_parts:
                 tooltip("\n".join(tooltip_parts))
             grid.flow_item_after()
-        
+
         # 处理移除
         if to_remove_tag:
             tag_type, tag_val = to_remove_tag
@@ -2067,7 +2067,7 @@ class ModGeneratorGUI:
                     else:
                         hybrid.extra_tags.remove(tag_val)
             imgui.end_popup()
-        
+
         grid.end_flow()
 
         # 注：生成规则已移至 _draw_hybrid_behavior 末尾
@@ -2086,7 +2086,7 @@ class ModGeneratorGUI:
             SpawnRule.NONE: "不生成",
         }
         can_use_equipment = hybrid.equipment_mode != EquipmentMode.NONE
-        
+
         # Label 行
         grid.label_header("排除随机生成", L.SPAN_INPUT)
         grid.next_cell()
@@ -2097,7 +2097,7 @@ class ModGeneratorGUI:
             grid.next_cell()
 
         grid.label_header("生成预测", L.SPAN_INPUT)
-        
+
         # Control 行
         _, hybrid.exclude_from_random = grid.checkbox_cell("##exc_random", hybrid.exclude_from_random, L.SPAN_INPUT)
         tooltip("排除随机生成：物品不会在宝箱/商店随机出现\n仍会添加 special 标签用于脚本添加")
@@ -2120,7 +2120,7 @@ class ModGeneratorGUI:
                 "• 按道具池：根据分类/子分类 + 标签 + 层级匹配\n"
                 "• 不生成：不在容器中随机出现"
             )
-            
+
             grid.next_cell()
             # 商店
             grid.field_width(L.SPAN_INPUT)
@@ -2138,7 +2138,7 @@ class ModGeneratorGUI:
                 "• 按道具池：根据分类/子分类 + 层级 + 标签匹配\n"
                 "• 不生成：不在商店随机出现"
             )
-            
+
             grid.next_cell()
 
 
@@ -2318,7 +2318,7 @@ class ModGeneratorGUI:
         except ImportError:
             self.text_secondary("  (击杀数据未加载)")
             return
-        
+
         # 确定物品的 slot（武器类型或护甲槽位）
         if hybrid.equipment_mode == EquipmentMode.WEAPON:
             item_slot = hybrid.weapon_type
@@ -2327,10 +2327,10 @@ class ModGeneratorGUI:
         else:
             self.text_secondary("  (需要装备形态)")
             return
-        
+
         item_tier = hybrid.tier
         matching_enemies = []
-        
+
         # 精确匹配 DROP_TABLE: {(tier, slot): [敌人列表]}
         key = (item_tier, item_slot)
         if key in DROP_TABLE:
@@ -2339,11 +2339,11 @@ class ModGeneratorGUI:
                 name = meta.get("name_zh") or meta.get("name_en") or enemy_obj
                 enemy_tier = meta.get("tier", 0)
                 matching_enemies.append(f"{name}(T{enemy_tier})")
-        
+
         if not matching_enemies:
             self.text_secondary("  (无匹配)")
             return
-        
+
         # 去重
         unique_enemies = list(dict.fromkeys(matching_enemies))
         display = ", ".join(unique_enemies)
@@ -2392,7 +2392,7 @@ class ModGeneratorGUI:
 
     def _draw_hybrid_behavior(self, hybrid: HybridItem):
         """绘制行为区块 - Grid 系统布局
-        
+
         Grid 规则:
         - 每个 chunk 宽度 = span(n) = n * col + (n-1) * gap
         - chunk 之间用 grid_gap 分隔
@@ -2414,14 +2414,14 @@ class ModGeneratorGUI:
             ChargeMode.LIMITED: "有限",
             ChargeMode.UNLIMITED: "无限",
         }
-        
+
         # GridLayout 类替代内联 helper 函数
         grid = GridLayout(self.layout, self.text_secondary)
         L = self.layout  # 语义别名引用
         col = L.grid_col
         gap = L.grid_gap
         debug_grid = L.GRID_DEBUG
-        
+
         # Debug: draw grid lines
         if debug_grid:
             draw_list = imgui.get_window_draw_list()
@@ -2430,7 +2430,7 @@ class ModGeneratorGUI:
             window_y = cursor_pos[1]
             window_h = 150  # 绘制高度
             available_w = imgui.get_content_region_available_width()
-            
+
             # 交替绘制 col (红色) 和 gap (绿色) 区域
             x = content_x
             is_col = True  # 交替标记
@@ -2443,17 +2443,17 @@ class ModGeneratorGUI:
                     # Gap - 绿色半透明
                     w = gap
                     color = imgui.get_color_u32_rgba(0.3, 1, 0.3, 0.25)
-                
+
                 # 绘制填充矩形
                 if x + w <= content_x + available_w:
                     draw_list.add_rect_filled(x, window_y, x + w, window_y + window_h, color)
                     # 边框线
                     border_color = imgui.get_color_u32_rgba(1, 1, 1, 0.3)
                     draw_list.add_rect(x, window_y, x + w, window_y + window_h, border_color, 0, 0, 1.0)
-                
+
                 x += w
                 is_col = not is_col
-        
+
         # ━━━ 形态行 ━━━
         # Label 行 (所有 labels 画在一行)
         grid.label_header("装备形态", L.SPAN_INPUT)
@@ -2471,7 +2471,7 @@ class ModGeneratorGUI:
                 grid.next_cell()
                 grid.label_header("碎片数", L.SPAN_INPUT)
         # Label 行结束，不调用 next_cell()
-        
+
         # Control 行 (新的一行开始)
         grid.field_width(L.SPAN_INPUT)
         old_mode = hybrid.equipment_mode
@@ -2528,7 +2528,7 @@ class ModGeneratorGUI:
             grid.next_cell()
             grid.label_header("技能", L.SPAN_INPUT)
         # Label 行结束
-        
+
         # Control 行
         grid.field_width(L.SPAN_INPUT)
         old_trigger = hybrid.trigger_mode
@@ -2575,14 +2575,14 @@ class ModGeneratorGUI:
                 grid.label_header("磨损%", L.SPAN_INPUT)
                 grid.next_cell()
             grid.label_header("耐久归零销毁", L.SPAN_INPUT)
-            
+
             # Control 行
             grid.field_width(L.SPAN_INPUT)
             changed, hybrid.duration_max = imgui.input_int("##dur_max", hybrid.duration_max)
             if changed:
                 hybrid.duration_max = max(1, hybrid.duration_max)
             grid.next_cell()
-            
+
             if hybrid.has_charges:
                 grid.field_width(L.SPAN_INPUT)
                 changed, hybrid.wear_per_use = imgui.input_int("##wear", hybrid.wear_per_use)
@@ -2590,7 +2590,7 @@ class ModGeneratorGUI:
                 if changed:
                     hybrid.wear_per_use = max(0, min(100, hybrid.wear_per_use))
                 grid.next_cell()
-            
+
             _, hybrid.destroy_on_durability_zero = grid.checkbox_cell("##dur_del", hybrid.destroy_on_durability_zero, L.SPAN_INPUT)
 
         # ━━━ 次数组（条件显示）━━━
@@ -2612,7 +2612,7 @@ class ModGeneratorGUI:
                 if not hybrid.has_durability and hybrid.quality != 7:
                     grid.next_cell()
                     grid.label_header("次数耗尽销毁", L.SPAN_INPUT)
-            
+
             # Control 行
             grid.field_width(L.SPAN_INPUT)
             old_mode = hybrid.charge_mode
@@ -2646,7 +2646,7 @@ class ModGeneratorGUI:
                     tooltip("文物自动恢复")
                 else:
                     _, hybrid.has_charge_recovery = grid.checkbox_cell("##recovery", hybrid.has_charge_recovery, L.SPAN_INPUT)
-                
+
                 if hybrid.has_charge_recovery:
                     grid.next_cell()
                     grid.field_width(L.SPAN_INPUT)
@@ -2657,7 +2657,7 @@ class ModGeneratorGUI:
                 if not hybrid.has_durability and hybrid.quality != 7:
                     grid.next_cell()
                     _, hybrid.delete_on_charge_zero = grid.checkbox_cell("##charge_del", hybrid.delete_on_charge_zero, L.SPAN_INPUT)
-        
+
         if not hybrid.has_durability and not hybrid.has_charges:
             hybrid.charge = 1
             hybrid.draw_charges = False
@@ -2744,10 +2744,10 @@ class ModGeneratorGUI:
             imgui.table_setup_column("I2", imgui.TABLE_COLUMN_WIDTH_STRETCH)
 
             imgui.table_next_row()
-            
+
             imgui.table_next_column()
             imgui.text("武器类型")
-            
+
             imgui.table_next_column()
             with item_width(-1):
                 hybrid.weapon_type = self._draw_enum_combo(
@@ -2755,10 +2755,10 @@ class ModGeneratorGUI:
                     list(HYBRID_WEAPON_TYPES.keys()), HYBRID_WEAPON_TYPES
                 )
             # hands 是计算属性，由 weapon_type 自动推断
-            
+
             imgui.table_next_column()
             imgui.text("平衡")
-            
+
             imgui.table_next_column()
             with item_width(-1):
                 changed, hybrid.balance = imgui.input_int("##wep_balance", hybrid.balance)
@@ -2786,29 +2786,29 @@ class ModGeneratorGUI:
             imgui.table_setup_column("I2", imgui.TABLE_COLUMN_WIDTH_STRETCH)
 
             imgui.table_next_row()
-            
+
             imgui.table_next_column()
             imgui.text("护甲类型")
-            
+
             imgui.table_next_column()
             with item_width(-1):
                 hybrid.armor_type = self._draw_enum_combo(
                     "##armor_type", hybrid.armor_type,
                     list(HYBRID_ARMOR_TYPES.keys()), HYBRID_ARMOR_TYPES
                 )
-            
+
             # 根据护甲类型自动设置槽位
             hybrid.slot = "hand" if hybrid.armor_type == "shield" else hybrid.armor_type
 
             imgui.table_next_column()
             imgui.text("护甲类别")
-            
+
             imgui.table_next_column()
             self.text_secondary(f"{hybrid.armor_class}")
             tooltip("由基本属性中的'重量'自动计算:\nLight/VeryLight → Light\nMedium → Medium\nHeavy → Heavy")
 
             imgui.end_table()
-        
+
         # 碎片材料编辑器（用于拆解，仅非盾/戒/项链显示）
         if hybrid.slot not in ["hand", "Ring", "Amulet"]:
             if imgui.tree_node("拆解碎片##fragments"):
@@ -2818,36 +2818,36 @@ class ModGeneratorGUI:
                     ("metal01", "铁1"), ("metal02", "铁2"), ("metal03", "铁3"), ("metal04", "铁4"),
                     ("gold", "金"),
                 ]
-                
+
                 # 4列布局: 标签|输入|标签|输入
                 if imgui.begin_table("frag_table", 4, imgui.TABLE_SIZING_STRETCH_SAME):
                     imgui.table_setup_column("L1", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
                     imgui.table_setup_column("I1", imgui.TABLE_COLUMN_WIDTH_FIXED, 50)
                     imgui.table_setup_column("L2", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
                     imgui.table_setup_column("I2", imgui.TABLE_COLUMN_WIDTH_FIXED, 50)
-                    
+
                     for i, (frag_key, frag_label) in enumerate(frag_data):
                         if i % 2 == 0:
                             imgui.table_next_row()
-                        
+
                         imgui.table_next_column()
                         imgui.text(frag_label)
-                        
+
                         imgui.table_next_column()
                         val = hybrid.fragments.get(frag_key, 0)
                         with item_width(-1):
                             changed, new_val = imgui.input_int(f"##{frag_key}", val, step=0, step_fast=0)
                         if changed:
                             hybrid.fragments[frag_key] = max(0, new_val)
-                    
+
                     imgui.end_table()
-                
+
                 tooltip("拆解物品时获得的碎片材料")
                 imgui.tree_pop()
 
     def _draw_hybrid_attributes_editor(self, hybrid: HybridItem):
         """绘制属性编辑器 - 多列布局，标签列宽度适配中文
-        
+
         布局: [input_s][label_6em] × N 列
         """
         groups = self._get_hybrid_attribute_groups(hybrid)
@@ -2864,12 +2864,12 @@ class ModGeneratorGUI:
             tips.append("被动")
         if tips:
             self.text_secondary(f"属性模式: {'/'.join(tips)}")
-        
+
         # 每个属性单元宽度: label(6em) + input_m(8em) + gap_m(1em) = 15em
         unit_width = self.layout.em(6) + self.layout.input_m + self.layout.gap_m
         available = imgui.get_content_region_available_width()
         cols = max(1, int(available / unit_width))
-        
+
         for group_name, attributes in groups.items():
             tree_id = f"{group_name}##hybrid_attr"
             if imgui.tree_node(tree_id):
@@ -2887,7 +2887,7 @@ class ModGeneratorGUI:
                     for idx, attr in enumerate(attributes):
                         if idx % cols == 0:
                             imgui.table_next_row()
-                        
+
                         desc_name, desc_detail = get_attr_display(attr)
                         if not desc_name:
                             desc_name = attr
@@ -2912,7 +2912,7 @@ class ModGeneratorGUI:
                             changed, new_val = imgui.input_int(f"##{attr}_hybrid", val, 1, 10)
                         if changed:
                             hybrid.attributes[attr] = new_val
-                        
+
                         # gap (占位)
                         imgui.table_next_column()
 
@@ -2940,11 +2940,11 @@ class ModGeneratorGUI:
 
         if imgui.collapsing_header("消耗品属性")[0]:
             imgui.indent()
-            
+
             # 持续时间控制
             duration_attr = CONSUMABLE_DURATION_ATTRIBUTE
             duration_val = hybrid.consumable_attributes.get(duration_attr, 0)
-            
+
             imgui.set_next_item_width(self.layout.input_m)
             changed, new_dur = imgui.input_int("效果持续时间##consum_duration", int(duration_val), 1, 10)
             tooltip("部分属性需要持续时间 > 0 才生效")
@@ -2975,11 +2975,11 @@ class ModGeneratorGUI:
                 display_name = group_name
                 if "（" in group_name:
                     display_name = group_name.split("（", 1)[1].rstrip("）")
-                
+
                 if imgui.tree_node(f"{display_name}##consum_{group_name}"):
                     if not enabled:
                         imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-                    
+
                     if imgui.begin_table(f"consum_table_{group_name}", cols * 3, imgui.TABLE_SIZING_FIXED_FIT):
                         for i in range(cols):
                             imgui.table_setup_column(f"lb{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, self.layout.em(6))
@@ -2992,14 +2992,14 @@ class ModGeneratorGUI:
                         for idx, attr in enumerate(attr_list):
                             if idx % cols == 0:
                                 imgui.table_next_row()
-                            
+
                             attr_name, attr_desc = get_attr_display(attr)
                             if not attr_name:
                                 attr_name = attr
-                            
+
                             val = hybrid.consumable_attributes.get(attr, 0)
                             is_float_attr = attr in CONSUMABLE_FLOAT_ATTRIBUTES
-                            
+
                             # 标签 (右对齐)
                             imgui.table_next_column()
                             label_w = imgui.calc_text_size(attr_name)[0]
@@ -3011,7 +3011,7 @@ class ModGeneratorGUI:
                             imgui.text(attr_name)
                             if attr_desc and imgui.is_item_hovered():
                                 imgui.set_tooltip(attr_desc)
-                            
+
                             # 输入
                             imgui.table_next_column()
                             with item_width(-1):
@@ -3026,12 +3026,12 @@ class ModGeneratorGUI:
                                 else:
                                     display_val = f"{val:.2f}" if is_float_attr else str(int(val))
                                     imgui.text(display_val)
-                            
+
                             # gap
                             imgui.table_next_column()
 
                         imgui.end_table()
-                    
+
                     if not enabled:
                         imgui.pop_style_var()
                     imgui.tree_pop()
@@ -3040,17 +3040,17 @@ class ModGeneratorGUI:
             imgui.text_colored("即时效果", *self.theme_colors["accent"])
             for group_name, attrs in instant_groups.items():
                 draw_attr_group_table(group_name, attrs, enabled=True)
-            
+
             # 持续效果
             header = "持续效果" if duration_valid else "持续效果 [需设置持续时间]"
             imgui.text_colored(header, *self.theme_colors["accent" if duration_valid else "text_secondary"])
-            
+
             if duration_valid or imgui.tree_node("查看被禁用的属性##consum_disabled"):
                 for group_name, attrs in duration_groups.items():
                     draw_attr_group_table(group_name, attrs, enabled=duration_valid)
                 if not duration_valid:
                     imgui.tree_pop()
-                
+
             imgui.unindent()
 
 
@@ -3061,13 +3061,13 @@ class ModGeneratorGUI:
         # 获取该槽位的属性列表（被动携带物品需要额外抗性属性）
         attrs = get_hybrid_attrs_for_slot(hybrid.slot, hybrid.has_passive)
         result = get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
-        
+
         # 清理不再允许的属性
         if result:
             allowed = {a for attr_list in result.values() for a in attr_list}
             for k in [k for k in hybrid.attributes if k not in allowed]:
                 del hybrid.attributes[k]
-        
+
         return result
 
     def _compute_weapon_damage_components(self, hybrid: HybridItem) -> list[tuple[str, int]]:
@@ -3096,7 +3096,7 @@ class ModGeneratorGUI:
 
     def _draw_hybrid_textures_editor(self, hybrid: HybridItem):
         """绘制混合物品贴图编辑器 - 精简版
-        
+
         设计原则: Tufte - 删除静态提示文字，改为 tooltip
         """
         # 预览缩放 + 格式提示 (内联)
@@ -3231,24 +3231,24 @@ class ModGeneratorGUI:
                 "物品将添加 'special' 标签\n"
                 "关闭后，可设置分类和标签使物品参与随机生成"
             )
-        
+
         self.draw_indented_separator()
-        
+
         if hybrid.exclude_from_random:
             self.text_secondary("提示: 已排除随机生成，下方设置用于自定义生成逻辑或指令添加")
-        
+
         # ====== 分类设置 ======
         imgui.text("分类设置")
-        
+
         # 两列布局
         col_width = imgui.get_content_region_available_width() / 2 - 8
         imgui.columns(2, "drop_slot_cols", border=False)
         imgui.set_column_width(0, col_width)
-        
+
         # 左列: Cat
         imgui.push_item_width(-1)
         imgui.text("主分类 (Cat)")
-        
+
         # 文物主分类固定为 treasure
         if hybrid.quality == 7:  # 文物
             hybrid.cat = "treasure"
@@ -3266,17 +3266,17 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip("物品的主分类，用于掉落表匹配")
         imgui.pop_item_width()
-        
+
         # 等级已移至基本属性区域
-        
+
         imgui.columns(1)
-        
+
         # ====== Subcats 多选 ======
         imgui.dummy(0, 4)
         imgui.text("子分类 (Subcats)")
         if imgui.is_item_hovered():
             imgui.set_tooltip("可多选。物品可以匹配主分类或任一子分类")
-        
+
         # 使用四列网格布局
         # 非文物不能选择 treasure
         if hybrid.quality == 7:
@@ -3286,22 +3286,22 @@ class ModGeneratorGUI:
             # 如果当前选择了 treasure，移除它
             if "treasure" in hybrid.subcats:
                 hybrid.subcats.remove("treasure")
-        
+
         num_cols = 4
         col_width = imgui.get_content_region_available_width() / num_cols - 4
         imgui.columns(num_cols, "subcat_cols", border=False)
         for i in range(num_cols):
             imgui.set_column_width(i, col_width)
-        
+
         for i, subcat in enumerate(subcat_options):
             is_selected = subcat in hybrid.subcats
             is_disabled = (subcat == hybrid.cat)
-            
+
             if is_disabled:
                 imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-            
+
             changed, new_value = imgui.checkbox(
-                f"{CATEGORY_TRANSLATIONS.get(subcat, subcat)}##subcat_{subcat}", 
+                f"{CATEGORY_TRANSLATIONS.get(subcat, subcat)}##subcat_{subcat}",
                 is_selected
             )
             if changed and not is_disabled:
@@ -3309,44 +3309,44 @@ class ModGeneratorGUI:
                     hybrid.subcats.append(subcat)
                 else:
                     hybrid.subcats.remove(subcat)
-            
+
             if is_disabled:
                 imgui.pop_style_var()
                 if imgui.is_item_hovered():
                     imgui.set_tooltip("已选为主分类，无需重复选择")
-            
+
             imgui.next_column()
-        
+
         imgui.columns(1)
-        
+
         self.draw_indented_separator()
-        
+
         # ====== Tags 设置 ======
         imgui.text("标签设置")
-        
+
         imgui.columns(3, "tags_cols", border=False)
-        
+
         # 品质标签自动设置（不显示控件）
         # quality 6 = 独特 -> 品质标签为 unique
         # 其他 -> 品质标签为空
         hybrid.quality_tag = "unique" if hybrid.quality == 6 else ""
-        
+
         # 地牢标签 (单选)
         imgui.text("地牢")
         for tag_val, tag_label in DUNGEON_TAGS.items():
             if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
                 hybrid.dungeon_tag = tag_val
-        
+
         imgui.next_column()
-        
+
         # 国家标签 (单选，互斥)
         imgui.text("国家/地区")
         for tag_val, tag_label in COUNTRY_TAGS.items():
             if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
                 hybrid.country_tag = tag_val
-        
+
         imgui.next_column()
-        
+
         # 其他标签 (多选)
         imgui.text("其他")
         for tag_val, tag_label in EXTRA_TAGS.items():
@@ -3357,28 +3357,28 @@ class ModGeneratorGUI:
                     hybrid.extra_tags.append(tag_val)
                 else:
                     hybrid.extra_tags.remove(tag_val)
-        
+
         imgui.columns(1)
-        
+
         # 显示有效 tags
         imgui.dummy(0, 4)
         self.text_secondary(f"有效标签: {hybrid.effective_tags or '(无)'}")
-        
+
         self.draw_indented_separator()
-        
+
         # ====== 生成路径配置 ======
         imgui.text("生成路径配置")
         if imgui.is_item_hovered():
             imgui.set_tooltip("统一控制容器/商店/击杀的生成路径\n"
                               "装备品: 从装备筛选路径生成（与原生装备一起随机）\n"
                               "非装备品: 保持当前行为")
-        
+
         spawn_mode_options = [SpawnMode.NON_EQUIPMENT, SpawnMode.EQUIPMENT]
         spawn_mode_labels = {
             SpawnMode.EQUIPMENT: "装备品路径",
             SpawnMode.NON_EQUIPMENT: "非装备品路径",
         }
-        
+
         imgui.set_next_item_width(200)
         if imgui.begin_combo("##spawn_mode", spawn_mode_labels[hybrid.spawn_mode]):
             for mode in spawn_mode_options:
@@ -3386,56 +3386,56 @@ class ModGeneratorGUI:
                 if imgui.selectable(spawn_mode_labels[mode], selected)[0]:
                     hybrid.spawn_mode = mode
             imgui.end_combo()
-        
+
         if hybrid.spawn_mode == SpawnMode.EQUIPMENT:
             imgui.same_line()
             self.text_secondary("(自动添加 special 标签)")
-        
+
         self.draw_indented_separator()
-        
+
         # ====== 掉落匹配预览 ======
         self._draw_drop_pool_preview(hybrid)
-        
+
         # ====== 商店预览 ======
         self.draw_indented_separator()
         imgui.text("商店进货预览")
         if imgui.is_item_hovered():
             imgui.set_tooltip("显示物品可能出现的商店\n"
                               "商店根据分类/标签/等级筛选库存")
-        
+
         if hybrid.spawn_mode == SpawnMode.NON_EQUIPMENT:
             # 非装备路径商店：匹配 selling_loot_category
             self._draw_shop_preview_non_equipment(hybrid)
         elif hybrid.spawn_mode == SpawnMode.EQUIPMENT:
             # 装备路径商店：匹配 tier_range, material_spec, trade_tags
             self._draw_shop_preview_equipment(hybrid)
-    
+
     def _draw_shop_preview_non_equipment(self, hybrid: HybridItem):
         """绘制非装备路径商店预览"""
         if not (hybrid.cat or hybrid.subcats):
             self.text_secondary("(请设置分类以查看匹配商店)")
             return
-        
+
         # 匹配商店：检查 selling_loot_category 是否包含物品的分类
         item_cats = set([hybrid.cat] + list(hybrid.subcats))
         item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
         matching_shops = []
-        
+
         for objects_tuple, config in SHOP_CONFIGS.items():
             selling_cats = config.get("selling_loot_category", {})
             trade_tags = set(config.get("trade_tags", []))
-            
+
             matched_cats = item_cats & set(selling_cats.keys())
             if not matched_cats:
                 continue
-            
+
             # 计算匹配分类的数量
             total_count = sum(selling_cats.get(c, 0) for c in matched_cats if isinstance(selling_cats.get(c), int))
-            
+
             # 标签检查：物品标签须为商店 trade_tags 的子集
             if trade_tags and item_tags and not item_tags.issubset(trade_tags):
                 continue
-            
+
             for obj in objects_tuple:
                 meta = NPC_METADATA.get(obj, {})
                 # 暂时隐藏没有名字的商店
@@ -3449,33 +3449,33 @@ class ModGeneratorGUI:
                     "count": str(total_count) if total_count else "-",
                     "tags": " ".join(trade_tags) if trade_tags else "-",
                 })
-        
+
         self._render_shop_table(matching_shops, "noneq", ["商店名称", "城镇", "匹配分类", "数量", "标签"])
-    
+
     def _draw_shop_preview_equipment(self, hybrid: HybridItem):
         """绘制装备路径商店预览"""
         item_tier = hybrid.tier
         item_material = hybrid.material
         item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
-        
+
         # 获取物品的装备分类
         item_weapon_type = hybrid.weapon_type if hybrid.equipment_mode == EquipmentMode.WEAPON else None
         item_armor_slot = hybrid.slot if hybrid.equipment_mode == EquipmentMode.ARMOR else None
         is_jewelry = item_armor_slot in ("ring", "amulet") if item_armor_slot else False
-        
+
         matching_shops = []
-        
+
         for objects_tuple, config in SHOP_CONFIGS.items():
             selling_cats = config.get("selling_loot_category", {})
             tier_range = config.get("tier_range", [1, 1])
             material_spec = config.get("material_spec", ["all"])
             trade_tags = set(config.get("trade_tags", []))
-            
+
             # 1. 检查 selling_loot_category 是否匹配物品类型
             category_matched = False
             matched_type = ""
             selling_keys = set(selling_cats.keys())
-            
+
             if "weapon" in selling_keys and item_weapon_type:
                 category_matched = True
                 matched_type = "武器"
@@ -3485,37 +3485,37 @@ class ModGeneratorGUI:
             elif "jewelry" in selling_keys and is_jewelry:
                 category_matched = True
                 matched_type = "饰品"
-            
+
             if item_weapon_type:
                 type_lower = item_weapon_type.lower()
                 if type_lower in selling_keys or item_weapon_type in selling_keys:
                     category_matched = True
                     matched_type = CATEGORY_TRANSLATIONS.get(item_weapon_type, item_weapon_type)
-            
+
             if item_armor_slot:
                 slot_cap = item_armor_slot.capitalize()
                 if slot_cap in selling_keys or item_armor_slot in selling_keys:
                     category_matched = True
                     matched_type = CATEGORY_TRANSLATIONS.get(slot_cap, slot_cap)
-            
+
             if not category_matched:
                 continue
-            
+
             # 2. 检查等级范围
             if item_tier > 0 and not (tier_range[0] <= item_tier <= tier_range[1]):
                 continue
-            
+
             # 3. 检查材料筛选
             if "all" not in material_spec and item_material not in material_spec:
                 continue
-            
+
             # 4. 检查标签匹配
             if trade_tags:
                 if not item_tags:
                     continue
                 if not item_tags.issubset(trade_tags):
                     continue
-            
+
             for obj in objects_tuple:
                 meta = NPC_METADATA.get(obj, {})
                 if not meta.get("name_en") and not meta.get("name_zh"):
@@ -3528,15 +3528,15 @@ class ModGeneratorGUI:
                     "count": f"T{tier_range[0]}-{tier_range[1]}",
                     "tags": " ".join(trade_tags) if trade_tags else "-",
                 })
-        
+
         self._render_shop_table(matching_shops, "eq", ["商店名称", "城镇", "匹配类型", "等级", "标签"])
-    
+
     def _render_shop_table(self, shops: list, table_id: str, headers: list):
         """渲染商店预览表格（通用帮助函数）"""
         if not shops:
             self.text_secondary("(无匹配的商店)")
             return
-        
+
         self.text_secondary(f"物品可能出现在 {len(shops)} 个商店:")
         imgui.begin_child(f"##shop_preview_{table_id}", height=150, border=True)
         imgui.columns(len(headers), f"shop_table_{table_id}")
@@ -3544,12 +3544,12 @@ class ModGeneratorGUI:
         imgui.set_column_width(1, 70)
         imgui.set_column_width(2, 80)
         imgui.set_column_width(3, 50)
-        
+
         for header in headers:
             imgui.text(header)
             imgui.next_column()
         imgui.separator()
-        
+
         for shop in shops[:30]:
             imgui.text(shop["name"])
             if imgui.is_item_hovered():
@@ -3563,45 +3563,45 @@ class ModGeneratorGUI:
             imgui.next_column()
             imgui.text(shop["tags"])
             imgui.next_column()
-        
+
         if len(shops) > 30:
             imgui.text(f"...还有 {len(shops) - 30} 个商店")
-        
+
         imgui.columns(1)
         imgui.end_child()
-    
+
     def _draw_drop_pool_preview(self, hybrid: HybridItem):
         """绘制掉落池预览（非装备路径和装备路径）"""
         imgui.text("容器掉落预览")
         if imgui.is_item_hovered():
             imgui.set_tooltip("显示物品可能在哪些容器（宝箱等）中生成")
-        
+
         # 根据生成路径显示不同预览
         if hybrid.spawn_mode == SpawnMode.NON_EQUIPMENT:
             self._draw_non_equipment_drop_preview(hybrid)
         elif hybrid.spawn_mode == SpawnMode.EQUIPMENT:
             self._draw_equipment_drop_preview(hybrid)
-    
+
     def _draw_non_equipment_drop_preview(self, hybrid: HybridItem):
         """绘制非装备路径容器掉落预览"""
         if not (hybrid.cat or hybrid.subcats):
             return  # 没有设置分类时不显示
-        
+
         matches = find_matching_slots(
             hybrid.cat,
             tuple(hybrid.subcats),
             hybrid.tags_tuple,
             hybrid.tier
         )
-        
+
         if not matches:
             self.text_secondary("(无匹配的掉落池)")
             return
-        
+
         self.text_secondary(f"物品可加入 {len(matches)} 个掉落池:")
-        
+
         imgui.begin_child("##drop_slots_preview", height=180, border=True)
-        
+
         imgui.columns(7, "slots_table")
         imgui.set_column_width(0, 120)
         imgui.set_column_width(1, 30)
@@ -3609,34 +3609,34 @@ class ModGeneratorGUI:
         imgui.set_column_width(3, 45)
         imgui.set_column_width(4, 40)
         imgui.set_column_width(5, 45)
-        
+
         for header in ["来源", "#", "分类", "概率", "数量", "等级", "标签"]:
             imgui.text(header)
             imgui.next_column()
         imgui.separator()
-        
+
         for slot in matches[:50]:
             imgui.text(slot["entry_name_cn"])
             if imgui.is_item_hovered():
                 imgui.set_tooltip(slot["entry_id"])
             imgui.next_column()
-            
+
             imgui.text(str(slot["slot_num"]))
             imgui.next_column()
-            
+
             cat_cn = ", ".join(CATEGORY_TRANSLATIONS.get(c.strip(), c.strip()) for c in slot["category"].split(","))
             imgui.text(cat_cn[:25])
             imgui.next_column()
-            
+
             imgui.text(f"{slot['chance']}%")
             imgui.next_column()
-            
+
             imgui.text(str(slot["slot_count"]))
             imgui.next_column()
-            
+
             imgui.text(slot["tier_range"])
             imgui.next_column()
-            
+
             if slot["slot_tags"]:
                 tags_cn = " ".join(ALL_TAGS.get(t, t) for t in slot["slot_tags"].split())
                 imgui.text(tags_cn[:15])
@@ -3644,10 +3644,10 @@ class ModGeneratorGUI:
             else:
                 imgui.text("-")
             imgui.next_column()
-        
+
         imgui.columns(1)
         imgui.end_child()
-    
+
     def _draw_equipment_drop_preview(self, hybrid: HybridItem):
         """绘制装备路径容器掉落预览"""
         # 确定装备类别
@@ -3665,54 +3665,54 @@ class ModGeneratorGUI:
                 eq_categories.append("jewelry")
             else:
                 eq_categories.append("armor")
-        
+
         if not eq_categories:
             return
-        
+
         all_matches = []
         for eq_cat in eq_categories:
             matches = find_matching_eq_slots(eq_cat, hybrid.tags_tuple, hybrid.tier)
             all_matches.extend(matches)
-        
+
         if not all_matches:
             self.text_secondary("(无匹配的装备掉落池)")
             return
-        
+
         self.text_secondary(f"装备可从 {len(all_matches)} 个容器生成:")
-        
+
         imgui.begin_child("##eq_drop_preview", height=180, border=True)
-        
+
         imgui.columns(6, "eq_slots_table")
         imgui.set_column_width(0, 130)
         imgui.set_column_width(1, 30)
         imgui.set_column_width(2, 80)
         imgui.set_column_width(3, 45)
         imgui.set_column_width(4, 50)
-        
+
         for header in ["来源", "#", "类型", "概率", "等级", "标签"]:
             imgui.text(header)
             imgui.next_column()
         imgui.separator()
-        
+
         for slot in all_matches[:50]:
             imgui.text(slot["entry_name_cn"])
             if imgui.is_item_hovered():
                 imgui.set_tooltip(slot["entry_id"])
             imgui.next_column()
-            
+
             imgui.text(str(slot["eq_num"]))
             imgui.next_column()
-            
+
             eq_cat_cn = ", ".join(CATEGORY_TRANSLATIONS.get(c.strip(), c) for c in slot["eq_category"].split(","))
             imgui.text(eq_cat_cn)
             imgui.next_column()
-            
+
             imgui.text(f"{slot['chance']}%")
             imgui.next_column()
-            
+
             imgui.text(slot["tier_range"])
             imgui.next_column()
-            
+
             if slot["eq_tags"]:
                 tags_cn = " ".join(ALL_TAGS.get(t, t) for t in slot["eq_tags"].split())
                 imgui.text(tags_cn[:15])
@@ -3721,7 +3721,7 @@ class ModGeneratorGUI:
             else:
                 imgui.text("-")
             imgui.next_column()
-        
+
         imgui.columns(1)
         imgui.end_child()
 
@@ -5633,11 +5633,11 @@ class ModGeneratorGUI:
             imgui.set_tooltip(tooltip)
 
         return new_value
-    
-    def _draw_mode_combo(self, label, current_enum, enum_class, labels: dict, 
+
+    def _draw_mode_combo(self, label, current_enum, enum_class, labels: dict,
                          options=None, tooltip=""):
         """Enum 类型的下拉框
-        
+
         Args:
             label: imgui 标签
             current_enum: 当前 Enum 值
@@ -5650,20 +5650,20 @@ class ModGeneratorGUI:
         """
         if options is None:
             options = list(enum_class)
-        
+
         current_label = labels.get(current_enum, str(current_enum.value))
         new_value = current_enum
-        
+
         if imgui.begin_combo(label, current_label):
             for opt in options:
                 display = labels.get(opt, str(opt.value))
                 if imgui.selectable(display, opt == current_enum)[0]:
                     new_value = opt
             imgui.end_combo()
-        
+
         if tooltip and imgui.is_item_hovered():
             imgui.set_tooltip(tooltip)
-        
+
         return new_value
 
     def _draw_validation_errors(self, errors):
@@ -5907,11 +5907,11 @@ class ModGeneratorGUI:
                 codes_dir = mod_dir / "Codes"
                 codes_dir.mkdir(exist_ok=True)
                 print("生成 hover 辅助脚本...")
-                
+
                 # 生成 scr_hoversEnsureExtendedOrderLists.gml
                 with open(codes_dir / "scr_hoversEnsureExtendedOrderLists.gml", "w", encoding="utf-8") as f:
                     f.write(generator._generate_ensure_extended_order_lists_gml())
-                
+
                 # 生成 scr_hoversDrawHybridConsumAttributes.gml
                 with open(codes_dir / "scr_hoversDrawHybridConsumAttributes.gml", "w", encoding="utf-8") as f:
                     f.write(generator._generate_draw_hybrid_consum_attrs_gml())
