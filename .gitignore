@@ -1,0 +1,41 @@
+# === 大型数据目录 ===
+game_code/
+game_data/
+objects/
+reference/
+
+# === 资源文件 ===
+fonts/
+icons/
+*.ttf
+*.otf
+
+# === Python 构建产物 ===
+__pycache__/
+dist/
+build/
+*.spec
+
+# === 编辑器配置 ===
+.vscode/
+.agent/
+
+# === 临时/生成文件 ===
+diff_output.txt
+*.json.bak
+imgui.ini
+config.json
+
+# === 文档和杂项 ===
+*.docx
+TODO_*.md
+大篷车*.md
+o_Dead_March.txt
+convert_icons.py
+
+# === 压缩包 ===
+*.7z
+*.zip
+
+# === 旧的 tools 目录 (如果还有) ===
+tools/
