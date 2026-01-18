@@ -1824,15 +1824,13 @@ class ModGeneratorGUI:
             hybrid.tier = self._draw_enum_combo("##tier_hybrid", hybrid.tier, tier_options, tier_labels)
             tooltip("用于掉落/商店筛选")
 
-        # === 第二行：价格 / 重量 / 材质 / 分类（物理/经济属性 + 分类）===
+        # === 第二行：价格 / 重量 / 材质（物理/经济属性）===
         # Label 行
         grid.label_header("价格", L.SPAN_INPUT)
         grid.next_cell()
         grid.label_header("重量", L.SPAN_INPUT)
         grid.next_cell()
         grid.label_header("材质", L.SPAN_INPUT)
-        grid.next_cell()
-        grid.label_header("分类", L.SPAN_INPUT)
 
         # Control 行
         grid.field_width(L.SPAN_INPUT)
@@ -1855,7 +1853,10 @@ class ModGeneratorGUI:
             list(HYBRID_MATERIALS.keys()), HYBRID_MATERIALS
         )
 
-        grid.next_cell()
+        # === 分类组（和物理组之间有 gap_s 间隔）===
+        imgui.dummy(0, L.gap_m)
+
+        # 主分类下拉 + 子分类流式布局（同一行）
         # 分类下拉：文物固定为 treasure
         is_treasure = hybrid.quality == 7
         if is_treasure:
@@ -1868,6 +1869,10 @@ class ModGeneratorGUI:
         cat_labels = {"": "—"}
         cat_labels.update({c: CATEGORY_TRANSLATIONS.get(c, c) for c in ITEM_CATEGORIES})
 
+        # Label 行：分类
+        grid.label_header("分类", L.SPAN_INPUT)
+
+        # Control 行：分类下拉
         if is_treasure:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.6)
         grid.field_width(L.SPAN_INPUT)
@@ -1877,14 +1882,15 @@ class ModGeneratorGUI:
         if is_treasure:
             imgui.pop_style_var()
 
-        # === 第三行：子分类（Grid对齐流式布局）===
+        # === 子分类行（独立一行，从左边开始）===
         grid.label_header("子分类", L.SPAN_INPUT)
 
         subcat_options = ALL_SUBCATEGORY_OPTIONS if hybrid.quality == 7 else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
         if "treasure" in hybrid.subcats and hybrid.quality != 7:
             hybrid.subcats.remove("treasure")
 
-        grid.begin_flow(L.span(8))  # 限制在8列宽度内换行
+        # 流式布局从新行开始，使用完整 8 span 宽度
+        grid.begin_flow(L.span(8))
 
         # 添加子分类按钮 (span=1)
         if imgui.button("+##add_subcat", L.span(L.SPAN_BADGE), 0):
@@ -2521,7 +2527,10 @@ class ModGeneratorGUI:
                 self._draw_fragments_popup(hybrid)
         # Control 行结束，不调用 next_cell()
 
-        # ━━━ 触发行 ━━━
+        # 逻辑组间隔
+        imgui.dummy(0, L.gap_m)
+
+        # ━━━ 触发组 ━━━
         # Label 行
         grid.label_header("触发模式", L.SPAN_INPUT)
         if hybrid.trigger_mode == TriggerMode.SKILL:
@@ -2568,6 +2577,8 @@ class ModGeneratorGUI:
 
         # ━━━ 耐久组（条件显示）━━━
         if hybrid.has_durability:
+            # 逻辑组间隔（仅在有内容时显示）
+            imgui.dummy(0, L.gap_m)
             # Label 行
             grid.label_header("耐久上限", L.SPAN_INPUT)
             grid.next_cell()
@@ -2593,25 +2604,19 @@ class ModGeneratorGUI:
 
             _, hybrid.destroy_on_durability_zero = grid.checkbox_cell("##dur_del", hybrid.destroy_on_durability_zero, L.SPAN_INPUT)
 
-        # ━━━ 次数组（条件显示）━━━
+        # ━━━ 次数组（条件显示，拆分为两行）━━━
         if hybrid.has_charges:
+            # 逻辑组间隔（在耐久组后或触发组后显示）
+            imgui.dummy(0, L.gap_m)
             charge_options = [ChargeMode.LIMITED, ChargeMode.UNLIMITED]
 
+            # === 第一行：核心设置（次数模式 + 次数值 + 显示）===
             # Label 行
             grid.label_header("次数模式", L.SPAN_INPUT)
             grid.next_cell()
             grid.label_header("次数值", L.SPAN_INPUT)
             grid.next_cell()
             grid.label_header("显次数点", L.SPAN_INPUT)
-            if hybrid.charge_mode != ChargeMode.UNLIMITED:
-                grid.next_cell()
-                grid.label_header("次数自动恢复", L.SPAN_INPUT)
-                if hybrid.has_charge_recovery:
-                    grid.next_cell()
-                    grid.label_header("恢复间隔(回合)", L.SPAN_INPUT)
-                if not hybrid.has_durability and hybrid.quality != 7:
-                    grid.next_cell()
-                    grid.label_header("次数耗尽销毁", L.SPAN_INPUT)
 
             # Control 行
             grid.field_width(L.SPAN_INPUT)
@@ -2624,7 +2629,7 @@ class ModGeneratorGUI:
             if hybrid.charge_mode == ChargeMode.UNLIMITED:
                 hybrid.charge = 1
                 hybrid.has_charge_recovery = False
-                grid.text_cell("∞", L.SPAN_INPUT)  # 用 text_cell 对齐
+                grid.text_cell("∞", L.SPAN_INPUT)
             else:
                 grid.field_width(L.SPAN_INPUT)
                 changed, hybrid.charge = imgui.input_int("##charge", hybrid.charge)
@@ -2635,9 +2640,20 @@ class ModGeneratorGUI:
             _, hybrid.draw_charges = grid.checkbox_cell("##show_charge", hybrid.draw_charges, L.SPAN_INPUT)
             tooltip("在物品贴图左下角绘制小点表示剩余次数")
 
+            # === 第二行：恢复/终止设置（仅在有限次数时显示）===
             if hybrid.charge_mode != ChargeMode.UNLIMITED:
                 is_artifact_limited = hybrid.quality == 7 and hybrid.charge_mode == ChargeMode.LIMITED
-                grid.next_cell()
+
+                # Label 行
+                grid.label_header("自动恢复", L.SPAN_INPUT)
+                if hybrid.has_charge_recovery:
+                    grid.next_cell()
+                    grid.label_header("恢复间隔", L.SPAN_INPUT)
+                if not hybrid.has_durability and hybrid.quality != 7:
+                    grid.next_cell()
+                    grid.label_header("耗尽销毁", L.SPAN_INPUT)
+
+                # Control 行
                 if is_artifact_limited:
                     hybrid.has_charge_recovery = True
                     imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
@@ -2667,7 +2683,10 @@ class ModGeneratorGUI:
             hybrid.wear_per_use = 0
             hybrid.delete_on_charge_zero = False
 
-        # ━━━ 生成行 ━━━
+        # 逻辑组间隔
+        imgui.dummy(0, L.gap_m)
+
+        # ━━━ 生成组 ━━━
         self._draw_hybrid_spawn_settings(hybrid)
 
     def _draw_hybrid_stats(self, hybrid: HybridItem):
