@@ -3188,21 +3188,22 @@ function scr_loot_spawn_wrapper() {
         }
 
         // 3. Patch scr_loot_from_tables (Container)
+        // 使用 bytecode assembly patch 避免反编译器将 repeat(20) 错误转换为 while(true)
         if (!Mark.Has(DataLoader.data, "patch_scr_loot_from_tables"))
         {
-            Msl.LoadGML("gml_GlobalScript_scr_loot_from_tables")
-                // Patch 1: Wrapper for Find Call (Loop)
-                .MatchFrom("_item = scr_find_weapon(_item_type, _slot_tags, _tier_array)")
-                .ReplaceBy("_item = scr_find_item_wrapper(_item_type, _slot_tags, _tier_array)")
-                // Patch 2: Wrapper for Find Call (Specific Slot)
-                .MatchFrom("_item = scr_find_weapon(_slot, _slot_tags, _tier_array)")
-                .ReplaceBy("_item = scr_find_item_wrapper(_slot, _slot_tags, _tier_array)")
-                // Patch 3: Wrapper for Inventory Add
-                .MatchFrom("with (scr_inventory_add_weapon(_item, _quality))")
-                .ReplaceBy("with (scr_inventory_add_item_wrapper(_item, _quality))")
-                // Patch 4: Wrapper for Drop Loot
-                .MatchFrom("with (scr_weapon_loot(_item, x, y, 100, _quality))")
-                .ReplaceBy("with (scr_loot_spawn_wrapper(_item, x, y, 100, _quality))")
+            Msl.LoadAssemblyAsString("gml_GlobalScript_scr_loot_from_tables")
+                // Patch 1: scr_find_weapon -> scr_find_item_wrapper (第一处: 循环内)
+                .MatchFrom("call.i gml_Script_scr_find_weapon(argc=3)")
+                .ReplaceBy("call.i gml_Script_scr_find_item_wrapper(argc=3)")
+                // Patch 2: scr_find_weapon -> scr_find_item_wrapper (第二处: 特定槽位)
+                .MatchFrom("call.i gml_Script_scr_find_weapon(argc=3)")
+                .ReplaceBy("call.i gml_Script_scr_find_item_wrapper(argc=3)")
+                // Patch 3: scr_inventory_add_weapon -> scr_inventory_add_item_wrapper
+                .MatchFrom("call.i gml_Script_scr_inventory_add_weapon(argc=2)")
+                .ReplaceBy("call.i gml_Script_scr_inventory_add_item_wrapper(argc=2)")
+                // Patch 4: scr_weapon_loot -> scr_loot_spawn_wrapper
+                .MatchFrom("call.i gml_Script_scr_weapon_loot(argc=5)")
+                .ReplaceBy("call.i gml_Script_scr_loot_spawn_wrapper(argc=5)")
                 .Save();
             Mark.Set(DataLoader.data, "patch_scr_loot_from_tables");
         }
