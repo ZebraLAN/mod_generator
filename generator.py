@@ -3228,11 +3228,11 @@ call.i gml_Script_scr_shop_spawn_unified_item(argc=6)")
         if (!Mark.Has(DataLoader.data, "patch_scr_weapon_array_get_consum"))
         {
             Msl.LoadGML("gml_GlobalScript_scr_weapon_array_get_consum")
-                .MatchFrom("if (_item_tags != \\"special\\" && _item_tags != \\"special exc\\")")
-                .InsertBelow(@"
+                .MatchFrom("if (_item_tags == \\"\\" || __is_undefined(_item_tags) || argument1 == \\"\\")")
+                .InsertAbove(@"
                         if (variable_struct_exists(global.hybrid_item_registry, _item_id)) {
                             var _hdata = variable_struct_get(global.hybrid_item_registry, _item_id);
-                            if (arg3 == -4) {
+                            if (argument3 == -4) {
                                 if (_hdata.shop_spawn != ""item"") continue;
                                 if (_hdata.tier > 0 && instance_exists(other) && variable_instance_exists(other, ""Equipment_Tier_Min"")) {
                                     if (_hdata.tier < other.Equipment_Tier_Min || _hdata.tier > other.Equipment_Tier_Max) continue;

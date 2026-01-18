@@ -4,6 +4,11 @@
 
 ---
 
+## [0.9.3] - 2026-01-18
+
+### 修复 / Fixed
+- 修复 `scr_weapon_array_get_consum` 的 patch 逻辑错误，该问题导致非混合物品绕过 `special` / `special exc` 标签检查，在容器中生成不应出现的物品。
+
 ## [0.9.2] - 2026-01-17
 
 ### 修复 / Fixed
