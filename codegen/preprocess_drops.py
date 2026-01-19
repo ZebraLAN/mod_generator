@@ -12,6 +12,10 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, List, Tuple
+import sys
+
+sys.path.append(str(Path(__file__).parent.parent))
+import paths
 
 # ============== 容器名翻译表 ==============
 CONTAINER_TRANSLATIONS = {
@@ -305,9 +309,8 @@ def generate_python_file(slot_metadata: Dict, tier_index: Dict,
 
 
 def main():
-    base_dir = Path(__file__).parent.parent  # codegen -> project root
-    drops_path = base_dir / "game_data" / "drops.json"
-    output_path = base_dir / "drop_slot_index.py"
+    drops_path = paths.DATA_TABLES / "drops.json"
+    output_path = paths.PROJECT_ROOT / "drop_slot_index.py"
 
     if not drops_path.exists():
         print(f"Error: {drops_path} not found")

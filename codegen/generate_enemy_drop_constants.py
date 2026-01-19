@@ -12,14 +12,14 @@ import subprocess
 from collections import defaultdict
 from typing import Dict, List, Tuple, Any
 
-# Paths (relative to project root, script is in codegen/)
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(_SCRIPT_DIR)
+# Paths
+sys.path.append(str(Path(__file__).parent.parent))
+import paths
 
-GAME_CODE_PATH = os.path.join(_PROJECT_ROOT, "game_code")
-OBJECT_TREE_PATH = os.path.join(_PROJECT_ROOT, "reference", "data", "object_tree.json")
-MOBS_STATS_PATH = os.path.join(_PROJECT_ROOT, "game_data", "mobs_stats.json")
-MOBS_PATH = os.path.join(_PROJECT_ROOT, "game_data", "mobs.json")
+GAME_CODE_PATH = paths.SRC_GML
+OBJECT_TREE_PATH = paths.DATA_META / "object_tree.json"
+MOBS_STATS_PATH = paths.DATA_TABLES / "mobs_stats.json"
+MOBS_PATH = paths.DATA_TABLES / "mobs.json"
 
 def build_hierarchy():
     """Build object inheritance hierarchy from object_tree.json"""
@@ -252,7 +252,8 @@ if __name__ == "__main__":
     print(f"  Generated {len(DROP_TABLE)} tier+slot combinations")
 
     # Generate output Python file (in project root)
-    output_path = os.path.join(_PROJECT_ROOT, "enemy_drop_constants.py")
+    # Generate output Python file (in project root)
+    output_path = paths.PROJECT_ROOT / "enemy_drop_constants.py"
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('"""\n')

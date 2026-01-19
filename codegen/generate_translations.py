@@ -7,7 +7,13 @@
 """
 
 import json
+import json
 import os
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
+import paths
 
 # 需要提取翻译的属性列表（按分组整理）
 ATTRIBUTES_TO_EXTRACT = {
@@ -275,9 +281,7 @@ def generate_python_module(translations: dict, descriptions: dict) -> str:
 
 
 def main():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(script_dir)  # codegen -> project root
-    json_path = os.path.join(project_root, "game_data", "attributes.json")
+    json_path = paths.DATA_TABLES / "attributes.json"
 
     if not os.path.exists(json_path):
         print(f"错误: 找不到 {json_path}")
@@ -321,7 +325,7 @@ def main():
     code = generate_python_module(translations, descriptions)
 
     # 生成可直接导入的模块
-    output_path = os.path.join(project_root, "attribute_data.py")
+    output_path = paths.PROJECT_ROOT / "attribute_data.py"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
 

@@ -11,14 +11,17 @@ import re
 import json
 from pathlib import Path
 from collections import defaultdict
+import sys
 
-# 文件路径 (相对于项目根目录)
-SCRIPT_DIR = Path(__file__).parent.parent  # codegen -> project root
-GML_DIR = SCRIPT_DIR / "game_code"
-INHERITANCE_FILE = SCRIPT_DIR / "reference" / "data" / "object_tree.json"
-LOCATIONS_FILE = SCRIPT_DIR / "game_data" / "locations.json"
-NAMES_FILE = SCRIPT_DIR / "game_data" / "names.json"
-OUTPUT_FILE = SCRIPT_DIR / "shop_configs.py"
+# Paths
+sys.path.append(str(Path(__file__).parent.parent))
+import paths
+
+GML_DIR = paths.SRC_GML
+INHERITANCE_FILE = paths.DATA_META / "object_tree.json"
+LOCATIONS_FILE = paths.DATA_TABLES / "locations.json"
+NAMES_FILE = paths.DATA_TABLES / "names.json"
+OUTPUT_FILE = paths.PROJECT_ROOT / "shop_configs.py"
 
 # 城镇声望 Perk 对应的装备等级加成
 TOWN_MAX_TIER_BONUS = {

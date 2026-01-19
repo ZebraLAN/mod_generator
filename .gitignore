@@ -2,7 +2,7 @@
 game_code/
 game_data/
 objects/
-reference/
+references/
 
 # === 资源文件 ===
 fonts/
@@ -11,20 +11,40 @@ icons/
 *.otf
 
 # === Python 构建产物 ===
+# Python
 __pycache__/
-dist/
+*.pyc
+venv/
+.env
+
+# Build
 build/
+dist/
 *.spec
 
-# === 编辑器配置 ===
+# IDE
 .vscode/
-.agent/
+.idea/
+
+# Intermediate files
+references/
+
+# Legacy
+tools/
+
+# Configuration
+config.json
+codegen/config_local.py
+
+# UMT Scripts output
+umt_scripts/*.json
+!umt_scripts/config.example.json
 
 # === 临时/生成文件 ===
 diff_output.txt
 *.json.bak
 imgui.ini
-config.json
+extracted_data/
 
 # === 文档和杂项 ===
 *.docx
@@ -39,3 +59,9 @@ convert_icons.py
 
 # === 旧的 tools 目录 (如果还有) ===
 tools/
+
+# === User Requests ===
+.agent/
+umt_scripts/ExportSoundMap.csx
+umt_scripts/ExportSpriteMap.csx
+paths.json

@@ -22,6 +22,10 @@ import json
 import os
 import re
 from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).parent.parent))
+import paths
 
 
 def load_json(path: str) -> dict:
@@ -416,22 +420,20 @@ def generate_skill_constants(skills: dict, branch_translations: dict) -> str:
 
 
 def main():
-    base_dir = Path(__file__).parent.parent  # codegen -> project root
-
     print("Loading data files...")
 
     # 加载数据
-    inheritance = load_json(base_dir / "reference" / "data" / "object_tree.json")
-    object_index_map = load_json(base_dir / "reference" / "data" / "object_index_map.json")
-    skills_stats = load_json(base_dir / "game_data" / "skills_stats.json")
-    skills_json = load_json(base_dir / "game_data" / "skills.json")
-    text_json = load_json(base_dir / "game_data" / "text.json")
+    inheritance = load_json(paths.DATA_META / "object_tree.json")
+    object_index_map = load_json(paths.DATA_META / "object_index_map.json")
+    skills_stats = load_json(paths.DATA_TABLES / "skills_stats.json")
+    skills_json = load_json(paths.DATA_TABLES / "skills.json")
+    text_json = load_json(paths.DATA_TABLES / "text.json")
 
     print(f"Loaded {len(inheritance)} objects from inheritance")
     print(f"Loaded {len(object_index_map)} object indices")
 
     # 1. 构建 category 分支映射 (直接从源数据)
-    gml_dir = base_dir / "game_code"
+    gml_dir = paths.SRC_GML
     category_branch_map = build_category_branch_map(inheritance, object_index_map, gml_dir)
     print(f"Built category branch map with {len(category_branch_map)} entries")
 
@@ -443,8 +445,8 @@ def main():
     skill_objects = [ico_to_skill_object(ico) for ico in ico_children]
     print(f"Converted to {len(skill_objects)} skill objects")
 
-    # 4. 从 GML 文件提取书面名称 (从 game_code 目录读取)
-    skill_names = find_skill_written_names(skill_objects, str(base_dir / "game_code"))
+    # 4. 从 GML 文件提取书面名称 (从 game_code 目录读取 -> 使用 config.GML_DIR)
+    skill_names = find_skill_written_names(skill_objects, str(paths.SRC_GML))
     print(f"Found written names for {len(skill_names)} skills")
 
     # 5. 用元数据丰富 (带 category 分支补充)
@@ -461,7 +463,7 @@ def main():
     # 8. 生成常量文件
     output = generate_skill_constants(enriched, branch_translations)
 
-    output_path = base_dir / "skill_constants.py"
+    output_path = paths.PROJECT_ROOT / "skill_constants.py"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(output)
 
