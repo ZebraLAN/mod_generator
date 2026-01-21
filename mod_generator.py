@@ -61,7 +61,8 @@ from constants import (
     ARMOR_PREVIEW_WIDTH,
     ARMOR_SLOT_LABELS,
     ARMOR_SLOTS_MULTI_POSE,
-    BYTE_ATTRIBUTES,
+    STRICT_INT_ATTRIBUTES,
+    SPECIAL_STEP_ATTRIBUTES,
     CHARACTER_MODEL_LABELS,
     CHARACTER_MODELS,
     CHARACTER_RACE_LABELS,
@@ -95,7 +96,7 @@ from constants import (
     HYBRID_DROP_SOUNDS,
     HYBRID_WEIGHT_LABELS,
     # 消耗品属性常量
-    CONSUMABLE_FLOAT_ATTRIBUTES,
+
     CONSUMABLE_DURATION_ATTRIBUTE,
     CONSUMABLE_INSTANT_GROUP_PREFIX,
     # 混合物品槽位属性
@@ -2904,10 +2905,16 @@ class ModGeneratorGUI:
                     if ch: hybrid.poison_duration = max(0, nv)
                 else:
                     val = target_dict.get(key, 0)
-                    if is_float:
-                        ch, nv = imgui.input_float(f"##v_{key}", float(val), 0, 0, "%.2f")
-                    else:
+                    if key in STRICT_INT_ATTRIBUTES:
+                        # 严格整数 (Strict Integer)
                         ch, nv = imgui.input_int(f"##v_{key}", int(val))
+                    else:
+                        # 默认为浮点数 (Default Float)
+                        # 获取自定义 step，如果没有配置则默认步进为 0.1 (兼顾小数编辑)
+                        step = SPECIAL_STEP_ATTRIBUTES.get(key, 0.1)
+
+                        # 使用 %.2f 精度
+                        ch, nv = imgui.input_float(f"##v_{key}", float(val), step, step * 10 if step else 0, "%.2f")
 
                     if ch:
                         target_dict[key] = nv
@@ -3215,8 +3222,7 @@ class ModGeneratorGUI:
                         "key": attr,
                         "name": d_name or attr,
                         "desc": d_desc,
-                        "is_basic": False,
-                        "is_float": attr in CONSUMABLE_FLOAT_ATTRIBUTES
+                        "is_basic": False
                     })
 
         # 1.4 持续效果 (Persistent Effects)
@@ -3231,8 +3237,7 @@ class ModGeneratorGUI:
                         "key": attr,
                         "name": d_name or attr,
                         "desc": d_desc,
-                        "is_basic": False,
-                        "is_float": attr in CONSUMABLE_FLOAT_ATTRIBUTES
+                        "is_basic": False
                     })
 
         # === 2. 统一渲染 Grid ===
