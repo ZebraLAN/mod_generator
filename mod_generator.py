@@ -2800,129 +2800,103 @@ class ModGeneratorGUI:
         else:
             hybrid.rarity = ""
 
-    def _render_attribute_grid(self, display_list: list, target_dict: dict, hybrid: HybridItem = None) -> list:
-        """Shared logic for rendering a grid of attributes (Label-on-Top)
+    def _render_attribute_grid(self, display_list: list, target_dict: dict, hybrid: HybridItem = None, show_add_button: bool = False, add_button_label: str = "", add_popup_id: str = "") -> list:
+        """Shared logic for rendering attributes in vertical list layout
 
         Args:
             display_list: List of dicts with:
                 - key: str
                 - name: str (display name)
-                - is_basic: bool (if True, no delete button, shows placeholder)
+                - is_basic: bool (if True, no delete button)
                 - custom_bind: str (optional, e.g. "poison_duration" for redirect)
-                - is_float: bool (optional)
                 - desc: str (optional tooltip)
             target_dict: The dict to modify values in (e.g. hybrid.attributes)
             hybrid: The hybrid item object (required if using custom_bind)
+            show_add_button: If True, show add button on first row
+            add_button_label: Label for add button (e.g. "+装备")
+            add_popup_id: Popup ID for add button
 
         Returns:
             list of keys to remove
         """
         L = self.layout
-        grid = GridLayout(L, self.text_secondary)
-        WIDTH_SPAN = 2
         to_remove = []
 
-        chunk_size = 4
-        for i in range(0, len(display_list), chunk_size):
-            chunk = display_list[i : i + chunk_size]
+        # 列宽分配: +按钮(1) + Label(4) + Input(2) + Delete(1) = 8 span
+        SPAN_ADD_BTN = L.SPAN_BADGE  # 1
+        SPAN_LABEL = 4
+        SPAN_INPUT = L.SPAN_INPUT   # 2
+        SPAN_DELETE = L.SPAN_BADGE  # 1
 
-            # --- Row 1: Labels & Delete Buttons ---
-            for idx, item in enumerate(chunk):
-                if idx > 0: grid.next_cell()
+        for idx, item in enumerate(display_list):
+            key = item["key"]
+            name = item.get("name", key)
+            is_basic = item.get("is_basic", False)
+            custom_bind = item.get("custom_bind", None)
+            desc = item.get("desc", None)
 
-                key = item["key"]
-                name = item.get("name", key)
-                is_basic = item.get("is_basic", False)
+            # === Column 1: Add Button (only first row) or spacer ===
+            if idx == 0 and show_add_button:
+                if imgui.button(f"{add_button_label}##{add_popup_id}_btn", L.span(SPAN_ADD_BTN), 0):
+                    imgui.open_popup(add_popup_id)
+                tooltip("添加属性")
+            else:
+                imgui.dummy(L.span(SPAN_ADD_BTN), 0)
 
-                # Render Label Cell Manually for alignment
-                target_w = L.span(WIDTH_SPAN)
-                start_x = imgui.get_cursor_pos_x()
+            imgui.same_line(spacing=L.grid_gap)
 
-                self.text_secondary(name)
+            # === Column 2: Label ===
+            label_w = L.span(SPAN_LABEL)
+            imgui.align_text_to_frame_padding()
+            self.text_secondary(name)
+            # Pad to full width
+            text_w = imgui.calc_text_size(name).x
+            if text_w < label_w:
+                imgui.same_line(spacing=0)
+                imgui.dummy(label_w - text_w, 0)
 
-                # Delete Button / Placeholder
-                if not is_basic:
-                    btn_label = f" x##d_{key}"
-                    btn_display = " x"
-                    btn_w = imgui.calc_text_size(btn_display).x
-                    target_x = start_x + target_w - btn_w
+            imgui.same_line(spacing=L.grid_gap)
 
-                    # Ensure we don't overlap if text is too long
-                    current_x = imgui.get_cursor_pos_x()
-                    if target_x > current_x:
-                        imgui.same_line(target_x)
-                    else:
-                        imgui.same_line()
+            # === Column 3: Input ===
+            input_w = L.span(SPAN_INPUT)
+            imgui.set_next_item_width(input_w)
 
-                    if self._draw_text_action_button(
-                        btn_label,
-                        self.theme_colors["text_secondary"],
-                        self.theme_colors["badge_hover_remove"]
-                    ):
-                        to_remove.append(key)
-
-                    tooltip("移除此属性")
+            if custom_bind == "poison_duration" and hybrid:
+                val = hybrid.poison_duration
+                ch, nv = imgui.input_int(f"##v_poison_dur", val)
+                if ch: hybrid.poison_duration = max(0, nv)
+            else:
+                val = target_dict.get(key, 0)
+                if key in STRICT_INT_ATTRIBUTES:
+                    ch, nv = imgui.input_int(f"##v_{key}", int(val))
                 else:
-                    # Basic attributes: Draw inert placeholder to maintain row height consistency
-                    btn_display = " x"
-                    btn_w = imgui.calc_text_size(btn_display).x
-                    target_x = start_x + target_w - btn_w
+                    step = SPECIAL_STEP_ATTRIBUTES.get(key, 0.1)
+                    ch, nv = imgui.input_float(f"##v_{key}", float(val), step, step * 10 if step else 0, "%.2f")
 
-                    current_x = imgui.get_cursor_pos_x()
-                    if target_x > current_x:
-                        imgui.same_line(target_x)
-                    else:
-                        imgui.same_line()
+                if ch:
+                    target_dict[key] = nv
+                    if is_basic:
+                        target_dict[key] = max(0, target_dict[key])
 
-                    imgui.dummy(btn_w, 0)
-                    tooltip("基础属性不可移除")
+            if desc:
+                tooltip(desc)
 
-                # Calculate remaining width to pad (safety)
-                end_x = imgui.get_item_rect_max().x
-                current_w = end_x - start_x
-                if current_w < target_w:
-                    imgui.same_line(spacing=0)
-                    imgui.dummy(target_w - current_w, 0)
+            imgui.same_line(spacing=L.grid_gap)
 
-            # --- Row 2: Controls ---
-            grid.field_width(WIDTH_SPAN)
-            for idx, item in enumerate(chunk):
-                if idx > 0: grid.next_cell()
-
-                key = item["key"]
-                is_basic = item.get("is_basic", False)
-                custom_bind = item.get("custom_bind", None)
-                is_float = item.get("is_float", False)
-                desc = item.get("desc", None)
-
-                grid.field_width(WIDTH_SPAN)
-                full_w = L.span(WIDTH_SPAN)
-                imgui.set_next_item_width(full_w)
-
-                if custom_bind == "poison_duration" and hybrid:
-                    val = hybrid.poison_duration
-                    ch, nv = imgui.input_int(f"##v_poison_dur", val)
-                    if ch: hybrid.poison_duration = max(0, nv)
-                else:
-                    val = target_dict.get(key, 0)
-                    if key in STRICT_INT_ATTRIBUTES:
-                        # 严格整数 (Strict Integer)
-                        ch, nv = imgui.input_int(f"##v_{key}", int(val))
-                    else:
-                        # 默认为浮点数 (Default Float)
-                        # 获取自定义 step，如果没有配置则默认步进为 0.1 (兼顾小数编辑)
-                        step = SPECIAL_STEP_ATTRIBUTES.get(key, 0.1)
-
-                        # 使用 %.2f 精度
-                        ch, nv = imgui.input_float(f"##v_{key}", float(val), step, step * 10 if step else 0, "%.2f")
-
-                    if ch:
-                        target_dict[key] = nv
-                        if is_basic:
-                             target_dict[key] = max(0, target_dict[key])
-
-                if desc:
-                    tooltip(desc)
+            # === Column 4: Delete Button ===
+            delete_w = L.span(SPAN_DELETE)
+            if not is_basic:
+                imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0)
+                imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *self.theme_colors["badge_hover_remove"])
+                imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *self.theme_colors["badge_hover_remove"])
+                if imgui.button(f"×##del_{key}", delete_w, 0):
+                    to_remove.append(key)
+                imgui.pop_style_color(3)
+                tooltip("移除此属性")
+            else:
+                # Placeholder for alignment
+                imgui.dummy(delete_w, 0)
+                tooltip("基础属性不可移除")
 
         return to_remove
 
@@ -3037,13 +3011,12 @@ class ModGeneratorGUI:
                 imgui.tree_pop()
 
     def _draw_hybrid_attributes_editor(self, hybrid: HybridItem):
-        """绘制装备属性编辑器 - Active-Only Label-on-Top"""
+        """绘制装备属性编辑器 - 垂直列表布局"""
         groups = self._get_hybrid_attribute_groups(hybrid)
         if not groups:
             return
 
         L = self.layout
-        grid = GridLayout(L, self.text_secondary)
 
         # 1. 收集所有可用属性用于搜索
         all_available_attrs = []
@@ -3051,53 +3024,55 @@ class ModGeneratorGUI:
             for attr in attrs:
                 all_available_attrs.append((attr, group))
 
-        # 2. 绘制已激活属性 (Label-on-Top Grid Active List)
-        # 按 groups 顺序排序 active_attrs 以保持稳定视觉顺序
+        # 2. 构建显示列表
         active_attrs = []
         for group, attrs in groups.items():
             for attr in attrs:
                 if hybrid.attributes.get(attr, 0) != 0:
                     active_attrs.append(attr)
 
-        to_remove = []
-        if active_attrs:
-            # Construct display list for shared renderer
-            display_list = []
-            for attr in active_attrs:
-                attr_name, attr_desc = get_attr_display(attr)
-                display_list.append({
-                    "key": attr,
-                    "name": attr_name or attr,
-                    "desc": attr_desc,
-                    "is_basic": False
-                })
+        display_list = []
+        for attr in active_attrs:
+            attr_name, attr_desc = get_attr_display(attr)
+            display_list.append({
+                "key": attr,
+                "name": attr_name or attr,
+                "desc": attr_desc,
+                "is_basic": False
+            })
 
-            # Use shared renderer
-            to_remove_keys = self._render_attribute_grid(display_list, hybrid.attributes)
-            to_remove.extend(to_remove_keys)
+        # 3. 渲染垂直列表（集成添加按钮）
+        to_remove = self._render_attribute_grid(
+            display_list,
+            hybrid.attributes,
+            show_add_button=True,
+            add_button_label="+装备",
+            add_popup_id="equip_attr"
+        )
 
-        # 执行移除
+        # 如果没有属性，仍需显示添加按钮
+        if not display_list:
+            if imgui.button("+装备##equip_attr_btn", L.span(L.SPAN_BADGE), 0):
+                imgui.open_popup("equip_attr")
+            tooltip("添加装备属性")
+
+        # 绘制添加属性弹窗
+        self._draw_add_attribute_popup("equip_attr", hybrid.attributes, all_available_attrs)
+
+        # 4. 执行移除
         for attr in to_remove:
-            hybrid.attributes[attr] = 0 # 设为0即视为未激活，会被清理逻辑处理
+            del hybrid.attributes[attr]
 
-        # 3. 添加按钮
-        self._draw_add_attribute_button("添加装备属性", "equip_attr", hybrid.attributes, all_available_attrs)
-
-        # 清理
+        # 5. 清理不再允许的属性
         self._prune_hybrid_attributes(hybrid, groups)
 
-    def _draw_add_attribute_button(self, label, popup_id, target_dict, available_attrs):
-        """绘制带搜索的添加属性按钮"""
-        L = self.layout
-        if imgui.button(f"+ {label}", width=L.span(8)):
-            imgui.open_popup(popup_id)
-
+    def _draw_add_attribute_popup(self, popup_id: str, target_dict: dict, available_attrs: list):
+        """绘制添加属性弹窗（不含按钮）"""
         imgui.set_next_window_size(300, 400)
         if imgui.begin_popup(popup_id):
             # 搜索框
             imgui.dummy(0, 2)
             imgui.set_next_item_width(-1)
-            # 使用静态变量存储搜索词
             if not hasattr(self, "_attr_search_buffers"):
                 self._attr_search_buffers = {}
             if popup_id not in self._attr_search_buffers:
@@ -3111,9 +3086,6 @@ class ModGeneratorGUI:
             imgui.separator()
 
             # 过滤列表
-            current_group = None
-            group_visible = False
-
             filtered = []
             for attr, group in available_attrs:
                 if target_dict.get(attr, 0) != 0: continue
@@ -3134,7 +3106,6 @@ class ModGeneratorGUI:
                     if not flat_mode:
                         if last_group and last_group_open:
                             imgui.tree_pop()
-                        # 使用完整 group 名称作为 ID，避免相同 display_name 导致 ID 冲突
                         last_group_open = imgui.tree_node(f"{group}##grp_{group}_{popup_id}")
                         group_visible = last_group_open
                     else:
@@ -3146,7 +3117,7 @@ class ModGeneratorGUI:
 
                 if group_visible:
                     if imgui.selectable(f"{name or attr}##sel_{attr}")[0]:
-                        target_dict[attr] = 1 # 激活
+                        target_dict[attr] = 1  # 激活
                         imgui.close_current_popup()
                         self._attr_search_buffers[popup_id] = ""
                     if desc:
@@ -3176,17 +3147,11 @@ class ModGeneratorGUI:
             del hybrid.attributes[k]
 
     def _draw_hybrid_consumable_attributes_editor(self, hybrid: HybridItem):
-        """绘制消耗品属性编辑器 - Active-Only Label-on-Top (Fully Merged)"""
+        """绘制消耗品属性编辑器 - 垂直列表布局"""
         if not hybrid.has_charges:
             return
 
         L = self.layout
-        grid = GridLayout(L, self.text_secondary)
-        WIDTH_SPAN = 2
-
-        # 顶部标题 (唯一的层级)
-        # imgui.text_colored("消耗品属性", *self.theme_colors["text_secondary"])
-        # imgui.dummy(0, L.gap_s)
 
         # === 1. 构建统一的显示列表 ===
         display_list = []
@@ -3240,47 +3205,7 @@ class ModGeneratorGUI:
                         "is_basic": False
                     })
 
-        # === 2. 统一渲染 Grid ===
-        if display_list:
-            to_remove = self._render_attribute_grid(
-                display_list,
-                hybrid.consumable_attributes,
-                hybrid
-            )
-
-            # Process removals
-            for attr in to_remove:
-                hybrid.consumable_attributes[attr] = 0
-
-            # Skip manual loop
-            display_list = []
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            # Row Spacing
-            # imgui.dummy(0, L.gap_s)
-
-
-
-        # === 3. Add Buttons (Searchable) ===
+        # === 2. 构建可添加属性列表 ===
         all_instants = []
         for grp, attrs in CONSUMABLE_INSTANT_ATTRS.items():
             for a in attrs:
@@ -3293,19 +3218,27 @@ class ModGeneratorGUI:
 
         merged_source = []
         for a, g in all_instants:
-            # 去除冗余的 "即时效果" 前缀
             suffix = g.split("（")[-1].rstrip("）") if "（" in g else g
             merged_source.append((a, f"即时效果 - {suffix}"))
+        for a, g in all_durations:
+            merged_source.append((a, f"持续效果 - {g}"))
 
-        for a, g in all_durations: merged_source.append((a, f"持续效果 - {g}"))
+        # === 3. 渲染垂直列表 ===
+        to_remove = self._render_attribute_grid(
+            display_list,
+            hybrid.consumable_attributes,
+            hybrid,
+            show_add_button=True,
+            add_button_label="+效果",
+            add_popup_id="add_consum_effect"
+        )
 
-        self._draw_add_attribute_button("添加效果...", "add_consum_effect", hybrid.consumable_attributes, merged_source)
+        # 绘制添加属性弹窗
+        self._draw_add_attribute_popup("add_consum_effect", hybrid.consumable_attributes, merged_source)
 
-
-
-
-
-
+        # === 4. 执行移除 ===
+        for attr in to_remove:
+            del hybrid.consumable_attributes[attr]
 
     def _get_hybrid_attribute_groups(self, hybrid: HybridItem) -> dict:
         """根据槽位获取可编辑属性分组"""
