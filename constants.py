@@ -171,18 +171,51 @@ VALID_MAX_Y = CHAR_CENTER_Y + VALID_AREA_SIZE // 2  # 52
 VIEWPORT_CHAR_OFFSET_X = VALID_AREA_SIZE // 2 - CHAR_CENTER_X  # = 8
 VIEWPORT_CHAR_OFFSET_Y = VALID_AREA_SIZE // 2 - CHAR_CENTER_Y  # = 12
 
-# Byte类型的属性 (需要限制为 0-255)
-BYTE_ATTRIBUTES = {
-    "Bleeding_Chance",
-    "Daze_Chance",
-    "Stun_Chance",
-    "Knockback_Chance",
-    "Immob_Chance",
-    "Stagger_Chance",
+# 严格整数属性 (必须为整数的属性，如回合数、格子数)
+STRICT_INT_ATTRIBUTES = {
+    "Duration",
+    "Poison_Duration",
+    "Range",
+    "Bonus_Range",
+    "VSN",
+    "Charge_Distance",
+    "Arcanistic_Distance",
+
+    # 伤害与防御类 (通常为整数)
     "DEF",
-    "PRR",
     "Block_Power",
-    "Crit_Avoid",
+    "Slashing_Damage",
+    "Piercing_Damage",
+    "Blunt_Damage",
+    "Rending_Damage",
+    "Fire_Damage",
+    "Shock_Damage",
+    "Poison_Damage",
+    "Caustic_Damage",
+    "Frost_Damage",
+    "Arcane_Damage",
+    "Unholy_Damage",
+    "Sacred_Damage",
+    "Psionic_Damage",
+}
+
+# 特殊步进属性配置
+# Key: 属性名
+# Value: (float) 编辑器微调步进值 (默认为 0.1)
+SPECIAL_STEP_ATTRIBUTES = {
+    "hear_value": 0.01,
+    "Duration_Resistance": 0.01,
+    "Sword_Duration_Resistance": 0.01,
+    "Trade_Favorability": 0.01,
+    "Fatigue_Change": 0.01,
+    "Hunger_Change": 0.01,
+    "Thirst_Change": 0.01,
+    "Sanity_Change": 0.01,
+    "Morale_Change": 0.01,
+    "Intoxication_Change": 0.01,
+    "Immunity_Change": 0.01,
+    "Toxicity_Change": 0.01,
+    "Pain_Change": 0.01,
 }
 
 # 负面属性 (这些属性的正值表示减益，负值表示增益)
@@ -204,14 +237,7 @@ DAMAGE_ATTRIBUTES = {
     "Frost_Damage", "Arcane_Damage", "Unholy_Damage", "Sacred_Damage", "Psionic_Damage",
 }
 
-# 消耗品浮点数属性（基于 items_stats.json 分析）
-# 这些属性在游戏数据中存在小数值，编辑器应使用 float 输入
-CONSUMABLE_FLOAT_ATTRIBUTES = {
-    "Condition",
-    "Health_Restoration",
-    "Immunity_Change",
-    "MoraleDiet",
-}
+
 
 # 效果持续时间属性（控制其他属性是否生效的核心属性）
 # 独立提取以便在编辑器中突出显示
