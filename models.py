@@ -679,19 +679,23 @@ class HybridItem:
     def effective_tags(self) -> str:
         """组合所有 tags 为空格分隔的字符串
 
-        排除随机生成时：在现有标签前添加 'special' 前缀
+        排除随机生成时：只返回 'special'，不附加其他标签
+        原因：游戏使用严格相等判断 (_item_tags != "special")，
+              如果有其他标签会导致 special 失效
         """
-        prefix = ["special"] if self.exclude_from_random else []
-        return " ".join(self._build_tags_list(prefix))
+        if self.exclude_from_random:
+            return "special"
+        return " ".join(self._build_tags_list())
 
     @property
     def tags_tuple(self) -> tuple:
         """获取 tags 元组（用于预览匹配等）
 
-        排除随机生成时：包含 'special' 前缀
+        排除随机生成时：只返回 ('special',)
         """
-        prefix = ["special"] if self.exclude_from_random else []
-        return tuple(self._build_tags_list(prefix))
+        if self.exclude_from_random:
+            return ("special",)
+        return tuple(self._build_tags_list())
 
     @property
     def has_equipment_spawn(self) -> bool:

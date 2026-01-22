@@ -1996,127 +1996,138 @@ class ModGeneratorGUI:
         # 品质标签实时更新
         hybrid.quality_tag = "unique" if hybrid.quality == 6 else ""
 
-        # 收集所有有效标签
-        all_set_tags = []
-        if hybrid.quality_tag:
-            all_set_tags.append(("quality", hybrid.quality_tag))
-        if hybrid.dungeon_tag:
-            all_set_tags.append(("dungeon", hybrid.dungeon_tag))
-        if hybrid.country_tag:
-            all_set_tags.append(("country", hybrid.country_tag))
-        for tag in hybrid.extra_tags:
-            all_set_tags.append(("extra", tag))
+        # 当 exclude_from_random=True 时，只显示 special 标签
+        # 原因：游戏使用严格相等判断，其他标签会使 special 失效
         if hybrid.exclude_from_random:
-            all_set_tags.append(("special", "special"))
-
-        grid.begin_flow(L.span(8))  # 限制在8列宽度内换行
-
-        # 添加标签按钮
-        if imgui.button("+##add_tag", L.span(L.SPAN_BADGE), 0):
-            imgui.open_popup("tags_popup")
-        tooltip("添加标签")
-        grid.flow_item_after()
-
-        # 显示标签 badges (固定 span=1 宽度)
-        badge_width = L.span(L.SPAN_BADGE)
-        to_remove_tag = None
-        for tag_type, tag_val in all_set_tags:
-            # 确定标签文本、颜色和可移除性
-            if tag_type == "quality":
-                full_label = QUALITY_TAGS.get(tag_val, tag_val)
-                badge_color = self.theme_colors["badge_quality"]
-                can_remove = False
-                locked_reason = "由品质自动设置"
-            elif tag_type == "dungeon":
-                full_label = DUNGEON_TAGS.get(tag_val, tag_val)
-                badge_color = self.theme_colors["badge_tag"]
-                can_remove = True
-                locked_reason = ""
-            elif tag_type == "country":
-                full_label = COUNTRY_TAGS.get(tag_val, tag_val)
-                badge_color = self.theme_colors["badge_tag"]
-                can_remove = True
-                locked_reason = ""
-            elif tag_type == "special":
-                full_label = EXTRA_TAGS.get(tag_val, tag_val)
-                badge_color = self.theme_colors["badge_special"]
-                can_remove = False
-                locked_reason = "由「排除随机生成」控制"
-            else:
-                full_label = EXTRA_TAGS.get(tag_val, tag_val)
-                badge_color = self.theme_colors["badge_tag"]
-                can_remove = True
-                locked_reason = ""
-
-            # 检测是否需要截断
-            text_size = imgui.calc_text_size(full_label)
+            grid.begin_flow(L.span(8))
+            badge_width = L.span(L.SPAN_BADGE)
             style = imgui.get_style()
-            available_width = badge_width - 2 * style.frame_padding.x
-            is_truncated = text_size.x > available_width
-
-            # 选择 hover 颜色
-            hover_color = self.theme_colors["badge_hover_remove"] if can_remove else self.theme_colors["badge_hover_locked"]
-
             grid.flow_item(badge_width)
             imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, style.frame_padding.y))
-            imgui.push_style_color(imgui.COLOR_BUTTON, *badge_color)
-            imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *hover_color)
-
-            if imgui.button(f"{full_label}##{tag_type}_{tag_val}_badge", badge_width, 0):
-                if can_remove:
-                    to_remove_tag = (tag_type, tag_val)
+            imgui.push_style_color(imgui.COLOR_BUTTON, *self.theme_colors["badge_special"])
+            imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *self.theme_colors["badge_hover_locked"])
+            imgui.button(f"{EXTRA_TAGS.get('special', '特殊')}##special_only_badge", badge_width, 0)
             imgui.pop_style_color(2)
             imgui.pop_style_var()
+            tooltip("已排除随机生成，其他标签不生效")
+            grid.flow_item_after()
+            grid.end_flow()
+        else:
+            # 正常模式：可编辑所有标签
+            # 收集所有有效标签
+            all_set_tags = []
+            if hybrid.quality_tag:
+                all_set_tags.append(("quality", hybrid.quality_tag))
+            if hybrid.dungeon_tag:
+                all_set_tags.append(("dungeon", hybrid.dungeon_tag))
+            if hybrid.country_tag:
+                all_set_tags.append(("country", hybrid.country_tag))
+            for tag in hybrid.extra_tags:
+                all_set_tags.append(("extra", tag))
 
-            # 组合 tooltip: 截断文本 + 操作提示
-            tooltip_parts = []
-            if is_truncated:
-                tooltip_parts.append(full_label)
-            if can_remove:
-                tooltip_parts.append("[点击移除]")
-            elif locked_reason:
-                tooltip_parts.append(f"[{locked_reason}]")
-            if tooltip_parts:
-                tooltip("\n".join(tooltip_parts))
+            grid.begin_flow(L.span(8))  # 限制在8列宽度内换行
+
+            # 添加标签按钮
+            if imgui.button("+##add_tag", L.span(L.SPAN_BADGE), 0):
+                imgui.open_popup("tags_popup")
+            tooltip("添加标签")
             grid.flow_item_after()
 
-        # 处理移除
-        if to_remove_tag:
-            tag_type, tag_val = to_remove_tag
-            if tag_type == "dungeon":
-                hybrid.dungeon_tag = ""
-            elif tag_type == "country":
-                hybrid.country_tag = ""
-            elif tag_type == "extra":
-                hybrid.extra_tags.remove(tag_val)
+            # 显示标签 badges (固定 span=1 宽度)
+            badge_width = L.span(L.SPAN_BADGE)
+            to_remove_tag = None
+            for tag_type, tag_val in all_set_tags:
+                # 确定标签文本、颜色和可移除性
+                if tag_type == "quality":
+                    full_label = QUALITY_TAGS.get(tag_val, tag_val)
+                    badge_color = self.theme_colors["badge_quality"]
+                    can_remove = False
+                    locked_reason = "由品质自动设置"
+                elif tag_type == "dungeon":
+                    full_label = DUNGEON_TAGS.get(tag_val, tag_val)
+                    badge_color = self.theme_colors["badge_tag"]
+                    can_remove = True
+                    locked_reason = ""
+                elif tag_type == "country":
+                    full_label = COUNTRY_TAGS.get(tag_val, tag_val)
+                    badge_color = self.theme_colors["badge_tag"]
+                    can_remove = True
+                    locked_reason = ""
+                else:
+                    full_label = EXTRA_TAGS.get(tag_val, tag_val)
+                    badge_color = self.theme_colors["badge_tag"]
+                    can_remove = True
+                    locked_reason = ""
 
-        if imgui.begin_popup("tags_popup"):
-            self.text_secondary("地牢")
-            for tag_val, tag_label in DUNGEON_TAGS.items():
-                if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
-                    hybrid.dungeon_tag = tag_val
+                # 检测是否需要截断
+                text_size = imgui.calc_text_size(full_label)
+                style = imgui.get_style()
+                available_width = badge_width - 2 * style.frame_padding.x
+                is_truncated = text_size.x > available_width
 
-            imgui.separator()
-            self.text_secondary("国家/地区")
-            for tag_val, tag_label in COUNTRY_TAGS.items():
-                if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
-                    hybrid.country_tag = tag_val
+                # 选择 hover 颜色
+                hover_color = self.theme_colors["badge_hover_remove"] if can_remove else self.theme_colors["badge_hover_locked"]
 
-            imgui.separator()
-            self.text_secondary("其他")
-            for tag_val, tag_label in EXTRA_TAGS.items():
-                if tag_val == "special":
-                    continue
-                is_selected = tag_val in hybrid.extra_tags
-                changed, new_value = imgui.checkbox(f"{tag_label}##extra_{tag_val}", is_selected)
-                if changed:
-                    if new_value:
-                        hybrid.extra_tags.append(tag_val)
-                    else:
-                        hybrid.extra_tags.remove(tag_val)
-            imgui.end_popup()
+                grid.flow_item(badge_width)
+                imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, style.frame_padding.y))
+                imgui.push_style_color(imgui.COLOR_BUTTON, *badge_color)
+                imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *hover_color)
 
-        grid.end_flow()
+                if imgui.button(f"{full_label}##{tag_type}_{tag_val}_badge", badge_width, 0):
+                    if can_remove:
+                        to_remove_tag = (tag_type, tag_val)
+                imgui.pop_style_color(2)
+                imgui.pop_style_var()
+
+                # 组合 tooltip: 截断文本 + 操作提示
+                tooltip_parts = []
+                if is_truncated:
+                    tooltip_parts.append(full_label)
+                if can_remove:
+                    tooltip_parts.append("[点击移除]")
+                elif locked_reason:
+                    tooltip_parts.append(f"[{locked_reason}]")
+                if tooltip_parts:
+                    tooltip("\n".join(tooltip_parts))
+                grid.flow_item_after()
+
+            # 处理移除
+            if to_remove_tag:
+                tag_type, tag_val = to_remove_tag
+                if tag_type == "dungeon":
+                    hybrid.dungeon_tag = ""
+                elif tag_type == "country":
+                    hybrid.country_tag = ""
+                elif tag_type == "extra":
+                    hybrid.extra_tags.remove(tag_val)
+
+            if imgui.begin_popup("tags_popup"):
+                self.text_secondary("地牢")
+                for tag_val, tag_label in DUNGEON_TAGS.items():
+                    if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
+                        hybrid.dungeon_tag = tag_val
+
+                imgui.separator()
+                self.text_secondary("国家/地区")
+                for tag_val, tag_label in COUNTRY_TAGS.items():
+                    if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
+                        hybrid.country_tag = tag_val
+
+                imgui.separator()
+                self.text_secondary("其他")
+                for tag_val, tag_label in EXTRA_TAGS.items():
+                    if tag_val == "special":
+                        continue
+                    is_selected = tag_val in hybrid.extra_tags
+                    changed, new_value = imgui.checkbox(f"{tag_label}##extra_{tag_val}", is_selected)
+                    if changed:
+                        if new_value:
+                            hybrid.extra_tags.append(tag_val)
+                        else:
+                            hybrid.extra_tags.remove(tag_val)
+                imgui.end_popup()
+
+            grid.end_flow()
 
         # 注：生成规则已移至 _draw_hybrid_behavior 末尾
 
@@ -2148,7 +2159,7 @@ class ModGeneratorGUI:
 
         # Control 行
         _, hybrid.exclude_from_random = grid.checkbox_cell("##exc_random", hybrid.exclude_from_random, L.SPAN_INPUT)
-        tooltip("排除随机生成：物品不会在宝箱/商店随机出现\n仍会添加 special 标签用于脚本添加")
+        tooltip("排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效")
 
         grid.next_cell()
         if not hybrid.exclude_from_random:
@@ -2204,8 +2215,8 @@ class ModGeneratorGUI:
             imgui.separator()
 
             if hybrid.exclude_from_random:
-                self.text_secondary("物品已排除随机生成 (+special)")
-                imgui.text("不会出现在宝箱掉落、商店库存或击杀掉落中")
+                self.text_secondary("物品已排除随机生成")
+                imgui.text("不会出现在宝箱掉落、商店库存中")
             else:
                 # 容器掉落
                 imgui.text("容器掉落:")
@@ -3412,8 +3423,7 @@ class ModGeneratorGUI:
         if imgui.is_item_hovered():
             imgui.set_tooltip(
                 "开启后，物品不会出现在宝箱掉落和商店库存中\n"
-                "物品将添加 'special' 标签\n"
-                "关闭后，可设置分类和标签使物品参与随机生成"
+                "启用后其他标签设置不生效"
             )
 
         self.draw_indented_separator()
