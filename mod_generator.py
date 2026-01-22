@@ -1911,10 +1911,14 @@ class ModGeneratorGUI:
         cat_labels = {"": "—"}
         cat_labels.update({c: CATEGORY_TRANSLATIONS.get(c, c) for c in ITEM_CATEGORIES})
 
-        # Label 行：分类
+        # Label 行：分类（主分类下拉 + 子分类 badges 同一行）
+        # 记录当前光标 X 位置作为内容区左边界（已含 indent）
+        content_left_x = imgui.get_cursor_pos_x()
+        max_x = content_left_x + L.span(8)  # 8 span 边界
+
         grid.label_header("分类", L.SPAN_INPUT)
 
-        # Control 行：分类下拉
+        # === Control 行：分类下拉 + 子分类流式布局（同行）===
         if is_treasure:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.6)
         grid.field_width(L.SPAN_INPUT)
@@ -1923,22 +1927,15 @@ class ModGeneratorGUI:
             hybrid.cat = new_cat
         if is_treasure:
             imgui.pop_style_var()
+        tooltip("主分类 (Cat)\n用于掉落表匹配")
 
-        # === 子分类行（独立一行，从左边开始）===
-        grid.label_header("子分类", L.SPAN_INPUT)
-
-        subcat_options = ALL_SUBCATEGORY_OPTIONS if hybrid.quality == 7 else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
-        if "treasure" in hybrid.subcats and hybrid.quality != 7:
-            hybrid.subcats.remove("treasure")
-
-        # 流式布局从新行开始，使用完整 8 span 宽度
-        grid.begin_flow(L.span(8))
+        # 子分类流式布局紧跟主分类（同一行）
+        imgui.same_line(0, L.gap_s)
 
         # 添加子分类按钮 (span=1)
         if imgui.button("+##add_subcat", L.span(L.SPAN_BADGE), 0):
             imgui.open_popup("subcats_popup")
-        tooltip("添加子分类")
-        grid.flow_item_after()
+        tooltip("添加子分类 (Subcats)\n可多选，物品可匹配主分类或任一子分类")
 
         # 显示已选子分类 badges (固定 span=1 宽度)
         badge_width = L.span(L.SPAN_BADGE)
@@ -1951,7 +1948,14 @@ class ModGeneratorGUI:
             available_width = badge_width - 2 * style.frame_padding.x
             is_truncated = text_size.x > available_width
 
-            grid.flow_item(badge_width)
+            # 流式布局：先 same_line 到前一个元素后面，再判断是否需要换行
+            imgui.same_line(0, L.grid_gap)  # 使用 grid gap (0.5em) 保持 span 对齐
+            cursor_x = imgui.get_cursor_pos_x()
+            if cursor_x + badge_width > max_x:
+                # 超出 8 span 边界，换行到内容区左边界（使用完整宽度）
+                imgui.new_line()
+                imgui.set_cursor_pos_x(content_left_x)
+
             imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (0, style.frame_padding.y))
             imgui.push_style_color(imgui.COLOR_BUTTON, *self.theme_colors["badge_subcat"])
             imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *self.theme_colors["badge_hover_remove"])
@@ -1965,9 +1969,13 @@ class ModGeneratorGUI:
                 tooltip_parts.append(full_label)
             tooltip_parts.append("[点击移除]")
             tooltip("\n".join(tooltip_parts))
-            grid.flow_item_after()
         if to_remove_subcat:
             hybrid.subcats.remove(to_remove_subcat)
+
+        # 准备 popup 的子分类选项
+        subcat_options = ALL_SUBCATEGORY_OPTIONS if hybrid.quality == 7 else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
+        if "treasure" in hybrid.subcats and hybrid.quality != 7:
+            hybrid.subcats.remove("treasure")
 
         if imgui.begin_popup("subcats_popup"):
             for subcat in subcat_options:
@@ -1987,8 +1995,6 @@ class ModGeneratorGUI:
                 if is_disabled:
                     imgui.pop_style_var()
             imgui.end_popup()
-
-        grid.end_flow()
 
         # === 第四行：标签（流式布局）===
         grid.label_header("标签", L.SPAN_INPUT)
@@ -3431,65 +3437,57 @@ class ModGeneratorGUI:
         if hybrid.exclude_from_random:
             self.text_secondary("提示: 已排除随机生成，下方设置用于自定义生成逻辑或指令添加")
 
-        # ====== 分类设置 ======
+        # ====== 分类设置 (Cat + Subcats 同行) ======
         imgui.text("分类设置")
 
-        # 两列布局
-        col_width = imgui.get_content_region_available_width() / 2 - 8
-        imgui.columns(2, "drop_slot_cols", border=False)
-        imgui.set_column_width(0, col_width)
-
-        # 左列: Cat
-        imgui.push_item_width(-1)
-        imgui.text("主分类 (Cat)")
-
-        # 文物主分类固定为 treasure
-        if hybrid.quality == 7:  # 文物
-            hybrid.cat = "treasure"
-            self.text_secondary("文物分类固定为 treasure")
-        else:
-            # 非文物不能选择 treasure
-            available_cats = [c for c in ITEM_CATEGORIES if c != "treasure"]
-            # 如果当前选择了 treasure，重置为空
-            if hybrid.cat == "treasure":
-                hybrid.cat = ""
-            cat_options = [""] + available_cats
-            cat_labels = {"": "-- 无 --"}
-            cat_labels.update({c: f"{CATEGORY_TRANSLATIONS.get(c, c)} ({c})" for c in available_cats})
-            hybrid.cat = self._draw_enum_combo("##cat_hybrid", hybrid.cat, cat_options, cat_labels)
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("物品的主分类，用于掉落表匹配")
-        imgui.pop_item_width()
-
-        # 等级已移至基本属性区域
-
-        imgui.columns(1)
-
-        # ====== Subcats 多选 ======
-        imgui.dummy(0, 4)
-        imgui.text("子分类 (Subcats)")
-        if imgui.is_item_hovered():
-            imgui.set_tooltip("可多选。物品可以匹配主分类或任一子分类")
-
-        # 使用四列网格布局
-        # 非文物不能选择 treasure
+        # 准备子分类选项
         if hybrid.quality == 7:
             subcat_options = ALL_SUBCATEGORY_OPTIONS
         else:
             subcat_options = [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
-            # 如果当前选择了 treasure，移除它
             if "treasure" in hybrid.subcats:
                 hybrid.subcats.remove("treasure")
 
-        num_cols = 4
-        col_width = imgui.get_content_region_available_width() / num_cols - 4
-        imgui.columns(num_cols, "subcat_cols", border=False)
-        for i in range(num_cols):
-            imgui.set_column_width(i, col_width)
+        # 计算布局宽度
+        cat_combo_width = 140  # 主分类下拉框宽度
+        checkbox_width = 70    # 每个子分类 checkbox 宽度
+        gap = 8                # 间距
+        available_width = imgui.get_content_region_available_width()
+
+        # 左侧: 主分类 Combo
+        imgui.push_item_width(cat_combo_width)
+        if hybrid.quality == 7:  # 文物
+            hybrid.cat = "treasure"
+            self.text_secondary("treasure (文物)")
+        else:
+            available_cats = [c for c in ITEM_CATEGORIES if c != "treasure"]
+            if hybrid.cat == "treasure":
+                hybrid.cat = ""
+            cat_options = [""] + available_cats
+            cat_labels = {"": "-- 主分类 --"}
+            cat_labels.update({c: f"{CATEGORY_TRANSLATIONS.get(c, c)}" for c in available_cats})
+            hybrid.cat = self._draw_enum_combo("##cat_hybrid", hybrid.cat, cat_options, cat_labels)
+        if imgui.is_item_hovered():
+            imgui.set_tooltip("主分类 (Cat)\n物品的主分类，用于掉落表匹配")
+        imgui.pop_item_width()
+
+        # 右侧: 子分类 Checkboxes (流式布局)
+        imgui.same_line(0, gap * 2)
+        start_x = imgui.get_cursor_pos_x()
+        remaining_width = available_width - start_x
 
         for i, subcat in enumerate(subcat_options):
             is_selected = subcat in hybrid.subcats
             is_disabled = (subcat == hybrid.cat)
+
+            # 检查是否需要换行
+            if i > 0:
+                cursor_x = imgui.get_cursor_pos_x()
+                if cursor_x + checkbox_width > available_width:
+                    # 换行并对齐到子分类起始位置
+                    imgui.set_cursor_pos_x(start_x)
+                else:
+                    imgui.same_line(0, gap)
 
             if is_disabled:
                 imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
@@ -3506,12 +3504,12 @@ class ModGeneratorGUI:
 
             if is_disabled:
                 imgui.pop_style_var()
-                if imgui.is_item_hovered():
+
+            if imgui.is_item_hovered():
+                if is_disabled:
                     imgui.set_tooltip("已选为主分类，无需重复选择")
-
-            imgui.next_column()
-
-        imgui.columns(1)
+                else:
+                    imgui.set_tooltip("子分类 (Subcat)\n可多选，物品可匹配主分类或任一子分类")
 
         self.draw_indented_separator()
 
