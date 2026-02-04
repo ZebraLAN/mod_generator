@@ -65,6 +65,7 @@ else:  # Linux
 
 # Cython 扩展模块
 extensions = [
+    # Core imgui bindings
     Extension(
         "cimgui_py.core",
         sources=["src/imgui_core.pyx"],  # 只有 Cython 源文件！
@@ -75,6 +76,23 @@ extensions = [
         extra_compile_args=EXTRA_COMPILE_ARGS,
         extra_link_args=EXTRA_LINK_ARGS,
         language="c",  # 纯 C！不是 C++
+    ),
+    # Backend bindings (GLFW + OpenGL3)
+    Extension(
+        "cimgui_py.backend",
+        sources=["src/imgui_backend.pyx"],
+        include_dirs=INCLUDE_DIRS + [
+            str(ROOT / "vendor" / "glfw" / "include"),  # GLFW headers
+        ],
+        library_dirs=LIBRARY_DIRS,
+        libraries=LIBRARIES,  # cimgui includes backend impl
+        define_macros=DEFINE_MACROS + [
+            ("CIMGUI_USE_GLFW", None),
+            ("CIMGUI_USE_OPENGL3", None),
+        ],
+        extra_compile_args=EXTRA_COMPILE_ARGS,
+        extra_link_args=EXTRA_LINK_ARGS,
+        language="c",
     ),
 ]
 

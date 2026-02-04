@@ -362,6 +362,9 @@ class TypeMapping:
         "const char* const[]": ("const char**", "list", "string_array", None),
         "const char**": ("const char**", "list", "string_array", None),
         "char**": ("char**", "list", "string_array", None),
+        # Backend opaque pointers (GLFW, etc.)
+        "GLFWwindow*": ("size_t", "int", "ptr", None),
+        "GLFWmonitor*": ("size_t", "int", "ptr", None),
     }
 
     # 明确跳过的类型
@@ -488,8 +491,8 @@ class TypeMapping:
         if value is None:
             return None
 
-        # NULL -> None
-        if value == "NULL":
+        # NULL/nullptr -> None
+        if value in ("NULL", "nullptr"):
             return "None"
 
         # true/false -> True/False
@@ -1276,13 +1279,11 @@ class Compiler:
             overrides=self.overrides,
         )
 
-    def generate_backend(self, backends: list[str] = None) -> str:
+    def generate_backend(self) -> str:
         """生成 imgui_backend.pyx (GLFW + OpenGL3 后端绑定)"""
         template = self.jinja.get_template("imgui_backend.pyx.jinja2")
-        backend_funcs = self.parse_backend_functions(backends)
         return template.render(
-            backends=backend_funcs,
-            type_map=self.type_map,
+            backends=self.parse_backend_functions(),
         )
 
     def compile_all(self, output_dir: Path, include_backend: bool = True) -> None:
@@ -1365,6 +1366,11 @@ def main():
         action="store_true",
         help="Print statistics only, don't generate files",
     )
+    parser.add_argument(
+        "--backend",
+        action="store_true",
+        help="Include backend (GLFW + OpenGL3) bindings",
+    )
     args = parser.parse_args()
 
     compiler = Compiler()
@@ -1372,7 +1378,7 @@ def main():
     if args.stats:
         compiler.print_stats()
     else:
-        compiler.compile_all(args.output, include_backend=False)
+        compiler.compile_all(args.output, include_backend=args.backend)
 
 
 if __name__ == "__main__":

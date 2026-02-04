@@ -6,7 +6,8 @@
 
 ✅ **核心绑定已完成！**
 
-- 330 个函数已绑定
+- 330 个函数已绑定 (core)
+- 26 个后端函数 (GLFW + OpenGL3)
 - 445 个常量 (枚举值)
 - 7 个类 (IO, Style, Font, DrawList 等)
 - 预编译 cimgui.dll (Dear ImGui 1.92.x docking)
@@ -27,7 +28,8 @@
 | 拖放 | ✅ | `begin_drag_drop_source`, `begin_drag_drop_target`, ... |
 | Tab | ✅ | `begin_tab_bar`, `begin_tab_item`, ... |
 | 字体 | ✅ | 1.92 新 API: `push_font`, `get_font_baked`, ... |
-| 后端 | 🔄 | GLFW + OpenGL3 待实现 |
+| GLFW 后端 | ✅ | `glfw_init_for_open_gl`, `glfw_new_frame`, ... (19 函数) |
+| OpenGL3 后端 | ✅ | `opengl3_init`, `opengl3_render_draw_data`, ... (7 函数) |
 
 ## 安装
 
@@ -129,14 +131,14 @@ imgui.new_frame()
 
 if imgui.begin("Demo Window"):
     imgui.text("Hello, World!")
-    
+
     if imgui.button("Click Me"):
         print("Button clicked!")
-    
+
     changed, value = imgui.slider_float("Speed", 1.0, 0.0, 10.0)
     if changed:
         print(f"New value: {value}")
-    
+
     imgui.end()
 
 imgui.render()
@@ -148,7 +150,7 @@ imgui.destroy_context()
 
 ## TODO
 
-- [ ] GLFW 后端绑定
-- [ ] OpenGL3 后端绑定
+- [x] GLFW 后端绑定 ✅
+- [x] OpenGL3 后端绑定 ✅
 - [ ] DrawList 方法绑定
 - [ ] 完整的 .pyi 类型存根
