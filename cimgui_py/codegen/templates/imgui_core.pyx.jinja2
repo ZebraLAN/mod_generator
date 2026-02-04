@@ -140,33 +140,153 @@ WRAPPER_TYPES = {}
 
 cdef class {{ wrapper_name }}:
     """Wrapper for {{ stname }}* pointer.
-    
+
     Provides type-safe access to {{ stname }} methods.
     Do not construct directly - use factory functions like get_window_draw_list().
     """
     cdef void* _ptr
-    
+
     def __cinit__(self):
         self._ptr = NULL
-    
+
     @staticmethod
     def _wrap(ptr: int) -> "{{ wrapper_name }}":
         """Internal: wrap a C pointer (as int)"""
         cdef {{ wrapper_name }} obj = {{ wrapper_name }}.__new__({{ wrapper_name }})
         obj._ptr = <void*><size_t>ptr
         return obj
-    
+
     @property
     def _pointer(self) -> int:
         """Get the raw pointer value (for advanced use)."""
         return <size_t>self._ptr
-    
+
     def __repr__(self):
         return f"<{{ wrapper_name }} ptr=0x{<size_t>self._ptr:x}>"
-    
+
     def __bool__(self):
         """Check if pointer is valid (non-NULL)."""
         return self._ptr != NULL
+
+{# ------ Struct Field Properties ------ #}
+{% set struct_info = structs.get(stname) %}
+{% if struct_info and stname in type_map.FULL_STRUCT_DEFS %}
+{# === Non-array fields === #}
+{% for fld in struct_info.fields %}
+{% if not fld.skip and fld.size is none and fld.cython_type != '__UNKNOWN__' %}
+{% set prop_name = fld.name | strip_array_suffix | to_snake_case %}
+{% set c_field_name = fld.name | strip_array_suffix %}
+{% if fld.conversion == 'vec2' or fld.c_type == 'ImVec2' %}
+    @property
+    def {{ prop_name }}(self) -> tuple:
+        """{{ fld.c_type }} {{ fld.name }}"""
+        cdef cimgui.ImVec2 v = (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        return (v.x, v.y)
+
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: tuple):
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}.x = value[0]
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}.y = value[1]
+
+{% elif fld.conversion == 'vec4' or fld.c_type == 'ImVec4' %}
+    @property
+    def {{ prop_name }}(self) -> tuple:
+        """{{ fld.c_type }} {{ fld.name }}"""
+        cdef cimgui.ImVec4 v = (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        return (v.x, v.y, v.z, v.w)
+
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: tuple):
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}.x = value[0]
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}.y = value[1]
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}.z = value[2]
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}.w = value[3]
+
+{% elif fld.cython_type == 'bint' %}
+    @property
+    def {{ prop_name }}(self) -> bool:
+        """{{ fld.c_type }} {{ fld.name }}"""
+        return (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: bool):
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }} = value
+
+{% elif fld.cython_type in ['float', 'double', 'int', 'unsigned int', 'short', 'unsigned short'] %}
+    @property
+    def {{ prop_name }}(self) -> {{ fld.python_type }}:
+        """{{ fld.c_type }} {{ fld.name }}"""
+        return (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: {{ fld.python_type }}):
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }} = value
+
+{% elif fld.cython_type == 'const char*' %}
+    @property
+    def {{ prop_name }}(self) -> str | None:
+        """{{ fld.c_type }} {{ fld.name }}"""
+        cdef const char* s = (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        if s == NULL:
+            return None
+        return s.decode('utf-8')
+
+{% elif fld.cython_type.endswith('*') %}
+    @property
+    def {{ prop_name }}(self) -> int:
+        """{{ fld.c_type }} {{ fld.name }} (raw pointer)"""
+        return <size_t>(<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+
+{% endif %}
+{% endif %}
+{% endfor %}
+{# === Array fields (with indexed access) === #}
+{% for fld in struct_info.fields %}
+{% if not fld.skip and fld.size is not none and fld.cython_type != '__UNKNOWN__' %}
+{% set prop_name = fld.name | strip_array_suffix | to_snake_case %}
+{% set c_field_name = fld.name | strip_array_suffix %}
+{% if fld.cython_type == 'bint' %}
+    def get_{{ prop_name }}(self, idx: int) -> bool:
+        """{{ fld.c_type }} {{ fld.name }} - array access"""
+        if idx < 0 or idx >= {{ fld.size }}:
+            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
+        return (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx]
+
+    def set_{{ prop_name }}(self, idx: int, value: bool):
+        if idx < 0 or idx >= {{ fld.size }}:
+            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx] = value
+
+{% elif fld.cython_type in ['float', 'double', 'int', 'unsigned int', 'short', 'unsigned short'] %}
+    def get_{{ prop_name }}(self, idx: int) -> {{ fld.python_type }}:
+        """{{ fld.c_type }} {{ fld.name }} - array access"""
+        if idx < 0 or idx >= {{ fld.size }}:
+            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
+        return (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx]
+
+    def set_{{ prop_name }}(self, idx: int, value: {{ fld.python_type }}):
+        if idx < 0 or idx >= {{ fld.size }}:
+            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx] = value
+
+{% elif fld.conversion == 'vec2' or fld.c_type == 'ImVec2' %}
+    def get_{{ prop_name }}(self, idx: int) -> tuple:
+        """{{ fld.c_type }} {{ fld.name }} - array access"""
+        if idx < 0 or idx >= {{ fld.size }}:
+            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
+        cdef cimgui.ImVec2 v = (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx]
+        return (v.x, v.y)
+
+    def set_{{ prop_name }}(self, idx: int, value: tuple):
+        if idx < 0 or idx >= {{ fld.size }}:
+            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx].x = value[0]
+        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx].y = value[1]
+
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
 
 {% for func in method_list %}
 {% set override = overrides.get('methods', {}).get(func.ov_cimguiname, {}) %}
@@ -239,7 +359,11 @@ def destroy_context(ctx = None):
     """Destroy ImGui context. ctx=None to destroy current context."""
     cdef cimgui.ImGuiContext* ptr = NULL
     if ctx is not None:
-        ptr = <cimgui.ImGuiContext*><size_t>ctx
+        # Support both Context wrapper and raw int pointer
+        if hasattr(ctx, '_pointer'):
+            ptr = <cimgui.ImGuiContext*><size_t>ctx._pointer
+        else:
+            ptr = <cimgui.ImGuiContext*><size_t>ctx
     cimgui.igDestroyContext(ptr)
 
 

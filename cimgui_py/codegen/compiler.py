@@ -390,6 +390,16 @@ class TypeMapping:
         "ImColor": ("Color", True),
     }
 
+    # 需要在 .pxd 中生成完整字段定义的结构体（高优先级）
+    # 这些结构体的字段会通过 @property 暴露给 Python
+    FULL_STRUCT_DEFS = {
+        "ImGuiIO",       # IO 设置和输入状态，最常用
+        "ImGuiStyle",    # 样式配置，常需要读写
+        "ImGuiViewport", # 视口信息，多视口时需要
+        "ImDrawData",    # 渲染数据，后端需要
+        "ImGuiListClipper",  # 列表裁剪，常用
+    }
+
     def __init__(self):
         # 动态注册的类型（值类型结构体）
         self._value_types: dict[str, dict] = {}
@@ -642,7 +652,9 @@ class Compiler:
     def _register_filters(self):
         """注册 Jinja2 过滤器"""
         self.jinja.filters["snake_case"] = _to_snake_case
+        self.jinja.filters["to_snake_case"] = _to_snake_case
         self.jinja.filters["strip_im_prefix"] = lambda s: s[2:] if s.startswith("Im") else s
+        self.jinja.filters["strip_array_suffix"] = lambda s: s.split('[')[0] if '[' in s else s
 
     # ========================================================================
     # Helper - 参数/返回值检查

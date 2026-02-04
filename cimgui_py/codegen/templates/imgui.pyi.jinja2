@@ -28,7 +28,7 @@ class {{ wrapper_name }}:
 
     @property
     def _pointer(self) -> int: ...
-    
+
     def __bool__(self) -> bool: ...
 
 {% for func in method_list %}

@@ -63,9 +63,31 @@ cdef extern from "cimgui.h":
 {% endfor %}
 
     # ==========================================================================
+    # Full Struct Definitions (需要字段访问的结构体)
+    # 这些结构体通过 wrapper 类的 @property 暴露字段
+    # ==========================================================================
+{% for stname in type_map.FULL_STRUCT_DEFS %}
+{% set struct = structs.get(stname) %}
+{% if struct %}
+    ctypedef struct {{ stname }}:
+{% for field in struct.fields %}
+{% if not field.skip and field.cython_type != '__UNKNOWN__' %}
+{% set clean_name = field.name | strip_array_suffix %}
+{% if field.size is not none %}
+        {{ field.cython_type }} {{ clean_name }}[{{ field.size }}]
+{% else %}
+        {{ field.cython_type }} {{ clean_name }}
+{% endif %}
+{% endif %}
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+
+    # ==========================================================================
     # Opaque Struct Forward Declarations (只通过指针使用)
     # ==========================================================================
-{% for struct in structs.values() if not struct.is_value_type %}
+{% for struct in structs.values() if not struct.is_value_type and struct.name not in type_map.FULL_STRUCT_DEFS %}
     ctypedef struct {{ struct.name }}
 {% endfor %}
 
