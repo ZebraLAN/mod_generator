@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "Cython>=3.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cimgui_py"
+version = "0.1.0"
+description = "Minimal Dear ImGui Python bindings via cimgui"
+requires-python = ">=3.10"
+dependencies = [
+    "glfw",
+    "PyOpenGL",
+]
+
+[project.optional-dependencies]
+dev = [
+    "cython>=3.0",
+]
