@@ -14,10 +14,7 @@ build/
 *.html
 
 # Codegen output (regenerate with: python codegen/compiler.py)
-src/cimgui.pxd
-src/imgui_core.pyx
-src/imgui_backend.pyx
-src/imgui.pyi
+src/
 
 # Temp files
 cimgui_api_list.txt
@@ -27,3 +24,7 @@ cimgui_api_list.txt
 .vscode/
 .idea/
 *.swp
+
+# External dependencies
+vendor/glfw/
+lib/
