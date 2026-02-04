@@ -1,30 +1,131 @@
 {
   "$schema": "./overrides.schema.json",
-  "$comment": "特殊函数的 Python 签名覆盖 - skip 表示在模板手动实现",
+  "$comment": "只跳过手动实现的函数（模板中有对应实现）",
 
   "functions": {
+    "$comment_core": "Core functions with special handling",
+    "igDestroyContext": {"skip": true},
     "igBegin": {"skip": true},
-    "igEnd": {"skip": true},
-    "igPushFont": {"skip": true},
-    "igPopFont": {"skip": true},
-    "igInputText": {"skip": true},
-    "igCheckbox": {"skip": true},
-    "igSliderFloat": {"skip": true},
-    "igSliderInt": {"skip": true},
+
+    "$comment_vararg": "vararg 函数 - 用 TextUnformatted 代替",
     "igText": {"skip": true},
-    "igTextColored": {"skip": true},
-    "igButton": {"skip": true},
 
-    "igBeginChild_ID": {"skip": true},
+    "$comment_buffer": "char* buffer 需要特殊处理",
+    "igInputText": {"skip": true},
+    "igInputTextMultiline": {"skip": true},
+    "igInputTextWithHint": {"skip": true},
 
-    "igPushID_Int": {"skip": true},
+    "$comment_string_array": "string array 手动实现",
+    "igListBox_Str_arr": {"skip": true},
+    "igCombo_Str_arr": {"skip": true},
+
+    "$comment_overload_skip": "==== Overload 版本跳过 ====",
+
+    "$comment_checkbox_flags": "checkbox_flags: 只保留 IntPtr (签名相同)",
+    "igCheckboxFlags_UintPtr": {"skip": true},
+
+    "$comment_get_id": "get_id: 只保留 Str 和 Int (常用版本)",
+    "igGetID_StrStr": {"skip": true},
+    "igGetID_Ptr": {"skip": true},
+
+    "$comment_menu_item": "menu_item: 只保留 BoolPtr (output param 版本更灵活)",
+    "igMenuItem_Bool": {"skip": true},
+
+    "$comment_push_id": "push_id: 只保留 Str 和 Int (常用版本)",
+    "igPushID_StrStr": {"skip": true},
     "igPushID_Ptr": {"skip": true},
-    "igGetColorU32_Vec4": {"skip": true},
-    "igGetColorU32_U32": {"skip": true},
-    "igPushStyleColor_Vec4": {"skip": true},
-    "igPushStyleVar_Vec2": {"skip": true}
+
+    "$comment_selectable": "selectable: 只保留 BoolPtr (output param 版本)",
+    "igSelectable_Bool": {"skip": true},
+
+    "$comment_tree_push": "tree_push: 只保留 Str (常用)",
+    "igTreePush_Ptr": {"skip": true},
+
+    "$comment_value": "value: 只保留 Int 和 Float (Bool 罕用, Uint 与 Int 相同)",
+    "igValue_Bool": {"skip": true},
+    "igValue_Uint": {"skip": true}
   },
 
-  "methods": {
+  "$comment_overloads": "==== Overload Dispatch 配置 ====",
+  "overloads": {
+    "begin_child": {
+      "dispatch": "by_type",
+      "type_arg": 0,
+      "variants": {
+        "str": "igBeginChild_Str",
+        "int": "igBeginChild_ID"
+      }
+    },
+    "collapsing_header": {
+      "dispatch": "by_optional_arg",
+      "check_arg": "p_visible",
+      "variants": {
+        "with": "igCollapsingHeader_BoolPtr",
+        "without": "igCollapsingHeader_TreeNodeFlags"
+      }
+    },
+    "get_color_u32": {
+      "dispatch": "by_type",
+      "type_arg": 0,
+      "variants": {
+        "tuple": "igGetColorU32_Vec4",
+        "int": "igGetColorU32_U32"
+      }
+    },
+    "get_id": {
+      "dispatch": "by_type",
+      "type_arg": 0,
+      "variants": {
+        "str": "igGetID_Str",
+        "int": "igGetID_Int"
+      }
+    },
+    "is_rect_visible": {
+      "dispatch": "by_optional_arg",
+      "check_arg": "rect_max",
+      "variants": {
+        "with": "igIsRectVisible_Vec2",
+        "without": "igIsRectVisible_Nil"
+      }
+    },
+    "open_popup": {
+      "dispatch": "by_type",
+      "type_arg": 0,
+      "variants": {
+        "str": "igOpenPopup_Str",
+        "int": "igOpenPopup_ID"
+      }
+    },
+    "push_id": {
+      "dispatch": "by_type",
+      "type_arg": 0,
+      "variants": {
+        "str": "igPushID_Str",
+        "int": "igPushID_Int"
+      }
+    },
+    "radio_button": {
+      "dispatch": "rename",
+      "variants": {
+        "igRadioButton_Bool": "radio_button",
+        "igRadioButton_IntPtr": "radio_button_int"
+      }
+    },
+    "set_window_focus": {
+      "dispatch": "by_optional_arg",
+      "check_arg": "name",
+      "variants": {
+        "with": "igSetWindowFocus_Str",
+        "without": "igSetWindowFocus_Nil"
+      }
+    },
+    "value": {
+      "dispatch": "by_type",
+      "type_arg": 1,
+      "variants": {
+        "int": "igValue_Int",
+        "float": "igValue_Float"
+      }
+    }
   }
 }

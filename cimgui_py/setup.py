@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""构建脚本 - Cython 扩展编译"""
+"""构建脚本 - Cython 扩展编译
+
+架构说明：
+- cimgui 已预编译为 lib/cimgui.dll + lib/cimgui.lib
+- Cython 只需要 cimgui.h 头文件 + 链接预编译的库
+- 不编译任何 C++ 源文件
+"""
 
 import os
 import sys
@@ -11,71 +17,64 @@ from Cython.Build import cythonize
 # 项目根目录
 ROOT = Path(__file__).parent
 
-# cimgui 源码目录
+# cimgui 头文件目录
 CIMGUI_DIR = ROOT / "vendor" / "cimgui"
-IMGUI_DIR = CIMGUI_DIR / "imgui"
-BACKENDS_DIR = CIMGUI_DIR / "imgui" / "backends"
 
-# 检查 cimgui 是否存在
-if not CIMGUI_DIR.exists():
-    print("错误: 请先获取 cimgui 源码")
-    print("  git submodule add https://github.com/cimgui/cimgui vendor/cimgui")
-    print("  cd vendor/cimgui && git submodule update --init")
+# 预编译库目录
+LIB_DIR = ROOT / "lib"
+
+# 检查预编译库是否存在
+if not (LIB_DIR / "cimgui.lib").exists():
+    print("错误: 找不到预编译的 cimgui 库")
+    print("请先编译 cimgui:")
+    print("  cd vendor/cimgui")
+    print("  mkdir build_dll && cd build_dll")
+    print("  cmake .. -G \"Visual Studio 17 2022\" -A x64 -DIMGUI_STATIC=OFF")
+    print("  cmake --build . --config Release")
+    print("  cp Release/cimgui.dll Release/cimgui.lib ../../lib/")
     sys.exit(1)
 
-# ImGui 源文件
-IMGUI_SOURCES = [
-    str(IMGUI_DIR / "imgui.cpp"),
-    str(IMGUI_DIR / "imgui_demo.cpp"),
-    str(IMGUI_DIR / "imgui_draw.cpp"),
-    str(IMGUI_DIR / "imgui_tables.cpp"),
-    str(IMGUI_DIR / "imgui_widgets.cpp"),
-    str(CIMGUI_DIR / "cimgui.cpp"),
-    # 后端
-    str(BACKENDS_DIR / "imgui_impl_glfw.cpp"),
-    str(BACKENDS_DIR / "imgui_impl_opengl3.cpp"),
-]
-
-# 包含目录
+# 包含目录 - 只需要 cimgui.h
 INCLUDE_DIRS = [
     str(CIMGUI_DIR),
-    str(IMGUI_DIR),
-    str(BACKENDS_DIR),
+]
+
+# 库目录
+LIBRARY_DIRS = [
+    str(LIB_DIR),
+]
+
+# 链接库
+LIBRARIES = ["cimgui"]
+
+# 宏定义 - 让 cimgui.h 自己定义所有类型
+DEFINE_MACROS = [
+    ("CIMGUI_DEFINE_ENUMS_AND_STRUCTS", None),
 ]
 
 # 平台特定设置
 if sys.platform == "win32":
-    LIBRARIES = ["opengl32", "glfw3"]
-    EXTRA_COMPILE_ARGS = ["/std:c++17"]
+    EXTRA_COMPILE_ARGS = []  # 纯 C，不需要 C++ 标准
     EXTRA_LINK_ARGS = []
 elif sys.platform == "darwin":
-    LIBRARIES = ["glfw"]
-    EXTRA_COMPILE_ARGS = ["-std=c++17"]
-    EXTRA_LINK_ARGS = ["-framework", "OpenGL"]
+    EXTRA_COMPILE_ARGS = []
+    EXTRA_LINK_ARGS = []
 else:  # Linux
-    LIBRARIES = ["GL", "glfw"]
-    EXTRA_COMPILE_ARGS = ["-std=c++17"]
+    EXTRA_COMPILE_ARGS = []
     EXTRA_LINK_ARGS = []
 
 # Cython 扩展模块
 extensions = [
     Extension(
         "cimgui_py.core",
-        sources=["src/imgui_core.pyx"] + IMGUI_SOURCES,
+        sources=["src/imgui_core.pyx"],  # 只有 Cython 源文件！
         include_dirs=INCLUDE_DIRS,
+        library_dirs=LIBRARY_DIRS,
         libraries=LIBRARIES,
+        define_macros=DEFINE_MACROS,
         extra_compile_args=EXTRA_COMPILE_ARGS,
         extra_link_args=EXTRA_LINK_ARGS,
-        language="c++",
-    ),
-    Extension(
-        "cimgui_py.backend",
-        sources=["src/imgui_backend.pyx"],  # 不需要重复 IMGUI_SOURCES
-        include_dirs=INCLUDE_DIRS,
-        libraries=LIBRARIES,
-        extra_compile_args=EXTRA_COMPILE_ARGS,
-        extra_link_args=EXTRA_LINK_ARGS,
-        language="c++",
+        language="c",  # 纯 C！不是 C++
     ),
 ]
 
@@ -88,6 +87,4 @@ setup(
             "embedsignature": True,
         },
     ),
-    packages=["cimgui_py", "cimgui_py.integrations"],
-    package_dir={"cimgui_py": "imgui"},
 )

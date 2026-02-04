@@ -61,7 +61,7 @@ def render() -> None: ...
 
 def begin(name: str, closable: bool | None = None, flags: int = 0) -> bool | Tuple[bool, bool]:
     """Begin a window.
-    
+
     If closable is None: returns bool (expanded)
     If closable is bool: returns tuple[bool, bool] (expanded, still_open)
     """
