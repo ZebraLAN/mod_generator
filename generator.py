@@ -36,8 +36,10 @@ from constants import (
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
 )
-from models import Armor, HybridItem, Item, ItemTextures, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE, SpawnRule, SpawnMode, EquipmentMode, TriggerMode, ChargeMode  # <- import constants
+from models import Armor, Item, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE, SpawnRule, SpawnMode, EquipmentMode, TriggerMode, ChargeMode
+from hybrid_item_v2 import HybridItemV2
 from skill_constants import SKILL_OBJECTS  # <- 用于获取技能目标类型
+from specs import ItemTexturesV2, WeaponCharTexture, MultiPoseCharTexture, NoCharTexture, Origin, AbsoluteFps, RelativeSpeed
 
 # 武器/护甲属性生成辅助 <- moved to module level
 TIER_TO_ENUM = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
@@ -90,7 +92,7 @@ def calculate_crop_region(
 
 
 def calculate_adjusted_offsets(off_x: int, off_y: int) -> tuple:
-    """计算真正裁剪后的调整偏移量
+    """计算真正裁剪后的调整偏移量 (旧版接口，保留兼容性)
 
     X方向最大有效偏移: VIEWPORT_CHAR_OFFSET_X = 8
     Y方向最大有效偏移: VIEWPORT_CHAR_OFFSET_Y = 12
@@ -98,6 +100,31 @@ def calculate_adjusted_offsets(off_x: int, off_y: int) -> tuple:
     adjusted_off_x = min(off_x, VIEWPORT_CHAR_OFFSET_X)
     adjusted_off_y = min(off_y, VIEWPORT_CHAR_OFFSET_Y)
     return adjusted_off_x, adjusted_off_y
+
+
+def calculate_clamped_origin(origin: Origin) -> tuple[int, int] | None:
+    """计算裁剪后的 Origin 值
+
+    如果 Origin 是默认值 (22, 34)，返回 None（无需注入）。
+    否则返回有效范围内的 Origin 值。
+
+    有效范围:
+    - X: [22 - 8, 22] = [14, 22]  (向右偏移最多 8 像素)
+    - Y: [34 - 12, 34] = [22, 34] (向下偏移最多 12 像素)
+    """
+    if origin.is_default:
+        return None
+
+    # Origin 值越小 = 装备向右/下偏移
+    # 限制最小值 (即最大偏移量)
+    clamped_x = max(origin.x, GML_ANCHOR_X - VIEWPORT_CHAR_OFFSET_X)
+    clamped_y = max(origin.y, GML_ANCHOR_Y - VIEWPORT_CHAR_OFFSET_Y)
+
+    # 如果裁剪后恢复为默认值，则无需注入
+    if clamped_x == GML_ANCHOR_X and clamped_y == GML_ANCHOR_Y:
+        return None
+
+    return clamped_x, clamped_y
 
 
 def copy_texture(src_path: str, dst_path, mask_offsets: tuple = None) -> str | None:
@@ -216,19 +243,22 @@ def copy_armor_pose_texture(
 
 
 
-def copy_item_textures(
+# 旧的 copy_item_textures 函数已删除，使用 copy_item_textures_v2
+
+
+def copy_item_textures_v2(
     item_id: str,
-    textures: ItemTextures,
+    textures: ItemTexturesV2,
     sprites_dir: Path,
     copy_char: bool,
     copy_left: bool,
     is_multi_pose_armor: bool = False,
 ) -> list[str]:
-    """复制物品的所有贴图文件
+    """复制物品的所有贴图文件 (ItemTexturesV2 版本)
 
     Args:
         item_id: 物品ID
-        textures: 贴图数据
+        textures: ItemTexturesV2 贴图数据
         sprites_dir: 精灵图输出目录
         copy_char: 是否复制角色/穿戴贴图
         copy_left: 是否复制左手贴图
@@ -261,85 +291,82 @@ def copy_item_textures(
 
     # 角色/手持/穿戴贴图
     if copy_char:
-        if is_multi_pose_armor:
-            # 多姿势装备（头/身/手/腿/背）：站立和休息姿势贴图
-            # 游戏用 s_char 帧序列的第0/1帧存储站立两姿势，休息姿势用 s_char3 单独存储
-
-            # ====== 默认/男性版贴图 ======
-            # 站立姿势0: s_char_{id}_0.png (帧序列第0帧)
-            if textures.character:
-                standing0_path = textures.character[0] if textures.character else ""
-                if standing0_path:
+        match textures.char:
+            case MultiPoseCharTexture() as mp:
+                # 多姿势装备（头/身/手/腿/背）
+                # 站立姿势0
+                if mp.standing0.has_texture():
+                    off_x, off_y = mp.standing0.origin.to_offset()
                     _copy_armor_pose(
-                        standing0_path,
+                        mp.standing0.path,
                         sprites_dir / f"s_char_{item_id}_0.png",
-                        textures.offset_x,
-                        textures.offset_y,
+                        off_x,
+                        off_y,
+                    )
+                # 站立姿势1
+                if mp.standing1.has_texture():
+                    off_x, off_y = mp.standing1.origin.to_offset()
+                    _copy_armor_pose(
+                        mp.standing1.path,
+                        sprites_dir / f"s_char_{item_id}_1.png",
+                        off_x,
+                        off_y,
+                    )
+                # 休息姿势
+                if mp.rest.has_texture():
+                    off_x, off_y = mp.rest.origin.to_offset()
+                    _copy_armor_pose(
+                        mp.rest.path,
+                        sprites_dir / f"s_char3_{item_id}.png",
+                        off_x,
+                        off_y,
+                    )
+                # 女性版贴图
+                if mp.standing0_female.has_texture():
+                    off_x, off_y = mp.standing0_female.origin.to_offset()
+                    _copy_armor_pose(
+                        mp.standing0_female.path,
+                        sprites_dir / f"s_char_{item_id}_female_0.png",
+                        off_x,
+                        off_y,
+                    )
+                if mp.standing1_female.has_texture():
+                    off_x, off_y = mp.standing1_female.origin.to_offset()
+                    _copy_armor_pose(
+                        mp.standing1_female.path,
+                        sprites_dir / f"s_char_{item_id}_female_1.png",
+                        off_x,
+                        off_y,
+                    )
+                if mp.rest_female.has_texture():
+                    off_x, off_y = mp.rest_female.origin.to_offset()
+                    _copy_armor_pose(
+                        mp.rest_female.path,
+                        sprites_dir / f"s_char3_{item_id}_female.png",
+                        off_x,
+                        off_y,
                     )
 
-            # 站立姿势1: s_char_{id}_1.png (帧序列第1帧，可选)
-            if textures.character_standing1:
-                _copy_armor_pose(
-                    textures.character_standing1,
-                    sprites_dir / f"s_char_{item_id}_1.png",
-                    textures.offset_x_standing1,
-                    textures.offset_y_standing1,
-                )
+            case WeaponCharTexture() as w:
+                # 武器/盾牌：动画帧序列
+                if w.main.has_texture():
+                    mask = w.main.origin.to_offset()
+                    _copy_texture_list(w.main.paths, f"s_char_{item_id}", mask)
 
-            # 休息姿势: s_char3_{id}.png (独立贴图槽)
-            if textures.character_rest:
-                _copy_armor_pose(
-                    textures.character_rest,
-                    sprites_dir / f"s_char3_{item_id}.png",
-                    textures.offset_x_rest,
-                    textures.offset_y_rest,
-                )
+                # 左手贴图
+                if copy_left and w.left.has_texture():
+                    mask_left = w.left.origin.to_offset()
+                    _copy_texture_list(w.left.paths, f"s_charleft_{item_id}", mask_left)
 
-            # ====== 女性版贴图 ======
-            # 文件名格式：s_char_{id}_female_0.png (female 后缀在数字前)
-
-            # 女性版站立姿势0: s_char_{id}_female_0.png
-            if textures.character_female:
-                _copy_armor_pose(
-                    textures.character_female,
-                    sprites_dir / f"s_char_{item_id}_female_0.png",
-                    textures.offset_x_female,
-                    textures.offset_y_female,
-                )
-
-            # 女性版站立姿势1: s_char_{id}_female_1.png (仅当男性版设置了才可能有)
-            if textures.character_standing1_female:
-                _copy_armor_pose(
-                    textures.character_standing1_female,
-                    sprites_dir / f"s_char_{item_id}_female_1.png",
-                    textures.offset_x_standing1_female,
-                    textures.offset_y_standing1_female,
-                )
-
-            # 女性版休息姿势: s_char3_{id}_female.png
-            if textures.character_rest_female:
-                _copy_armor_pose(
-                    textures.character_rest_female,
-                    sprites_dir / f"s_char3_{item_id}_female.png",
-                    textures.offset_x_rest_female,
-                    textures.offset_y_rest_female,
-                )
-        else:
-            # 武器/盾牌：动画帧序列
-            mask = (textures.offset_x, textures.offset_y)
-            _copy_texture_list(textures.character, f"s_char_{item_id}", mask)
-
-    # 左手贴图（仅武器/盾牌）
-    if copy_left and textures.character_left:
-        mask_left = (textures.offset_x_left, textures.offset_y_left)
-        _copy_texture_list(textures.character_left, f"s_charleft_{item_id}", mask_left)
+            case NoCharTexture():
+                pass  # 无角色贴图
 
     # 常规/物品栏贴图
     for idx, inv_texture in enumerate(textures.inventory):
         _copy(inv_texture, sprites_dir / f"s_inv_{item_id}_{idx}.png")
 
     # 战利品贴图
-    _copy_texture_list(textures.loot, f"s_loot_{item_id}")
+    _copy_texture_list(textures.loot.paths, f"s_loot_{item_id}")
 
     return errors
 
@@ -388,7 +415,7 @@ class CodeGenerator:
         return text.replace('"', '""')
 
     @property
-    def registered_hybrids(self) -> list[HybridItem]:
+    def registered_hybrids(self) -> list[HybridItemV2]:
         """获取所有需要注册的混合物品"""
         return [h for h in self.project.hybrid_items if h.needs_registration]
 
@@ -693,35 +720,33 @@ public partial class {code_namespace}
         return code
 
     def _generate_gml_offset_code(self, item: Item) -> str:
-        """生成 GML 偏移注入代码（武器/盾牌）"""
+        """生成 GML 偏移注入代码（武器/盾牌）
+
+        将 Origin 值注入到 global.customizationAnchors 中。
+        如果 Origin 是默认值 (22, 34)，则无需注入。
+        """
+        char = item.textures.char
+
+        # 只有 WeaponCharTexture 才需要偏移注入
+        if not isinstance(char, WeaponCharTexture):
+            return ""
+
         gml_code_block = ""
 
-        if item.textures.offset_x != 0 or item.textures.offset_y != 0:
-            adj_off_x, adj_off_y = calculate_adjusted_offsets(
-                item.textures.offset_x, item.textures.offset_y
-            )
+        # 主手/右手 Origin
+        clamped = calculate_clamped_origin(char.main.origin)
+        if clamped:
+            val_x, val_y = clamped
+            sprite_name = f"s_char_{item.id}"
+            gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
 
-            if adj_off_x != 0 or adj_off_y != 0:
-                val_y = GML_ANCHOR_Y + adj_off_y
-                val_x = GML_ANCHOR_X + adj_off_x
-                sprite_name = f"s_char_{item.id}"
-                gml_code_block += self._generate_anchor_gml_block(
-                    val_y, val_x, sprite_name
-                )
-
-        if item.textures.has_char_left():
-            if item.textures.offset_x_left != 0 or item.textures.offset_y_left != 0:
-                adj_off_x_left, adj_off_y_left = calculate_adjusted_offsets(
-                    item.textures.offset_x_left, item.textures.offset_y_left
-                )
-
-                if adj_off_x_left != 0 or adj_off_y_left != 0:
-                    val_y = GML_ANCHOR_Y + adj_off_y_left
-                    val_x = GML_ANCHOR_X + adj_off_x_left
-                    sprite_name = f"s_charleft_{item.id}"
-                    gml_code_block += self._generate_anchor_gml_block(
-                        val_y, val_x, sprite_name
-                    )
+        # 左手 Origin
+        if char.left.paths:
+            clamped_left = calculate_clamped_origin(char.left.origin)
+            if clamped_left:
+                val_x, val_y = clamped_left
+                sprite_name = f"s_charleft_{item.id}"
+                gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
 
         if not gml_code_block:
             return ""
@@ -750,16 +775,17 @@ popz.v"""
 
     def _generate_loot_animation_code(self, item: Item) -> str:
         """生成战利品贴图动画设置 C# 代码"""
-        if not item.textures.is_animated("loot"):
+        loot = item.textures.loot
+        if not loot.is_animated:
             return ""
 
         sprite_name = f"s_loot_{item.id}"
-        fps_value = item.textures.loot_fps
 
-        if item.textures.loot_use_relative_speed:
-            speed_type = "AnimSpeedType.FramesPerGameFrame"
-        else:
-            speed_type = "AnimSpeedType.FramesPerSecond"
+        match loot.speed:
+            case AbsoluteFps(fps=fps_value):
+                speed_type = "AnimSpeedType.FramesPerSecond"
+            case RelativeSpeed(multiplier=fps_value):
+                speed_type = "AnimSpeedType.FramesPerGameFrame"
 
         fps_formatted = f"{fps_value:.3f}"
 
@@ -780,7 +806,7 @@ popz.v"""
 
     # ============== 混合物品代码生成 ==============
 
-    def _generate_hybrid_item_method(self, item: HybridItem) -> str:
+    def _generate_hybrid_item_method(self, item: HybridItemV2) -> str:
         """生成单个混合物品的 C# 方法"""
         method_name = f"AddHybrid{item.id}"
 
@@ -796,7 +822,7 @@ popz.v"""
         return code
 
 
-    def _generate_hybrid_objects_code(self, item: HybridItem) -> str:
+    def _generate_hybrid_objects_code(self, item: HybridItemV2) -> str:
         """生成混合物品的游戏对象创建代码"""
         inv_obj_name = f"o_inv_{item.id}"
         loot_obj_name = f"o_loot_{item.id}"
@@ -888,7 +914,7 @@ popz.v"""
         return code
 
 
-    def _generate_hybrid_events_code(self, item: HybridItem) -> str:
+    def _generate_hybrid_events_code(self, item: HybridItemV2) -> str:
         """生成混合物品的事件代码"""
         inv_obj_name = f"o_inv_{item.id}"
 
@@ -946,7 +972,7 @@ popz.v"""
         code += "\n        );\n\n"
         return code
 
-    def _generate_hybrid_create_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_create_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Create_0 GML 代码
 
         简化策略：
@@ -1153,7 +1179,7 @@ popz.v"""
 
         return "\n".join(lines)
 
-    def _generate_hybrid_step_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_step_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Step_0 GML 代码"""
         sections = ["event_inherited();"]
 
@@ -1301,7 +1327,7 @@ if (!is_undefined(_active_skill)) {{
 
         return "\n\n".join(sections)
 
-    def _generate_hybrid_alarm_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_alarm_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Alarm_0 GML 代码
 
         简化策略：
@@ -1353,7 +1379,7 @@ if (!is_undefined(_active_skill)) {{
         lines.append("}")
         return "\n".join(lines)
 
-    def _generate_hybrid_other10_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_other10_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Other_10 GML 代码
 
         简单地调用 event_inherited() 然后覆盖需要的值。
@@ -1375,7 +1401,7 @@ if (!is_undefined(_active_skill)) {{
 
         return "\n".join(lines)
 
-    def _generate_hybrid_other13_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_other13_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Other_13 (Hover) GML 代码
 
         完整复制 o_inv_slot.Other_13 的 switch 结构，包括：
@@ -1476,7 +1502,7 @@ if (!is_undefined(_active_skill)) {{
 
         return "\n".join(lines)
 
-    def _generate_hybrid_other16_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_other16_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Other_16 GML 代码
 
         某些混合物品（如可装备）继承自 o_inv_consum，后者覆盖了 o_inv_slot 的 Other_16，
@@ -1488,7 +1514,7 @@ if (!is_undefined(_active_skill)) {{
         # 直接复用 o_inv_slot 的 Other_16 逻辑
         return "event_perform_object(o_inv_slot, ev_other, 16);"
 
-    def _generate_hybrid_other24_gml(self, item: HybridItem) -> str:
+    def _generate_hybrid_other24_gml(self, item: HybridItemV2) -> str:
         """生成混合物品的 Other_24 (使用效果) GML 代码
 
         根据 trigger_mode 生成不同代码：
@@ -1672,18 +1698,18 @@ if (!is_undefined(_active_skill)) {{
 
         return "\n".join(lines)
 
-    def _generate_hybrid_loot_animation_code(self, item: HybridItem) -> str:
+    def _generate_hybrid_loot_animation_code(self, item: HybridItemV2) -> str:
         """生成混合物品的战利品贴图动画设置 C# 代码"""
-        if not item.textures.is_animated("loot"):
+        if not item.textures.loot.is_animated:
             return ""
 
         sprite_name = f"s_loot_{item.id}"
-        fps_value = item.textures.loot_fps
 
-        if item.textures.loot_use_relative_speed:
-            speed_type = "AnimSpeedType.FramesPerGameFrame"
-        else:
-            speed_type = "AnimSpeedType.FramesPerSecond"
+        match item.textures.loot.speed:
+            case AbsoluteFps(fps=fps_value):
+                speed_type = "AnimSpeedType.FramesPerSecond"
+            case RelativeSpeed(multiplier=fps_value):
+                speed_type = "AnimSpeedType.FramesPerGameFrame"
 
         fps_formatted = f"{fps_value:.3f}"
 
@@ -1702,32 +1728,33 @@ if (!is_undefined(_active_skill)) {{
 """
         return code
 
-    def _generate_hybrid_gml_offset_code(self, item: HybridItem) -> str:
-        """生成 Hybrid 物品的 GML 偏移注入代码（武器/盾牌）"""
+    def _generate_hybrid_gml_offset_code(self, item: HybridItemV2) -> str:
+        """生成 Hybrid 物品的 GML 偏移注入代码（武器/盾牌）
+
+        将 Origin 值注入到 global.customizationAnchors 中。
+        如果 Origin 是默认值 (22, 34)，则无需注入。
+        """
         gml_code_block = ""
 
-        # 右手/默认偏移
-        if item.textures.offset_x != 0 or item.textures.offset_y != 0:
-            adj_off_x, adj_off_y = calculate_adjusted_offsets(
-                item.textures.offset_x, item.textures.offset_y
-            )
-            if adj_off_x != 0 or adj_off_y != 0:
-                val_y = GML_ANCHOR_Y + adj_off_y
-                val_x = GML_ANCHOR_X + adj_off_x
-                sprite_name = f"s_char_{item.id}"
-                gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
-
-        # 左手偏移
-        if item.needs_left_texture() and item.textures.has_char_left():
-            if item.textures.offset_x_left != 0 or item.textures.offset_y_left != 0:
-                adj_off_x_left, adj_off_y_left = calculate_adjusted_offsets(
-                    item.textures.offset_x_left, item.textures.offset_y_left
-                )
-                if adj_off_x_left != 0 or adj_off_y_left != 0:
-                    val_y = GML_ANCHOR_Y + adj_off_y_left
-                    val_x = GML_ANCHOR_X + adj_off_x_left
-                    sprite_name = f"s_charleft_{item.id}"
+        # 仅处理 WeaponCharTexture 类型
+        match item.textures.char:
+            case WeaponCharTexture() as w:
+                # 主手/右手 Origin
+                clamped = calculate_clamped_origin(w.main.origin)
+                if clamped:
+                    val_x, val_y = clamped
+                    sprite_name = f"s_char_{item.id}"
                     gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
+
+                # 左手 Origin
+                if item.needs_left_texture() and w.left.has_texture():
+                    clamped_left = calculate_clamped_origin(w.left.origin)
+                    if clamped_left:
+                        val_x, val_y = clamped_left
+                        sprite_name = f"s_charleft_{item.id}"
+                        gml_code_block += self._generate_anchor_gml_block(val_y, val_x, sprite_name)
+            case _:
+                pass  # 非武器类型无需偏移代码
 
         if not gml_code_block:
             return ""

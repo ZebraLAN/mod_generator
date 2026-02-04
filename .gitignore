@@ -1,42 +1,51 @@
-# === 大型数据目录 ===
+# =============================================================================
+# .gitignore - Stoneshard Mod Generator
+# =============================================================================
+
+# === 游戏数据目录 (大型，不入库) ===
 game_code/
 game_data/
 objects/
 references/
 
-# === 资源文件 ===
+# === 资源文件 (字体/图标由用户本地准备) ===
 fonts/
 icons/
 *.ttf
 *.otf
 
-# === Python 构建产物 ===
-# Python
+# === codegen 产物 (可重新生成) ===
+ui/tw.py
+ui/icons.py
+ui/font_config.py
+.font_metrics_cache.json
+
+# === Python ===
 __pycache__/
 *.pyc
+*.pyo
 venv/
 .env
+.venv/
 
-# Build
+# === 构建产物 ===
 build/
 dist/
 *.spec
 
-# IDE
+# === IDE / 编辑器 ===
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Intermediate files
-references/
-
-# Legacy
-tools/
-
-# Configuration
+# === 项目配置 (用户本地) ===
 config.json
 codegen/config_local.py
+paths.json
+pyrightconfig.json
 
-# UMT Scripts output
+# === UMT Scripts 输出 (脚本本身保留) ===
 umt_scripts/*.json
 !umt_scripts/config.example.json
 
@@ -44,24 +53,23 @@ umt_scripts/*.json
 diff_output.txt
 *.json.bak
 imgui.ini
-extracted_data/
 
-# === 文档和杂项 ===
+# === 文档 (个人笔记) ===
 *.docx
 TODO_*.md
 大篷车*.md
 o_Dead_March.txt
-convert_icons.py
 
 # === 压缩包 ===
 *.7z
 *.zip
 
-# === 旧的 tools 目录 (如果还有) ===
+# === 废弃/归档 ===
+_archive/
 tools/
 
-# === User Requests ===
+# === AI Agent ===
 .agent/
-umt_scripts/ExportSoundMap.csx
-umt_scripts/ExportSpriteMap.csx
-paths.json
+
+# === GitHub (本地配置) ===
+.github/

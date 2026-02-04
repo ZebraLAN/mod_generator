@@ -148,9 +148,15 @@ GAME_FPS = 40
 # 预览动画帧率 (游戏帧率的 1/4，手持贴图在游戏中默认以此速度播放)
 PREVIEW_ANIMATION_FPS = GAME_FPS // 4  # = 10 fps
 
-# 渲染坐标系常量
-GML_ANCHOR_X = 22  # 游戏内默认原点 X
-GML_ANCHOR_Y = 34  # 游戏内默认原点 Y
+# ============== 精灵 Origin 常量 ==============
+# 角色模型 Origin (游戏资源硬编码，所有 s_*_male/female 精灵均使用此值)
+# 这是唯一真相来源 (Single Source of Truth)
+# 详见: references/docs/doc_sprite_rendering_system.md
+CHAR_MODEL_ORIGIN: tuple[int, int] = (22, 34)
+
+# 兼容性别名 (旧代码可能使用这些名称)
+GML_ANCHOR_X = CHAR_MODEL_ORIGIN[0]  # 游戏内默认原点 X
+GML_ANCHOR_Y = CHAR_MODEL_ORIGIN[1]  # 游戏内默认原点 Y
 CHAR_IMG_W = 48  # 人物贴图宽
 CHAR_IMG_H = 40  # 人物贴图高
 
@@ -1053,3 +1059,9 @@ ITEM_TYPE_CONFIG = {
         "slot_labels": HYBRID_SLOT_LABELS,
     },
 }
+
+# ============== 预计算的属性分组（模块级常量）==============
+# 避免每帧重复计算
+
+WEAPON_ATTR_GROUPS = get_attribute_groups(WEAPON_ATTRIBUTES, DEFAULT_GROUP_ORDER)
+ARMOR_ATTR_GROUPS = get_attribute_groups(ARMOR_ATTRIBUTES, DEFAULT_GROUP_ORDER)
