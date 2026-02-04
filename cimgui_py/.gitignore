@@ -16,6 +16,7 @@ build/
 # Codegen output (regenerate with: python codegen/compiler.py)
 src/cimgui.pxd
 src/imgui_core.pyx
+src/imgui_backend.pyx
 src/imgui.pyi
 
 # Temp files

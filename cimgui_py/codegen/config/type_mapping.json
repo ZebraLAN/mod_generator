@@ -86,6 +86,12 @@
     "ImTextureRef": {"cython": "ImTextureRef_c", "python": "_TextureRef", "wrapper": "_TextureRef"}
   },
 
+  "backend_types": {
+    "$comment": "Backend (GLFW/OpenGL3) 特有类型",
+    "GLFWwindow*": {"cython": "size_t", "python": "int", "conversion": "ptr_to_int"},
+    "GLFWmonitor*": {"cython": "size_t", "python": "int", "conversion": "ptr_to_int"}
+  },
+
   "flag_pattern": {
     "$comment": "匹配 ImGui*Flags, Im*Flags 等类型，自动映射为 int",
     "regex": "^Im(Gui)?[A-Z][a-zA-Z]*Flags$",

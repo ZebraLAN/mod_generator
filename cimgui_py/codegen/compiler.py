@@ -292,6 +292,7 @@ class TypeMapping:
             "imgui_basic",
             "imgui_vectors",
             "imgui_structs",
+            "backend_types",
         ]:
             if section in self.config:
                 self._map.update(self.config[section])
@@ -383,6 +384,7 @@ class Compiler:
 
         # 加载 cimgui JSON
         self.definitions = self._load_json("definitions.json")
+        self.impl_definitions = self._load_json("impl_definitions.json")
         self.structs_and_enums = self._load_json("structs_and_enums.json")
         self.typedefs = self._load_json("typedefs_dict.json")
 
@@ -403,6 +405,7 @@ class Compiler:
         self._methods: dict[str, list[Function]] | None = None
         self._structs: dict[str, Struct] | None = None
         self._enums: list[Enum] | None = None
+        self._backend_functions: dict[str, list[Function]] | None = None
 
     def _load_json(self, filename: str) -> dict:
         """加载 cimgui JSON 文件"""
@@ -568,6 +571,75 @@ class Compiler:
         self._enums = enums
         return enums
 
+    def parse_backend_functions(self, backends: list[str] = None) -> dict[str, list[Function]]:
+        """
+        解析 backend 函数
+
+        backends: 要解析的后端列表，如 ["glfw", "opengl3"]
+                 默认为 ["glfw", "opengl3"]
+        
+        返回: {backend_name: [Function, ...]}
+        """
+        if backends is None:
+            backends = ["glfw", "opengl3"]
+        
+        if self._backend_functions is not None:
+            return self._backend_functions
+        
+        # 后端名称到函数前缀的映射
+        backend_prefixes = {
+            "glfw": "ImGui_ImplGlfw_",
+            "opengl3": "ImGui_ImplOpenGL3_",
+            "opengl2": "ImGui_ImplOpenGL2_",
+            "vulkan": "ImGui_ImplVulkan_",
+            "sdl2": "ImGui_ImplSDL2_",
+            "sdl3": "ImGui_ImplSDL3_",
+        }
+        
+        result: dict[str, list[Function]] = {}
+        
+        for backend in backends:
+            prefix = backend_prefixes.get(backend)
+            if not prefix:
+                continue
+            
+            functions = []
+            seen_names: set[str] = set()
+            
+            for cimgui_name, overloads in self.impl_definitions.items():
+                if not cimgui_name.startswith(prefix):
+                    continue
+                
+                for overload in overloads:
+                    func = Function.from_json(
+                        cimgui_name, overload, self.type_map, self.overrides
+                    )
+                    
+                    # 重新计算 python_name（从 backend 函数名）
+                    # ImGui_ImplGlfw_InitForOpenGL -> init_for_opengl
+                    func_part = cimgui_name[len(prefix):]
+                    func.python_name = _to_snake_case(func_part)
+                    
+                    # 跳过条件
+                    if func.skip:
+                        continue
+                    if not func.python_name:
+                        continue
+                    # 跳过包含 vararg (...) 参数的函数
+                    if any(arg.c_type == "..." for arg in func.args):
+                        continue
+                    # 处理重载
+                    if func.python_name in seen_names:
+                        continue
+                    seen_names.add(func.python_name)
+                    
+                    functions.append(func)
+            
+            result[backend] = functions
+        
+        self._backend_functions = result
+        return result
+
     # ========================================================================
     # Generate - 使用模板生成代码
     # ========================================================================
@@ -582,6 +654,7 @@ class Compiler:
             enums=self.parse_enums(),
             typedefs=self.typedefs,
             type_map=self.type_map,
+            backend_functions=self.parse_backend_functions(),
         )
 
     def generate_pyx(self) -> str:
@@ -607,7 +680,16 @@ class Compiler:
             overrides=self.overrides,
         )
 
-    def compile_all(self, output_dir: Path) -> None:
+    def generate_backend(self, backends: list[str] = None) -> str:
+        """生成 imgui_backend.pyx (GLFW + OpenGL3 后端绑定)"""
+        template = self.jinja.get_template("imgui_backend.pyx.jinja2")
+        backend_funcs = self.parse_backend_functions(backends)
+        return template.render(
+            backends=backend_funcs,
+            type_map=self.type_map,
+        )
+
+    def compile_all(self, output_dir: Path, include_backend: bool = True) -> None:
         """编译所有文件"""
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -622,6 +704,11 @@ class Compiler:
             self.generate_pyi(), encoding="utf-8"
         )
 
+        if include_backend:
+            (output_dir / "imgui_backend.pyx").write_text(
+                self.generate_backend(), encoding="utf-8"
+            )
+
         print(f"Generated binding files in {output_dir}")
 
     # ========================================================================
@@ -634,6 +721,7 @@ class Compiler:
         methods = self.parse_methods()
         structs = self.parse_structs()
         enums = self.parse_enums()
+        backend_funcs = self.parse_backend_functions()
 
         print("=== cimgui Binding Compiler Stats ===")
         print(f"Public Functions: {len(functions)}")
@@ -643,6 +731,9 @@ class Compiler:
             print(f"  {wrapper}: {len(method_list)} methods")
         print(f"Structs: {len(structs)}")
         print(f"Enums: {len(enums)}")
+        print(f"Backend Functions:")
+        for backend, funcs in backend_funcs.items():
+            print(f"  {backend}: {len(funcs)} functions")
 
 
 # ============================================================================

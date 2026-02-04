@@ -147,6 +147,15 @@ cdef extern from "cimgui.h":
 # ==============================================================================
 
 cdef extern from "cimgui_impl.h":
+{% if backend_functions %}
+{% for backend_name, funcs in backend_functions.items() %}
+    # {{ backend_name | upper }} backend
+{% for func in funcs %}
+    {{ func.ret_cython }} {{ func.cimgui_name }}({% for arg in func.args %}{{ arg.cython_type }} {{ arg.name }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endfor %}
+
+{% endfor %}
+{% else %}
     # GLFW
     bint ImGui_ImplGlfw_InitForOpenGL(void* window, bint install_callbacks)
     bint ImGui_ImplGlfw_InitForVulkan(void* window, bint install_callbacks)
@@ -161,3 +170,4 @@ cdef extern from "cimgui_impl.h":
     void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
     bint ImGui_ImplOpenGL3_CreateFontsTexture()
     void ImGui_ImplOpenGL3_DestroyFontsTexture()
+{% endif %}
