@@ -1,0 +1,115 @@
+{
+  "$schema": "./type_mapping.schema.json",
+  "$comment": "C类型 -> Cython/Python 类型映射，完全驱动代码生成",
+
+  "primitives": {
+    "void": {"cython": "void", "python": "None"},
+    "bool": {"cython": "bint", "python": "bool"},
+    "char": {"cython": "char", "python": "str"},
+    "unsigned char": {"cython": "unsigned char", "python": "int"},
+    "short": {"cython": "short", "python": "int"},
+    "unsigned short": {"cython": "unsigned short", "python": "int"},
+    "int": {"cython": "int", "python": "int"},
+    "unsigned int": {"cython": "unsigned int", "python": "int"},
+    "long": {"cython": "long", "python": "int"},
+    "unsigned long": {"cython": "unsigned long", "python": "int"},
+    "float": {"cython": "float", "python": "float"},
+    "double": {"cython": "double", "python": "float"},
+    "size_t": {"cython": "size_t", "python": "int"}
+  },
+
+  "pointers": {
+    "const char*": {"cython": "const char*", "python": "str", "conversion": "to_bytes"},
+    "char*": {"cython": "char*", "python": "str", "conversion": "to_bytes"},
+    "void*": {"cython": "void*", "python": "Any"},
+    "const void*": {"cython": "const void*", "python": "Any"}
+  },
+
+  "imgui_basic": {
+    "ImGuiID": {"cython": "ImGuiID", "python": "int", "cdef": "ctypedef uint32_t ImGuiID"},
+    "ImU8": {"cython": "ImU8", "python": "int", "cdef": "ctypedef uint8_t ImU8"},
+    "ImU16": {"cython": "ImU16", "python": "int", "cdef": "ctypedef uint16_t ImU16"},
+    "ImU32": {"cython": "ImU32", "python": "int", "cdef": "ctypedef uint32_t ImU32"},
+    "ImU64": {"cython": "ImU64", "python": "int", "cdef": "ctypedef uint64_t ImU64"},
+    "ImS8": {"cython": "ImS8", "python": "int", "cdef": "ctypedef int8_t ImS8"},
+    "ImS16": {"cython": "ImS16", "python": "int", "cdef": "ctypedef int16_t ImS16"},
+    "ImS32": {"cython": "ImS32", "python": "int", "cdef": "ctypedef int32_t ImS32"},
+    "ImS64": {"cython": "ImS64", "python": "int", "cdef": "ctypedef int64_t ImS64"},
+    "ImWchar": {"cython": "ImWchar", "python": "int", "cdef": "ctypedef uint16_t ImWchar"},
+    "ImWchar16": {"cython": "ImWchar16", "python": "int", "cdef": "ctypedef uint16_t ImWchar16"},
+    "ImWchar32": {"cython": "ImWchar32", "python": "int", "cdef": "ctypedef uint32_t ImWchar32"},
+    "ImTextureID": {"cython": "ImTextureID", "python": "int", "cdef": "ctypedef uint64_t ImTextureID"},
+    "ImDrawIdx": {"cython": "ImDrawIdx", "python": "int", "cdef": "ctypedef unsigned short ImDrawIdx"},
+    "ImFontAtlasRectId": {"cython": "ImFontAtlasRectId", "python": "int", "cdef": "ctypedef int ImFontAtlasRectId"}
+  },
+
+  "imgui_vectors": {
+    "ImVec2": {
+      "cython": "ImVec2_c",
+      "python": "tuple[float, float]",
+      "conversion": "vec2",
+      "return_conversion": "vec2_to_tuple",
+      "struct": {
+        "fields": [
+          {"name": "x", "type": "float"},
+          {"name": "y", "type": "float"}
+        ]
+      }
+    },
+    "ImVec4": {
+      "cython": "ImVec4_c",
+      "python": "tuple[float, float, float, float]",
+      "conversion": "vec4",
+      "return_conversion": "vec4_to_tuple",
+      "struct": {
+        "fields": [
+          {"name": "x", "type": "float"},
+          {"name": "y", "type": "float"},
+          {"name": "z", "type": "float"},
+          {"name": "w", "type": "float"}
+        ]
+      }
+    }
+  },
+
+  "imgui_structs": {
+    "ImFont*": {"cython": "ImFont*", "python": "_Font | None", "wrapper": "_Font", "conversion": "unwrap_ptr"},
+    "ImFontBaked*": {"cython": "ImFontBaked*", "python": "_FontBaked | None", "wrapper": "_FontBaked", "conversion": "unwrap_ptr"},
+    "ImFontAtlas*": {"cython": "ImFontAtlas*", "python": "_FontAtlas", "wrapper": "_FontAtlas", "conversion": "unwrap_ptr"},
+    "ImFontConfig*": {"cython": "ImFontConfig*", "python": "_FontConfig | None", "wrapper": "_FontConfig", "conversion": "unwrap_ptr"},
+    "ImDrawList*": {"cython": "ImDrawList*", "python": "_DrawList", "wrapper": "_DrawList", "conversion": "unwrap_ptr"},
+    "ImDrawData*": {"cython": "ImDrawData*", "python": "_DrawData", "wrapper": "_DrawData", "conversion": "unwrap_ptr"},
+    "ImGuiIO*": {"cython": "ImGuiIO*", "python": "_IO", "wrapper": "_IO", "conversion": "unwrap_ptr"},
+    "ImGuiStyle*": {"cython": "ImGuiStyle*", "python": "_Style", "wrapper": "_Style", "conversion": "unwrap_ptr"},
+    "ImGuiViewport*": {"cython": "ImGuiViewport*", "python": "_Viewport", "wrapper": "_Viewport", "conversion": "unwrap_ptr"},
+    "ImGuiContext*": {"cython": "ImGuiContext*", "python": "int", "wrapper": null},
+    "ImTextureRef": {"cython": "ImTextureRef_c", "python": "_TextureRef", "wrapper": "_TextureRef"}
+  },
+
+  "flag_pattern": {
+    "$comment": "匹配 ImGui*Flags, Im*Flags 等类型，自动映射为 int",
+    "regex": "^Im(Gui)?[A-Z][a-zA-Z]*Flags$",
+    "cython": "int",
+    "python": "int"
+  },
+
+  "default_values": {
+    "NULL": "None",
+    "((void*)0)": "None",
+    "nullptr": "None",
+    "true": "True",
+    "false": "False",
+    "FLT_MAX": "3.4028235e+38",
+    "-FLT_MAX": "-3.4028235e+38",
+    "FLT_MIN": "1.175494e-38",
+    "ImVec2(0,0)": "(0, 0)",
+    "ImVec2(0.0f,0.0f)": "(0, 0)",
+    "ImVec2(-1,0)": "(-1, 0)",
+    "ImVec2(1,0)": "(1, 0)",
+    "ImVec2(0,1)": "(0, 1)",
+    "ImVec2(1,1)": "(1, 1)",
+    "ImVec2(-FLT_MIN,0)": "(-1.175494e-38, 0)",
+    "ImVec4(0,0,0,0)": "(0, 0, 0, 0)",
+    "ImVec4(1,1,1,1)": "(1, 1, 1, 1)"
+  }
+}

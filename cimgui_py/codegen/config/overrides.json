@@ -1,0 +1,30 @@
+{
+  "$schema": "./overrides.schema.json",
+  "$comment": "特殊函数的 Python 签名覆盖 - skip 表示在模板手动实现",
+
+  "functions": {
+    "igBegin": {"skip": true},
+    "igEnd": {"skip": true},
+    "igPushFont": {"skip": true},
+    "igPopFont": {"skip": true},
+    "igInputText": {"skip": true},
+    "igCheckbox": {"skip": true},
+    "igSliderFloat": {"skip": true},
+    "igSliderInt": {"skip": true},
+    "igText": {"skip": true},
+    "igTextColored": {"skip": true},
+    "igButton": {"skip": true},
+
+    "igBeginChild_ID": {"skip": true},
+
+    "igPushID_Int": {"skip": true},
+    "igPushID_Ptr": {"skip": true},
+    "igGetColorU32_Vec4": {"skip": true},
+    "igGetColorU32_U32": {"skip": true},
+    "igPushStyleColor_Vec4": {"skip": true},
+    "igPushStyleVar_Vec2": {"skip": true}
+  },
+
+  "methods": {
+  }
+}

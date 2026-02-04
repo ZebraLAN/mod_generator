@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Cython generated
+*.c
+*.cpp
+*.html
+
+# Codegen output (regenerate with: python codegen/compiler.py)
+src/cimgui.pxd
+src/imgui_core.pyx
+src/imgui.pyi
+
+# Temp files
+cimgui_api_list.txt
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp

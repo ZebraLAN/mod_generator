@@ -1,0 +1,118 @@
+"""Type stubs for imgui module - Dear ImGui
+
+DO NOT EDIT - regenerate with: python codegen/compiler.py
+"""
+
+from typing import Any, Optional, Tuple, Union
+
+# ==============================================================================
+# Constants (from enums)
+# ==============================================================================
+{% for enum in enums %}
+# {{ enum.name }}
+{% for name, value in enum.values %}
+{{ name }}: int
+{% endfor %}
+
+{% endfor %}
+
+# ==============================================================================
+# Wrapper Classes
+# ==============================================================================
+{% for stname, method_list in methods.items() %}
+{% set wrapper_name = stname | strip_im_prefix %}
+
+class _{{ wrapper_name }}:
+    """Wrapper for {{ stname }}*"""
+
+    @property
+    def _pointer(self) -> int: ...
+
+{% for func in method_list %}
+{% set override = overrides.get('methods', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') %}
+{% if override.get('signature') %}
+    def {{ func.python_name }}{{ override.signature }}: ...
+{% else %}
+    def {{ func.python_name }}(self{% for arg in func.args %}, {{ arg.name }}: {{ arg.python_type }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% endfor %}) -> {{ func.ret_python }}: ...
+{% endif %}
+{% endif %}
+{% endfor %}
+
+{% endfor %}
+
+
+# ==============================================================================
+# Core Functions
+# ==============================================================================
+
+def create_context() -> None: ...
+def destroy_context() -> None: ...
+def get_io() -> _IO: ...
+def get_style() -> _Style: ...
+def new_frame() -> None: ...
+def end_frame() -> None: ...
+def render() -> None: ...
+
+
+# ==============================================================================
+# Special Handler Functions
+# ==============================================================================
+
+def begin(name: str, closable: bool | None = None, flags: int = 0) -> bool | Tuple[bool, bool]:
+    """Begin a window.
+    
+    If closable is None: returns bool (expanded)
+    If closable is bool: returns tuple[bool, bool] (expanded, still_open)
+    """
+    ...
+
+def end() -> None: ...
+
+def input_text(label: str, value: str, buffer_size: int = 256, flags: int = 0) -> Tuple[bool, str]:
+    """Text input widget. Returns (changed, new_value)."""
+    ...
+
+def checkbox(label: str, state: bool) -> Tuple[bool, bool]:
+    """Checkbox widget. Returns (clicked, new_state)."""
+    ...
+
+def slider_float(label: str, value: float, v_min: float, v_max: float, format: str = "%.3f", flags: int = 0) -> Tuple[bool, float]:
+    """Float slider. Returns (changed, new_value)."""
+    ...
+
+def slider_int(label: str, value: int, v_min: int, v_max: int, format: str = "%d", flags: int = 0) -> Tuple[bool, int]:
+    """Int slider. Returns (changed, new_value)."""
+    ...
+
+def text(s: str) -> None: ...
+def text_colored(color: Tuple[float, float, float, float], s: str) -> None: ...
+def button(label: str, width: float = 0, height: float = 0) -> bool: ...
+
+
+# ==============================================================================
+# Auto-generated Global Functions
+# ==============================================================================
+{% for func in functions %}
+{% set override = overrides.get('functions', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') and not func.special_handling %}
+{% if override.get('signature') %}
+def {{ func.python_name }}{{ override.signature }}: ...
+{% else %}
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}: {{ arg.python_type }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.ret_python }}: ...
+{% endif %}
+{% endif %}
+{% endfor %}
+
+
+# ==============================================================================
+# Backend Functions
+# ==============================================================================
+
+def impl_glfw_init_for_opengl(window: Any, install_callbacks: bool = True) -> bool: ...
+def impl_glfw_shutdown() -> None: ...
+def impl_glfw_new_frame() -> None: ...
+def impl_opengl3_init(glsl_version: str = "#version 130") -> bool: ...
+def impl_opengl3_shutdown() -> None: ...
+def impl_opengl3_new_frame() -> None: ...
+def impl_opengl3_render_draw_data() -> None: ...

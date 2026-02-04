@@ -1,0 +1,163 @@
+# cython: language_level=3
+# cimgui.pxd - Auto-generated from cimgui JSON definitions
+# Dear ImGui (docking branch)
+#
+# DO NOT EDIT - regenerate with: python codegen/compiler.py
+
+from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t
+from libc.stddef cimport size_t
+
+cdef extern from "cimgui.h":
+
+    # ==========================================================================
+    # Basic Type Aliases
+    # ==========================================================================
+    ctypedef uint32_t ImGuiID
+    ctypedef uint8_t ImU8
+    ctypedef uint16_t ImU16
+    ctypedef uint32_t ImU32
+    ctypedef uint64_t ImU64
+    ctypedef int8_t ImS8
+    ctypedef int16_t ImS16
+    ctypedef int32_t ImS32
+    ctypedef int64_t ImS64
+    ctypedef uint16_t ImWchar
+    ctypedef uint16_t ImWchar16
+    ctypedef uint32_t ImWchar32
+    ctypedef uint64_t ImTextureID
+    ctypedef unsigned short ImDrawIdx
+    ctypedef int ImFontAtlasRectId
+
+    # Flag types (all map to int)
+    ctypedef int ImGuiWindowFlags
+    ctypedef int ImGuiInputTextFlags
+    ctypedef int ImGuiTreeNodeFlags
+    ctypedef int ImGuiPopupFlags
+    ctypedef int ImGuiSelectableFlags
+    ctypedef int ImGuiComboFlags
+    ctypedef int ImGuiTabBarFlags
+    ctypedef int ImGuiTabItemFlags
+    ctypedef int ImGuiFocusedFlags
+    ctypedef int ImGuiHoveredFlags
+    ctypedef int ImGuiDockNodeFlags
+    ctypedef int ImGuiDragDropFlags
+    ctypedef int ImGuiDataType
+    ctypedef int ImGuiDir
+    ctypedef int ImGuiSortDirection
+    ctypedef int ImGuiKey
+    ctypedef int ImGuiNavInput
+    ctypedef int ImGuiMouseButton
+    ctypedef int ImGuiMouseCursor
+    ctypedef int ImGuiStyleVar
+    ctypedef int ImGuiColorEditFlags
+    ctypedef int ImGuiSliderFlags
+    ctypedef int ImGuiTableFlags
+    ctypedef int ImGuiTableColumnFlags
+    ctypedef int ImGuiTableRowFlags
+    ctypedef int ImGuiTableBgTarget
+    ctypedef int ImGuiConfigFlags
+    ctypedef int ImGuiBackendFlags
+    ctypedef int ImGuiButtonFlags
+    ctypedef int ImGuiCol
+    ctypedef int ImGuiCond
+    ctypedef int ImDrawFlags
+    ctypedef int ImDrawListFlags
+
+    # ==========================================================================
+    # Forward Declarations
+    # ==========================================================================
+{% for struct in structs.values() %}
+    ctypedef struct {{ struct.name }}
+{% endfor %}
+
+    # ==========================================================================
+    # Callback Types
+    # ==========================================================================
+    ctypedef int (*ImGuiInputTextCallback)(ImGuiInputTextCallbackData* data)
+    ctypedef void (*ImGuiSizeCallback)(void* data)
+    ctypedef void (*ImDrawCallback)(const ImDrawList* parent_list, const ImDrawCmd* cmd)
+
+    # ==========================================================================
+    # Vector Types (special structs used as value types)
+    # ==========================================================================
+    ctypedef struct ImVec2_c "ImVec2":
+        float x
+        float y
+
+    ctypedef struct ImVec4_c "ImVec4":
+        float x
+        float y
+        float z
+        float w
+
+    ctypedef struct ImTextureRef_c "ImTextureRef":
+        ImTextureID TexID
+        float TexPixelHeight
+
+    # ==========================================================================
+    # Enums
+    # ==========================================================================
+{% for enum in enums %}
+    cdef enum {{ enum.name }}:
+{% for name, value in enum.values %}
+        {{ name }} = {{ value }}
+{% endfor %}
+
+{% endfor %}
+
+    # ==========================================================================
+    # Structs (field access declarations)
+    # ==========================================================================
+{% for struct in structs.values() %}
+{% if struct.fields %}
+    # {{ struct.name }}
+    cdef struct {{ struct.name }}:
+{% for field in struct.fields %}
+        {{ field.cython_type }} {{ field.name }}{% if field.size %}[{{ field.size }}]{% endif %}
+
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+    # ==========================================================================
+    # Global Functions (ig* functions)
+    # ==========================================================================
+{% for func in functions %}
+    {{ func.ret_cython }} {{ func.ov_cimguiname }}(
+{%- for arg in func.args -%}
+{{ arg.cython_type }} {{ arg.name }}{% if not loop.last %}, {% endif %}
+{%- endfor -%}
+)
+{% endfor %}
+
+    # ==========================================================================
+    # Struct Methods
+    # ==========================================================================
+{% for stname, method_list in methods.items() %}
+    # {{ stname }} methods
+{% for func in method_list %}
+    {{ func.ret_cython }} {{ func.ov_cimguiname }}({{ stname }}* self{% for arg in func.args %}, {{ arg.cython_type }} {{ arg.name }}{% endfor %})
+{% endfor %}
+
+{% endfor %}
+
+
+# ==============================================================================
+# Backend Declarations
+# ==============================================================================
+
+cdef extern from "cimgui_impl.h":
+    # GLFW
+    bint ImGui_ImplGlfw_InitForOpenGL(void* window, bint install_callbacks)
+    bint ImGui_ImplGlfw_InitForVulkan(void* window, bint install_callbacks)
+    bint ImGui_ImplGlfw_InitForOther(void* window, bint install_callbacks)
+    void ImGui_ImplGlfw_Shutdown()
+    void ImGui_ImplGlfw_NewFrame()
+
+    # OpenGL3
+    bint ImGui_ImplOpenGL3_Init(const char* glsl_version)
+    void ImGui_ImplOpenGL3_Shutdown()
+    void ImGui_ImplOpenGL3_NewFrame()
+    void ImGui_ImplOpenGL3_RenderDrawData(ImDrawData* draw_data)
+    bint ImGui_ImplOpenGL3_CreateFontsTexture()
+    void ImGui_ImplOpenGL3_DestroyFontsTexture()

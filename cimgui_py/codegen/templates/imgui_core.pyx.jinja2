@@ -1,0 +1,354 @@
+# cython: language_level=3
+# cython: embedsignature=True
+"""imgui_core.pyx - Auto-generated ImGui bindings
+
+DO NOT EDIT - regenerate with: python codegen/compiler.py
+"""
+
+from libc.stdlib cimport malloc, free
+from libc.string cimport memcpy, strlen
+from libc.stdint cimport uintptr_t
+from cpython.bytes cimport PyBytes_AsString
+
+cimport cimgui
+
+# ==============================================================================
+# Helpers
+# ==============================================================================
+
+cdef inline bytes _to_bytes(s):
+    """str -> bytes"""
+    if isinstance(s, bytes):
+        return s
+    if s is None:
+        return b''
+    return s.encode('utf-8')
+
+
+cdef inline cimgui.ImVec2_c _vec2(val):
+    """tuple/list -> ImVec2_c"""
+    cdef cimgui.ImVec2_c v
+    if val is None:
+        v.x = v.y = 0
+    else:
+        v.x = <float>val[0]
+        v.y = <float>val[1]
+    return v
+
+
+cdef inline tuple _vec2_to_tuple(cimgui.ImVec2_c v):
+    """ImVec2_c -> tuple"""
+    return (v.x, v.y)
+
+
+cdef inline cimgui.ImVec4_c _vec4(val):
+    """tuple/list -> ImVec4_c"""
+    cdef cimgui.ImVec4_c v
+    if val is None:
+        v.x = v.y = v.z = v.w = 0
+    else:
+        v.x = <float>val[0]
+        v.y = <float>val[1]
+        v.z = <float>val[2]
+        v.w = <float>val[3]
+    return v
+
+
+cdef inline tuple _vec4_to_tuple(cimgui.ImVec4_c v):
+    """ImVec4_c -> tuple"""
+    return (v.x, v.y, v.z, v.w)
+
+
+{# ============================================================================
+   Macro: convert argument for C call
+   ============================================================================ #}
+{% macro convert_arg(arg) -%}
+{% if arg.conversion == 'to_bytes' -%}
+_to_bytes({{ arg.name }})
+{%- elif arg.conversion == 'vec2' -%}
+_vec2({{ arg.name }})
+{%- elif arg.conversion == 'vec4' -%}
+_vec4({{ arg.name }})
+{%- elif arg.conversion == 'unwrap_ptr' -%}
+{{ arg.name }}._ptr if {{ arg.name }} is not None else NULL
+{%- else -%}
+{{ arg.name }}
+{%- endif %}
+{%- endmacro %}
+
+{# ============================================================================
+   Macro: generate function call with args
+   ============================================================================ #}
+{% macro call_args(args, prefix='') -%}
+{{ prefix }}{% for arg in args %}{% if prefix or not loop.first %}, {% endif %}{{ convert_arg(arg) }}{% endfor %}
+{%- endmacro %}
+
+
+# ==============================================================================
+# Wrapper Classes
+# ==============================================================================
+{% for stname, method_list in methods.items() %}
+{% set wrapper_name = stname | strip_im_prefix %}
+
+cdef class _{{ wrapper_name }}:
+    """Wrapper for {{ stname }}*"""
+    cdef cimgui.{{ stname }}* _ptr
+
+    @staticmethod
+    cdef _{{ wrapper_name }} from_ptr(cimgui.{{ stname }}* ptr):
+        cdef _{{ wrapper_name }} obj = _{{ wrapper_name }}.__new__(_{{ wrapper_name }})
+        obj._ptr = ptr
+        return obj
+
+    @property
+    def _pointer(self) -> int:
+        """Raw pointer as integer (for debugging)"""
+        return <uintptr_t>self._ptr
+
+    def __repr__(self):
+        return f"<_{{ wrapper_name }} ptr=0x{self._pointer:x}>"
+
+{% for func in method_list %}
+{% set override = overrides.get('methods', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') %}
+    def {{ func.python_name }}(self{% for arg in func.args %}, {{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% endfor %}):
+{% if override.get('docstring') %}
+        """{{ override.docstring }}"""
+{% endif %}
+{% if func.ret_python == 'None' %}
+        cimgui.{{ func.ov_cimguiname }}({{ call_args(func.args, 'self._ptr') }})
+{% elif func.ret_conversion == 'vec2_to_tuple' %}
+        cdef cimgui.ImVec2_c result = cimgui.{{ func.ov_cimguiname }}({{ call_args(func.args, 'self._ptr') }})
+        return _vec2_to_tuple(result)
+{% elif func.ret_conversion == 'vec4_to_tuple' %}
+        cdef cimgui.ImVec4_c result = cimgui.{{ func.ov_cimguiname }}({{ call_args(func.args, 'self._ptr') }})
+        return _vec4_to_tuple(result)
+{% else %}
+        return cimgui.{{ func.ov_cimguiname }}({{ call_args(func.args, 'self._ptr') }})
+{% endif %}
+
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+# ==============================================================================
+# Module-level singletons
+# ==============================================================================
+
+cdef _GuiIO _io_instance = None
+cdef _GuiStyle _style_instance = None
+
+
+# ==============================================================================
+# Core Functions
+# ==============================================================================
+
+def create_context():
+    """Create ImGui context"""
+    cimgui.igCreateContext(NULL)
+
+
+def destroy_context():
+    """Destroy ImGui context"""
+    cimgui.igDestroyContext(NULL)
+
+
+def get_io() -> _GuiIO:
+    """Get IO instance"""
+    global _io_instance
+    if _io_instance is None:
+        _io_instance = _GuiIO.from_ptr(cimgui.igGetIO())
+    return _io_instance
+
+
+def get_style() -> _GuiStyle:
+    """Get Style instance"""
+    global _style_instance
+    if _style_instance is None:
+        _style_instance = _GuiStyle.from_ptr(cimgui.igGetStyle())
+    return _style_instance
+
+
+def new_frame():
+    """Start a new frame"""
+    cimgui.igNewFrame()
+
+
+def end_frame():
+    """End frame"""
+    cimgui.igEndFrame()
+
+
+def render():
+    """Render frame"""
+    cimgui.igRender()
+
+
+# ==============================================================================
+# Auto-generated Global Functions
+# ==============================================================================
+{% for func in functions %}
+{% set override = overrides.get('functions', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') and not func.special_handling %}
+
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
+{% if override.get('docstring') %}
+    """{{ override.docstring }}"""
+{% endif %}
+{% if func.ret_python == 'None' %}
+    cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% elif func.ret_conversion == 'vec2_to_tuple' %}
+    cdef cimgui.ImVec2_c result = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
+    return _vec2_to_tuple(result)
+{% elif func.ret_conversion == 'vec4_to_tuple' %}
+    cdef cimgui.ImVec4_c result = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
+    return _vec4_to_tuple(result)
+{% else %}
+    return cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
+{% endif %}
+{% endfor %}
+
+
+# ==============================================================================
+# Special Handler Functions
+# ==============================================================================
+
+def begin(name: str, closable = None, flags: int = 0):
+    """Begin a window."""
+    cdef bytes name_bytes = _to_bytes(name)
+    cdef bint result
+    cdef bint p_open = True
+    
+    if closable is None:
+        result = cimgui.igBegin(name_bytes, NULL, flags)
+        return result
+    else:
+        result = cimgui.igBegin(name_bytes, &p_open, flags)
+        return (result, p_open)
+
+
+def end():
+    """End current window."""
+    cimgui.igEnd()
+
+
+def push_font(font, size: float = 0):
+    """Push font onto stack. 1.92 API with size parameter."""
+    cdef cimgui.ImFont* font_ptr = NULL
+    if font is not None:
+        font_ptr = (<_Font>font)._ptr
+    cimgui.igPushFont(font_ptr, size)
+
+
+def pop_font():
+    """Pop font from stack."""
+    cimgui.igPopFont()
+
+
+def input_text(label: str, value: str, buffer_size: int = 256, flags: int = 0):
+    """Text input widget. Returns (changed, new_value)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bytes value_bytes = _to_bytes(value)
+    cdef char* buf = <char*>malloc(buffer_size)
+    if buf == NULL:
+        raise MemoryError()
+    
+    try:
+        cdef size_t copy_len = min(len(value_bytes), buffer_size - 1)
+        memcpy(buf, <char*>value_bytes, copy_len)
+        buf[copy_len] = 0
+        
+        changed = cimgui.igInputText(label_bytes, buf, buffer_size, flags, NULL, NULL)
+        new_value = buf.decode('utf-8')
+        return (changed, new_value)
+    finally:
+        free(buf)
+
+
+def checkbox(label: str, state: bool):
+    """Checkbox widget. Returns (clicked, new_state)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bint c_state = state
+    clicked = cimgui.igCheckbox(label_bytes, &c_state)
+    return (clicked, bool(c_state))
+
+
+def slider_float(label: str, value: float, v_min: float, v_max: float, format: str = "%.3f", flags: int = 0):
+    """Float slider. Returns (changed, new_value)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bytes format_bytes = _to_bytes(format)
+    cdef float c_value = value
+    changed = cimgui.igSliderFloat(label_bytes, &c_value, v_min, v_max, format_bytes, flags)
+    return (changed, c_value)
+
+
+def slider_int(label: str, value: int, v_min: int, v_max: int, format: str = "%d", flags: int = 0):
+    """Int slider. Returns (changed, new_value)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bytes format_bytes = _to_bytes(format)
+    cdef int c_value = value
+    changed = cimgui.igSliderInt(label_bytes, &c_value, v_min, v_max, format_bytes, flags)
+    return (changed, c_value)
+
+
+def text(s: str):
+    """Display text."""
+    cdef bytes s_bytes = _to_bytes(s)
+    cimgui.igTextUnformatted(s_bytes, NULL)
+
+
+def text_colored(color: tuple, s: str):
+    """Display colored text."""
+    cdef bytes s_bytes = _to_bytes(s)
+    cimgui.igTextColored(_vec4(color), s_bytes)
+
+
+def button(label: str, width: float = 0, height: float = 0) -> bool:
+    """Button widget."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef cimgui.ImVec2_c size
+    size.x = width
+    size.y = height
+    return cimgui.igButton(label_bytes, size)
+
+
+# ==============================================================================
+# Backend Functions
+# ==============================================================================
+
+def impl_glfw_init_for_opengl(window, bint install_callbacks = True) -> bool:
+    """Initialize GLFW backend for OpenGL."""
+    cdef uintptr_t window_ptr = <uintptr_t>window
+    return cimgui.ImGui_ImplGlfw_InitForOpenGL(<void*>window_ptr, install_callbacks)
+
+
+def impl_glfw_shutdown():
+    """Shutdown GLFW backend."""
+    cimgui.ImGui_ImplGlfw_Shutdown()
+
+
+def impl_glfw_new_frame():
+    """GLFW new frame."""
+    cimgui.ImGui_ImplGlfw_NewFrame()
+
+
+def impl_opengl3_init(glsl_version: str = "#version 130") -> bool:
+    """Initialize OpenGL3 backend."""
+    cdef bytes version_bytes = _to_bytes(glsl_version)
+    return cimgui.ImGui_ImplOpenGL3_Init(version_bytes)
+
+
+def impl_opengl3_shutdown():
+    """Shutdown OpenGL3 backend."""
+    cimgui.ImGui_ImplOpenGL3_Shutdown()
+
+
+def impl_opengl3_new_frame():
+    """OpenGL3 new frame."""
+    cimgui.ImGui_ImplOpenGL3_NewFrame()
+
+
+def impl_opengl3_render_draw_data():
+    """Render draw data with OpenGL3."""
+    cimgui.ImGui_ImplOpenGL3_RenderDrawData(cimgui.igGetDrawData())
