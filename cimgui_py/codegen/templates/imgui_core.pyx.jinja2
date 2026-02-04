@@ -80,13 +80,24 @@ cdef inline tuple _{{ conv_name }}_to_tuple(cimgui.{{ struct.name }} v):
 _to_bytes({{ arg.name }})
 {%- elif arg.conversion == 'ptr' -%}
 {# For ptr conversion: void* and const T* can use simple cast #}
+{% if arg.default is not none -%}
+{# Optional pointer: need NULL check #}
+{% if arg.cython_type == 'void*' or arg.cython_type == 'const void*' -%}
+(<void*><size_t>{{ arg.name }} if {{ arg.name }} is not None else NULL)
+{%- elif arg.cython_type.startswith('const ') -%}
+(<{{ arg.cython_type[6:] }}><size_t>{{ arg.name }} if {{ arg.name }} is not None else NULL)
+{%- else -%}
+(<cimgui.{{ arg.cython_type }}><size_t>{{ arg.name }} if {{ arg.name }} is not None else NULL)
+{%- endif %}
+{%- else -%}
+{# Required pointer: simple cast #}
 {% if arg.cython_type == 'void*' or arg.cython_type == 'const void*' -%}
 <void*><size_t>{{ arg.name }}
 {%- elif arg.cython_type.startswith('const ') -%}
-{# const float*, const int* etc - cast to non-const pointer then to target #}
 <{{ arg.cython_type[6:] }}><size_t>{{ arg.name }}
 {%- else -%}
 <cimgui.{{ arg.cython_type }}><size_t>{{ arg.name }}
+{%- endif %}
 {%- endif %}
 {%- elif arg.conversion and arg.conversion.startswith('float_array') -%}
 _arr_{{ arg.name }}
@@ -116,6 +127,109 @@ _{{ arg.conversion }}({{ arg.name }})
 {% macro has_array_args(func) -%}
 {% for arg in func.args %}{% if arg.conversion and ('_array_' in arg.conversion) %}1{% endif %}{% endfor %}
 {%- endmacro %}
+
+# ==============================================================================
+# Wrapper Classes (自动生成)
+# ==============================================================================
+# Wrapper types registry for wrapping C pointers
+WRAPPER_TYPES = {}
+
+{% for stname, wrapper_info in type_map.WRAPPER_TYPES.items() %}
+{% set wrapper_name = wrapper_info[0] %}
+{% set method_list = methods.get(stname, []) %}
+
+cdef class {{ wrapper_name }}:
+    """Wrapper for {{ stname }}* pointer.
+    
+    Provides type-safe access to {{ stname }} methods.
+    Do not construct directly - use factory functions like get_window_draw_list().
+    """
+    cdef void* _ptr
+    
+    def __cinit__(self):
+        self._ptr = NULL
+    
+    @staticmethod
+    def _wrap(ptr: int) -> "{{ wrapper_name }}":
+        """Internal: wrap a C pointer (as int)"""
+        cdef {{ wrapper_name }} obj = {{ wrapper_name }}.__new__({{ wrapper_name }})
+        obj._ptr = <void*><size_t>ptr
+        return obj
+    
+    @property
+    def _pointer(self) -> int:
+        """Get the raw pointer value (for advanced use)."""
+        return <size_t>self._ptr
+    
+    def __repr__(self):
+        return f"<{{ wrapper_name }} ptr=0x{<size_t>self._ptr:x}>"
+    
+    def __bool__(self):
+        """Check if pointer is valid (non-NULL)."""
+        return self._ptr != NULL
+
+{% for func in method_list %}
+{% set override = overrides.get('methods', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') %}
+{% set ptr_args = [] %}
+{% set array_args = [] %}
+{% for arg in func.args %}
+{% if arg.conversion and arg.conversion.endswith('_ptr') %}{% set _ = ptr_args.append(arg) %}{% endif %}
+{% if arg.conversion and '_array_' in arg.conversion %}{% set _ = array_args.append(arg) %}{% endif %}
+{% endfor %}
+{% if override.get('signature') %}
+    def {{ func.python_name }}{{ override.signature }}:
+        """{{ func.cimgui_name }}"""
+        {{ override.body | indent(8) }}
+{% elif ptr_args %}
+    def {{ func.python_name }}(self{% for arg in func.args %}, {{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% endfor %}):
+        """{{ func.cimgui_name }} - method with output parameters"""
+{% for ptr_arg in ptr_args %}
+{% if ptr_arg.conversion == 'bool_ptr' %}
+        cdef bint _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0
+{% elif ptr_arg.conversion == 'int_ptr' or ptr_arg.conversion == 'uint_ptr' %}
+        cdef int _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0
+{% elif ptr_arg.conversion == 'float_ptr' %}
+        cdef float _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0.0
+{% elif ptr_arg.conversion == 'double_ptr' %}
+        cdef double _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0.0
+{% endif %}
+{% endfor %}
+{% if func.ret_python == 'None' %}
+        cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+        return ({% for ptr_arg in ptr_args %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% else %}
+        cdef {{ func.ret_cython }} _result = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+        return (_result, {% for ptr_arg in ptr_args %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
+{% else %}
+    def {{ func.python_name }}(self{% for arg in func.args %}, {{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% endfor %}):
+        """{{ func.cimgui_name }}"""
+{% if func.ret_python == 'None' %}
+        cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+{% elif func.ret_conversion == 'vec2_to_tuple' %}
+        cdef cimgui.ImVec2 result = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+        return _vec2_to_tuple(result)
+{% elif func.ret_conversion == 'vec4_to_tuple' %}
+        cdef cimgui.ImVec4 result = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+        return _vec4_to_tuple(result)
+{% elif func.ret_wrapper %}
+        cdef void* _wptr = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+        return {{ func.ret_wrapper }}._wrap(<size_t>_wptr) if _wptr != NULL else None
+{% elif func.ret_cython.endswith('*') %}
+        return <size_t>cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+{% else %}
+        return cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+{% endif %}
+{% endif %}
+
+{% endif %}
+{% endfor %}
+
+# Register wrapper type for dynamic lookup
+WRAPPER_TYPES['{{ stname }}'] = {{ wrapper_name }}
+
+{% endfor %}
 
 # ==============================================================================
 # Core Functions (需要特殊处理)
@@ -375,6 +489,9 @@ def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.def
 {% elif func.ret_conversion == 'vec4_to_tuple' %}
     cdef cimgui.ImVec4 result = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
     return _vec4_to_tuple(result)
+{% elif func.ret_wrapper %}
+    cdef void* _ptr = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
+    return {{ func.ret_wrapper }}._wrap(<size_t>_ptr) if _ptr != NULL else None
 {% elif func.ret_cython.endswith('*') %}
     return <size_t>cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
 {% else %}

@@ -91,3 +91,20 @@ cdef extern from "cimgui.h":
     {{ func.ret_cython }} {{ func.ov_cimguiname }}({% for arg in func.args %}{{ arg.cython_type }} {{ arg.name }}{% if not loop.last %}, {% endif %}{% endfor %})
 {% endif %}
 {% endfor %}
+
+    # ==========================================================================
+    # Struct Methods (自动生成的 wrapper 类需要调用这些函数)
+    # ==========================================================================
+{% for stname, method_list in methods.items() %}
+{% if stname in type_map.WRAPPER_TYPES %}
+    # {{ stname }} methods
+{% for func in method_list %}
+{% set has_unknown = namespace(value=false) %}
+{% for arg in func.args %}{% if arg.cython_type == '__UNKNOWN__' %}{% set has_unknown.value = true %}{% endif %}{% endfor %}
+{% if func.ret_cython != '__UNKNOWN__' and not has_unknown.value %}
+    {{ func.ret_cython }} {{ func.ov_cimguiname }}({{ stname }}* self{% for arg in func.args %}, {{ arg.cython_type }} {{ arg.name }}{% endfor %})
+{% endif %}
+{% endfor %}
+
+{% endif %}
+{% endfor %}

@@ -370,6 +370,26 @@ class TypeMapping:
     # 明确跳过的类型
     SKIP_TYPES = {"va_list", "..."}
 
+    # 需要生成 Wrapper 类的结构体（有方法的）
+    # 格式: struct_name -> (wrapper_class_name, has_methods)
+    WRAPPER_TYPES = {
+        "ImDrawList": ("DrawList", True),
+        "ImFontAtlas": ("FontAtlas", True),
+        "ImGuiIO": ("IO", True),
+        "ImGuiStorage": ("Storage", True),
+        "ImFont": ("Font", True),
+        "ImGuiTextBuffer": ("TextBuffer", True),
+        "ImGuiListClipper": ("ListClipper", True),
+        "ImDrawData": ("DrawData", True),
+        "ImGuiViewport": ("Viewport", True),
+        "ImGuiStyle": ("Style", True),
+        "ImGuiContext": ("Context", False),  # 有方法但很少用
+        "ImGuiPayload": ("Payload", True),
+        "ImFontGlyphRangesBuilder": ("FontGlyphRangesBuilder", True),
+        "ImGuiTextFilter": ("TextFilter", True),
+        "ImColor": ("Color", True),
+    }
+
     def __init__(self):
         # 动态注册的类型（值类型结构体）
         self._value_types: dict[str, dict] = {}
@@ -461,14 +481,18 @@ class TypeMapping:
             if result[0] != "__UNKNOWN__":
                 return result
 
-        # 8. Im* 指针类型 -> void* + ptr 转换
+        # 8. Im* 指针类型 -> void* + ptr 转换，可能有 wrapper
         if c_type.endswith("*"):
             base = c_type[:-1].strip()
             if base.startswith("const "):
                 base = base[6:].strip()
 
             if base.startswith("Im"):
-                # ImGui 结构体指针，统一处理为 opaque pointer
+                # 检查是否有 wrapper 类
+                if base in self.WRAPPER_TYPES:
+                    wrapper_name = self.WRAPPER_TYPES[base][0]
+                    return ("void*", wrapper_name, "ptr", wrapper_name)
+                # 没有 wrapper 的 ImGui 结构体指针，作为 opaque pointer
                 return ("void*", "int", "ptr", None)
 
         # 9. 回调类型
@@ -1277,6 +1301,7 @@ class Compiler:
             structs=self.parse_structs(),
             enums=self.parse_enums(),
             overrides=self.overrides,
+            type_map=self.type_map,
         )
 
     def generate_backend(self) -> str:
