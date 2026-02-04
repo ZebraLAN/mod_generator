@@ -6,13 +6,15 @@
 
 ✅ **核心绑定已完成！**
 
-- 272 个函数已绑定
-- 预编译 cimgui.dll (Dear ImGui 1.92.5 docking)
-- 数据驱动的代码生成系统
+- 330 个函数已绑定
+- 445 个常量 (枚举值)
+- 7 个类 (IO, Style, Font, DrawList 等)
+- 预编译 cimgui.dll (Dear ImGui 1.92.x docking)
+- 全自动代码生成系统
 
 ## 功能覆盖
 
-| 类别 | 状态 | 函数 |
+| 类别 | 状态 | 说明 |
 |------|------|------|
 | 窗口控制 | ✅ | `begin`, `end`, `begin_child`, `end_child`, ... |
 | 基础 Widgets | ✅ | `button`, `checkbox`, `slider_*`, `input_text`, ... |
@@ -21,34 +23,43 @@
 | 表格 | ✅ | `begin_table`, `table_next_row`, `table_setup_column`, ... |
 | 弹窗 | ✅ | `begin_popup`, `open_popup`, `close_current_popup`, ... |
 | 样式 | ✅ | `push_style_color`, `pop_style_color`, `push_style_var`, ... |
-| 树 | ✅ | `tree_node`, `tree_pop`, ... |
+| 树 | ✅ | `tree_node`, `tree_pop`, `collapsing_header`, ... |
 | 拖放 | ✅ | `begin_drag_drop_source`, `begin_drag_drop_target`, ... |
-| Tab | ✅ | `begin_tab_bar`, `tab_item_button`, ... |
-| 字体 | 🔄 | 待完善 |
+| Tab | ✅ | `begin_tab_bar`, `begin_tab_item`, ... |
+| 字体 | ✅ | 1.92 新 API: `push_font`, `get_font_baked`, ... |
 | 后端 | 🔄 | GLFW + OpenGL3 待实现 |
 
-## 构建
+## 安装
+
+```bash
+cd cimgui_py
+pip install -e .
+```
+
+## 构建 (开发)
 
 ### 前置条件
 
 - Python 3.10+
-- Cython 3.2+
+- Cython 3.0+
 - Visual Studio 2022 (Windows)
 
 ### 步骤
 
-1. **预编译的 cimgui.dll 已包含在 `lib/` 目录中**
-
-2. **生成绑定并编译**:
+1. **生成绑定代码**:
 ```bash
-cd cimgui_py
-python codegen/compiler.py   # 生成 Cython 代码
-python setup.py build_ext --inplace  # 编译
+python codegen/compiler.py -o src
 ```
 
-3. **测试**:
+2. **编译并安装**:
 ```bash
-python test_binding.py
+pip install -e .
+```
+
+3. **验证**:
+```python
+import imgui
+print(len([f for f in dir(imgui) if not f.startswith('_')]))  # ~780
 ```
 
 ## 架构
@@ -60,89 +71,84 @@ cimgui_py/
 │   ├── cimgui.dll        # 预编译的 cimgui 库
 │   └── cimgui.lib
 ├── codegen/
-│   ├── compiler.py       # 代码生成器
+│   ├── compiler.py       # 代码生成器 (主入口)
 │   ├── templates/        # Jinja2 模板
-│   │   ├── cimgui.pxd.jinja2
-│   │   └── imgui_core.pyx.jinja2
+│   │   ├── cimgui.pxd.jinja2      # Cython 声明
+│   │   ├── imgui_core.pyx.jinja2  # Cython 实现
+│   │   └── imgui.pyi.jinja2       # 类型存根
 │   └── config/
-│       ├── type_mapping.json   # 类型映射配置
-│       └── overrides.json      # 函数覆盖配置
-├── src/
-│   ├── cimgui.pxd        # 生成的 Cython 声明
-│   ├── imgui_core.pyx    # 生成的 Cython 实现
+│       └── overrides.json  # 函数覆盖配置
+├── src/                  # 生成的代码 (git ignored)
+│   ├── cimgui.pxd
+│   ├── imgui_core.pyx
+│   ├── imgui.pyi
 │   └── cimgui_py/
 │       ├── __init__.py
-│       └── core.*.pyd    # 编译后的扩展模块
+│       └── core.*.pyd
 ├── setup.py
 └── pyproject.toml
 ```
 
 ## 代码生成系统
 
-本项目使用数据驱动的代码生成方式：
+本项目使用**全自动**数据驱动的代码生成：
 
-1. **输入**: cimgui 提供的 `definitions.json` (函数签名)
-2. **配置**: `type_mapping.json` (C → Python 类型映射)
-3. **模板**: Jinja2 模板生成 `.pxd` 和 `.pyx` 文件
-4. **输出**: 可编译的 Cython 绑定
+1. **输入**: cimgui 的 `definitions.json`, `structs_and_enums.json`
+2. **类型映射**: 内置在 `compiler.py` 中 (无需外部配置)
+3. **模板**: Jinja2 模板生成所有绑定代码
+4. **输出**: `.pxd`, `.pyx`, `.pyi` 文件
 
-### 添加新函数
+### 自动处理
 
-大多数函数会自动生成。若需手动处理：
+- ✅ 值类型结构体 (ImVec2, ImVec4, ImRect, ImColor 等)
+- ✅ 输出参数 (bool*, int*, float* → 返回 tuple)
+- ✅ 数组参数 (float[3], int[4] → 返回 tuple)
+- ✅ 字符串数组 (const char*[] → Python list)
+- ✅ 函数重载分派 (str vs int 参数)
+- ✅ 可选回调 (NULL 安全)
 
-1. 编辑 `codegen/config/overrides.json` 添加跳过规则
-2. 在 `codegen/templates/imgui_core.pyx.jinja2` 中添加手动实现
+### 手动处理的函数
 
-### 添加新类型映射
+只有少数函数需要手动实现 (见 `overrides.json`):
 
-编辑 `codegen/config/type_mapping.json`：
-
-```json
-{
-  "imgui_structs": {
-    "MyNewType*": {
-      "cython": "MyNewType*",
-      "python": "int",
-      "conversion": "ptr"
-    }
-  }
-}
-```
+- `begin` - 特殊的 closable 参数处理
+- `text` - 使用 TextUnformatted 避免格式化问题
+- `input_text*` - char* buffer 管理
+- `combo`, `list_box` - 字符串数组转换
 
 ## 使用示例
 
 ```python
-import sys
-sys.path.insert(0, "src")
-
-import cimgui_py as imgui
+import imgui
 
 # 创建上下文
-ctx = imgui.create_context()
-
-# ... 设置 IO (display size 等)
-# ... 后端初始化
+imgui.create_context()
 
 # 主循环
 imgui.new_frame()
 
-if imgui.begin("Demo Window")[0]:
+if imgui.begin("Demo Window"):
     imgui.text("Hello, World!")
+    
     if imgui.button("Click Me"):
         print("Button clicked!")
+    
+    changed, value = imgui.slider_float("Speed", 1.0, 0.0, 10.0)
+    if changed:
+        print(f"New value: {value}")
+    
     imgui.end()
 
 imgui.render()
+draw_data = imgui.get_draw_data()
 # ... 后端渲染
 
-imgui.destroy_context(ctx)
+imgui.destroy_context()
 ```
 
 ## TODO
 
-- [ ] 字体 API (AddFont, Build, GetTexData)
 - [ ] GLFW 后端绑定
 - [ ] OpenGL3 后端绑定
-- [ ] DrawList API
-- [ ] 更多 Widget (color picker, plot 等)
-- [ ] 类型存根 (.pyi) 生成
+- [ ] DrawList 方法绑定
+- [ ] 完整的 .pyi 类型存根
