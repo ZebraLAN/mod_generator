@@ -1,0 +1,3 @@
+[submodule "cimgui_py/vendor/cimgui"]
+	path = cimgui_py/vendor/cimgui
+	url = https://github.com/cimgui/cimgui
