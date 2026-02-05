@@ -68,7 +68,7 @@ extensions = [
     # Core imgui bindings
     Extension(
         "cimgui_py.core",
-        sources=["src/imgui_core.pyx"],  # 只有 Cython 源文件！
+        sources=["src/cimgui_py/core.pyx"],  # 只有 Cython 源文件！
         include_dirs=INCLUDE_DIRS,
         library_dirs=LIBRARY_DIRS,
         libraries=LIBRARIES,
@@ -80,7 +80,7 @@ extensions = [
     # Backend bindings (GLFW + OpenGL3)
     Extension(
         "cimgui_py.backend",
-        sources=["src/imgui_backend.pyx"],
+        sources=["src/cimgui_py/backend.pyx"],
         include_dirs=INCLUDE_DIRS + [
             str(ROOT / "vendor" / "glfw" / "include"),  # GLFW headers
         ],
@@ -98,6 +98,9 @@ extensions = [
 
 setup(
     name="cimgui_py",
+    package_data={
+        "cimgui_py": ["*.pyi", "py.typed"],
+    },
     ext_modules=cythonize(
         extensions,
         compiler_directives={

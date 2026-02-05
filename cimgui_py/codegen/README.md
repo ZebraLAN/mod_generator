@@ -34,7 +34,7 @@ templates/*.jinja2 → 生成 src/*.{pxd,pyx,pyi}
 ### 不配置易变数据
 
 - ❌ 不手动维护 public/internal 列表
-- ❌ 不手动维护方法归属 
+- ❌ 不手动维护方法归属
 - ❌ 不手动追踪函数列表
 
 ## 文件结构
@@ -55,11 +55,27 @@ codegen/
 
 ```bash
 # 生成代码
-python codegen/compiler.py -o src/
+python codegen/compiler.py
 
 # 查看统计
 python codegen/compiler.py --stats
 ```
+
+## 清理生成的文件
+
+生成的文件在 `src/cimgui_py/` 目录：
+
+```bash
+# PowerShell - 清理所有生成的文件
+Remove-Item src/cimgui_py/*.pyx, src/cimgui_py/*.pxd, src/cimgui_py/*.pyi, src/cimgui_py/*.pyd, src/cimgui_py/*.dll -ErrorAction SilentlyContinue
+
+# Bash
+rm -f src/cimgui_py/*.{pyx,pxd,pyi,pyd,so,dll}
+```
+
+**保留的手写文件：**
+- `src/cimgui_py/__init__.py` - 包入口
+- `src/cimgui_py/py.typed` - PEP 561 标记
 
 ## 生成统计 (Dear ImGui 1.92.5)
 

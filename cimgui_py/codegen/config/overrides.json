@@ -1,14 +1,20 @@
 {
   "$schema": "./overrides.schema.json",
-  "$comment": "只跳过手动实现的函数（模板中有对应实现）",
+  "$comment": "只跳过在 pyx 中手动实现的函数。注意：使用 ov_cimguiname 格式",
 
   "functions": {
-    "$comment_core": "Core functions with special handling",
-    "igDestroyContext": {"skip": true},
+    "$comment_special": "需要特殊签名的函数 (pyi 模板中手写)",
     "igBegin": {"skip": true},
+    "igEnd": {"skip": true},
+
+    "$comment_widgets": "返回 tuple 的 widget (pyx 中手动实现)",
+    "igCheckbox": {"skip": true},
+    "igSliderFloat": {"skip": true},
+    "igSliderInt": {"skip": true},
 
     "$comment_vararg": "vararg 函数 - 用 TextUnformatted 代替",
     "igText": {"skip": true},
+    "igTextColored": {"skip": true},
 
     "$comment_buffer": "char* buffer 需要特殊处理",
     "igInputText": {"skip": true},
@@ -18,6 +24,7 @@
     "$comment_string_array": "string array 手动实现",
     "igListBox_Str_arr": {"skip": true},
     "igCombo_Str_arr": {"skip": true},
+    "igCombo_Str": {"skip": true},
 
     "$comment_overload_skip": "==== Overload 版本跳过 ====",
 
@@ -127,5 +134,10 @@
         "float": "igValue_Float"
       }
     }
+  },
+
+  "methods": {
+    "$comment": "方法跳过配置",
+    "ImFont_CalcTextSizeA": {"skip": true, "$comment": "out_remaining 是 const char** 输出参数，无法自动处理"}
   }
 }

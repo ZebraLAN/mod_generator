@@ -1,0 +1,96 @@
+"""Type stubs for cimgui_py.backend - GLFW + OpenGL3 Backend Bindings
+
+DO NOT EDIT - regenerate with: python codegen/compiler.py
+
+These functions wrap the cimgui backend implementations. The *_callback functions
+are ImGui's internal event handlers - call them from your own GLFW callbacks if
+you initialized with install_callbacks=False.
+"""
+
+from typing import Any
+
+# Import wrapper types from core module
+from . import DrawData, TextureData
+
+# Type alias for GLFW window/monitor pointers (from pyglfw)
+# Use ctypes.cast(window, ctypes.c_void_p).value to get int from pyglfw
+GLFWwindow = int
+GLFWmonitor = int
+
+# ==============================================================================
+# GLFW Backend - Initialization
+# ==============================================================================
+{% for func in backends.glfw %}
+{% if 'Init' in func.cimgui_name or 'Shutdown' in func.cimgui_name or 'NewFrame' in func.cimgui_name %}
+
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}: {{ arg.python_type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.ret_python }}:
+    """{{ func.python_name | replace('_', ' ') | title }}."""
+    ...
+{% endif %}
+{% endfor %}
+
+# ==============================================================================
+# GLFW Backend - Callback Management
+# ==============================================================================
+{% for func in backends.glfw %}
+{% if 'Callbacks' in func.cimgui_name or 'CallbacksChain' in func.cimgui_name %}
+
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}: {{ arg.python_type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.ret_python }}:
+    """{{ func.python_name | replace('_', ' ') | title }}."""
+    ...
+{% endif %}
+{% endfor %}
+
+# ==============================================================================
+# GLFW Backend - Event Handlers (call from your own GLFW callbacks)
+# ==============================================================================
+{% for func in backends.glfw %}
+{% if 'Callback' in func.cimgui_name and 'Callbacks' not in func.cimgui_name and 'CallbacksChain' not in func.cimgui_name %}
+
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}: {{ arg.python_type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.ret_python }}:
+    """Forward GLFW {{ func.python_name.replace('glfw_', '').replace('_callback', '') }} event to ImGui."""
+    ...
+{% endif %}
+{% endfor %}
+
+# ==============================================================================
+# GLFW Backend - Utilities
+# ==============================================================================
+{% for func in backends.glfw %}
+{% if 'ContentScale' in func.cimgui_name or 'Sleep' in func.cimgui_name %}
+
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}: {{ arg.python_type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.ret_python }}:
+    """{{ func.python_name | replace('_', ' ') | title }}."""
+    ...
+{% endif %}
+{% endfor %}
+
+# ==============================================================================
+# OpenGL3 Backend
+# ==============================================================================
+{% for func in backends.opengl3 %}
+
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}: {{ arg.python_type }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.ret_python }}:
+{% if func.python_name == 'opengl3_render_draw_data' %}
+    """Render ImGui draw data.
+
+    Args:
+        draw_data: DrawData from get_draw_data()
+    """
+{% elif func.python_name == 'opengl3_init' %}
+    """Initialize OpenGL3 backend.
+
+    Args:
+        glsl_version: GLSL version string, e.g. "#version 130". None for auto-detect.
+    """
+{% elif func.python_name == 'opengl3_update_texture' %}
+    """Update a texture.
+
+    Args:
+        tex: TextureData wrapper
+    """
+{% else %}
+    """{{ func.python_name | replace('_', ' ') | title }}."""
+{% endif %}
+    ...
+{% endfor %}

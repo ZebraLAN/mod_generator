@@ -33,6 +33,18 @@ cdef extern from "cimgui.h":
     ctypedef unsigned short ImDrawIdx
 
     # ==========================================================================
+    # Forward Declarations for Callback Data (needed by callback typedefs)
+    # ==========================================================================
+    ctypedef struct ImGuiInputTextCallbackData
+    ctypedef struct ImGuiSizeCallbackData
+
+    # ==========================================================================
+    # Callback Function Types
+    # ==========================================================================
+    ctypedef int (*ImGuiInputTextCallback)(ImGuiInputTextCallbackData* data)
+    ctypedef void (*ImGuiSizeCallback)(ImGuiSizeCallbackData* data)
+
+    # ==========================================================================
     # Value-Type Structs (按值传递，需要完整定义)
     # 自动从 structs_and_enums.json 的 nonPOD_used 生成
     # 注意顺序：基础类型先定义，依赖它们的后定义
@@ -66,7 +78,8 @@ cdef extern from "cimgui.h":
     # Full Struct Definitions (需要字段访问的结构体)
     # 这些结构体通过 wrapper 类的 @property 暴露字段
     # ==========================================================================
-{% for stname in type_map.FULL_STRUCT_DEFS %}
+{% set full_struct_names = type_map.get_full_struct_defs() %}
+{% for stname in full_struct_names %}
 {% set struct = structs.get(stname) %}
 {% if struct %}
     ctypedef struct {{ stname }}:
@@ -87,7 +100,7 @@ cdef extern from "cimgui.h":
     # ==========================================================================
     # Opaque Struct Forward Declarations (只通过指针使用)
     # ==========================================================================
-{% for struct in structs.values() if not struct.is_value_type and struct.name not in type_map.FULL_STRUCT_DEFS %}
+{% for struct in structs.values() if not struct.is_value_type and struct.name not in full_struct_names %}
     ctypedef struct {{ struct.name }}
 {% endfor %}
 

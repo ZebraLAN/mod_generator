@@ -1,0 +1,273 @@
+"""Type stubs for imgui module - Dear ImGui
+
+DO NOT EDIT - regenerate with: python codegen/compiler.py
+"""
+
+from typing import Callable, Optional, Tuple
+
+from enum import IntEnum, IntFlag
+
+{# Macro to format argument with proper Optional type when default is None #}
+{# For enum types, use int | EnumType to allow passing 0 as default #}
+{% macro format_arg(arg) %}
+{%- if arg.default == 'None' -%}
+{{ arg.name }}: {{ arg.python_type }} | None = None
+{%- elif arg.default is not none -%}
+{%- if arg.is_enum -%}
+{{ arg.name }}: int | {{ arg.python_type }} = {{ arg.default }}
+{%- else -%}
+{{ arg.name }}: {{ arg.python_type }} = {{ arg.default }}
+{%- endif -%}
+{%- else -%}
+{{ arg.name }}: {{ arg.python_type }}
+{%- endif -%}
+{% endmacro %}
+
+{# Macro for dispatcher args (dict-based) #}
+{% macro format_dispatcher_arg(arg) %}
+{%- if arg.default == 'None' -%}
+{{ arg.name }}: {{ arg.python_type }} | None = None
+{%- elif arg.default is not none -%}
+{%- if arg.is_enum -%}
+{{ arg.name }}: int | {{ arg.python_type }} = {{ arg.default }}
+{%- else -%}
+{{ arg.name }}: {{ arg.python_type }} = {{ arg.default }}
+{%- endif -%}
+{%- else -%}
+{{ arg.name }}: {{ arg.python_type }}
+{%- endif -%}
+{% endmacro %}
+
+# ==============================================================================
+# Enum Types
+# ==============================================================================
+{% for enum in enums %}
+class {{ enum.python_class_name }}({{ enum.python_base_class }}):
+    """{{ enum.name }}"""
+{% for name, value in enum.values %}
+{% set member_name = name.replace(enum.name, '').lstrip('_') %}
+{% if member_name and member_name[0].isalpha() and member_name not in ('None', 'True', 'False') %}
+    {{ member_name }}: int
+{% elif member_name == 'None' %}
+    NONE: int
+{% endif %}
+{% endfor %}
+
+{% endfor %}
+
+# ==============================================================================
+# Constants (module-level aliases for backward compatibility)
+# ==============================================================================
+{% for enum in enums %}
+# {{ enum.name }}
+{% for name, value in enum.values %}
+{{ name }}: int
+{% endfor %}
+
+{% endfor %}
+
+# ==============================================================================
+# Wrapper Classes
+# ==============================================================================
+{% for stname, wrapper_info in type_map.WRAPPER_TYPES.items() %}
+{% set wrapper_name = wrapper_info[0] %}
+{% set method_list = methods.get(stname, []) %}
+{% set struct_info = structs.get(stname) %}
+{% set full_struct_names = type_map.get_full_struct_defs() %}
+
+class {{ wrapper_name }}:
+    """Wrapper for {{ stname }}*"""
+
+    @property
+    def _pointer(self) -> int: ...
+
+    def __bool__(self) -> bool: ...
+
+{% if struct_info and stname in full_struct_names %}
+{% for fld in struct_info.fields %}
+{% if not fld.skip and fld.size is none and fld.cython_type != '__UNKNOWN__' %}
+{% set prop_name = fld.name | strip_array_suffix | to_snake_case %}
+{% if fld.conversion == 'vec2' or fld.c_type == 'ImVec2' %}
+    @property
+    def {{ prop_name }}(self) -> Tuple[float, float]: ...
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: Tuple[float, float]) -> None: ...
+{% elif fld.conversion == 'vec4' or fld.c_type == 'ImVec4' %}
+    @property
+    def {{ prop_name }}(self) -> Tuple[float, float, float, float]: ...
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: Tuple[float, float, float, float]) -> None: ...
+{% elif fld.cython_type == 'bint' %}
+    @property
+    def {{ prop_name }}(self) -> bool: ...
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: bool) -> None: ...
+{% elif fld.cython_type in ['float', 'double', 'int', 'unsigned int', 'short', 'unsigned short'] %}
+    @property
+    def {{ prop_name }}(self) -> {{ fld.python_type }}: ...
+    @{{ prop_name }}.setter
+    def {{ prop_name }}(self, value: {{ fld.python_type }}) -> None: ...
+{% elif fld.cython_type == 'const char*' %}
+    @property
+    def {{ prop_name }}(self) -> Optional[str]: ...
+{% elif fld.cython_type.endswith('*') and fld.wrapper %}
+    @property
+    def {{ prop_name }}(self) -> Optional[{{ fld.wrapper }}]: ...
+{% elif fld.cython_type.endswith('*') %}
+    @property
+    def {{ prop_name }}(self) -> int: ...
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% for func in method_list %}
+{% set override = overrides.get('methods', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') %}
+{% if override.get('signature') %}
+    def {{ func.python_name }}{{ override.signature }}: ...
+{% else %}
+    def {{ func.python_name }}(self{% for arg in func.args %}, {{ format_arg(arg) }}{% endfor %}) -> {{ func.pyi_return_type }}: ...
+{% endif %}
+{% endif %}
+{% endfor %}
+
+{% endfor %}
+
+
+# ==============================================================================
+# Special Handler Functions (需要特殊签名的函数)
+# ==============================================================================
+
+def begin(name: str, closable: bool | None = None, flags: int = 0) -> bool | Tuple[bool, bool]:
+    """Begin a window.
+
+    If closable is None: returns bool (expanded)
+    If closable is bool: returns tuple[bool, bool] (expanded, still_open)
+    """
+    ...
+
+def end() -> None: ...
+
+# Callback type alias
+InputTextCallback = Callable[[InputTextCallbackData], int]
+
+def input_text(
+    label: str,
+    value: str,
+    buffer_size: int = 256,
+    flags: int = 0,
+    callback: InputTextCallback | None = None
+) -> Tuple[bool, str]:
+    """Text input widget with optional callback.
+
+    Args:
+        label: Widget label
+        value: Current text value
+        buffer_size: Maximum buffer size
+        flags: InputTextFlags
+        callback: Optional callback(data: InputTextCallbackData) -> int
+
+    Returns:
+        (changed, new_value) tuple
+    """
+    ...
+
+def input_text_multiline(
+    label: str,
+    value: str,
+    buffer_size: int = 1024,
+    size: Tuple[float, float] = (0, 0),
+    flags: int = 0,
+    callback: InputTextCallback | None = None
+) -> Tuple[bool, str]:
+    """Multiline text input with optional callback."""
+    ...
+
+def input_text_with_hint(
+    label: str,
+    hint: str,
+    value: str,
+    buffer_size: int = 256,
+    flags: int = 0,
+    callback: InputTextCallback | None = None
+) -> Tuple[bool, str]:
+    """Text input with placeholder hint and optional callback."""
+    ...
+
+def checkbox(label: str, state: bool) -> Tuple[bool, bool]:
+    """Checkbox widget. Returns (clicked, new_state)."""
+    ...
+
+def slider_float(label: str, value: float, v_min: float, v_max: float, format: str = "%.3f", flags: int = 0) -> Tuple[bool, float]:
+    """Float slider. Returns (changed, new_value)."""
+    ...
+
+def slider_int(label: str, value: int, v_min: int, v_max: int, format: str = "%d", flags: int = 0) -> Tuple[bool, int]:
+    """Int slider. Returns (changed, new_value)."""
+    ...
+
+def list_box(label: str, current_item: int, items: list[str], height_in_items: int = -1) -> Tuple[bool, int]:
+    """List box. Returns (changed, selected_index)."""
+    ...
+
+def combo(label: str, current_item: int, items: list[str], popup_max_height_in_items: int = -1) -> Tuple[bool, int]:
+    """Combo box. Returns (changed, selected_index)."""
+    ...
+
+def text(s: str) -> None:
+    """Display text (use instead of vararg version)."""
+    ...
+
+def text_colored(color: Tuple[float, float, float, float], s: str) -> None:
+    """Display colored text."""
+    ...
+
+
+# ==============================================================================
+# Auto-generated Global Functions
+# ==============================================================================
+{% for func in functions %}
+{% set override = overrides.get('functions', {}).get(func.ov_cimguiname, {}) %}
+{% if not override.get('skip') and not func.special_handling %}
+{% set comment = comments.get(func.cimgui_name, '') %}
+{% if override.get('signature') %}
+def {{ func.python_name }}{{ override.signature }}:
+{% if comment %}
+    """{{ comment }}"""
+{% endif %}
+    ...
+{% else %}
+def {{ func.python_name }}({% for arg in func.args %}{{ format_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ func.pyi_return_type }}:
+{% if comment %}
+    """{{ comment }}"""
+{% endif %}
+    ...
+{% endif %}
+{% endif %}
+{% endfor %}
+
+
+# ==============================================================================
+# Overload Dispatchers (统一入口函数)
+# ==============================================================================
+{% for dispatcher in dispatchers %}
+{% set merged_args = dispatcher.merged_args %}
+def {{ dispatcher.python_name }}({% for arg in merged_args %}{{ format_dispatcher_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %}) -> {{ dispatcher.ret_python }}: ...
+{% endfor %}
+
+
+# ==============================================================================
+# Compatibility Aliases (原始 ImGui 命名 - 便于 AI agent 生成代码)
+# ==============================================================================
+
+# Enum class aliases
+{% for enum in enums %}
+{% set alias_name = enum.name.rstrip('_') %}
+{{ alias_name }} = {{ enum.python_class_name }}
+{% endfor %}
+
+# Wrapper class aliases
+{% for ctype, (pyname, has_methods, full_fields) in type_map.WRAPPER_TYPES.items() %}
+{{ ctype }} = {{ pyname }}
+{% endfor %}

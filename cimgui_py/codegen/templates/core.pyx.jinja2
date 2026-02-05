@@ -1,6 +1,6 @@
 # cython: language_level=3
 # cython: embedsignature=True
-"""imgui_core.pyx - Auto-generated ImGui bindings (纯 C API)
+"""core.pyx - Auto-generated ImGui bindings (纯 C API)
 
 DO NOT EDIT - regenerate with: python codegen/compiler.py
 
@@ -12,7 +12,8 @@ DO NOT EDIT - regenerate with: python codegen/compiler.py
 
 from libc.stdlib cimport malloc, free
 from libc.string cimport memcpy, strlen
-cimport cimgui
+from cython.view cimport array as cvarray
+from cimgui_py cimport cimgui
 
 # ==============================================================================
 # Helpers
@@ -25,6 +26,122 @@ cdef inline bytes _to_bytes(s):
     if s is None:
         return b''
     return s.encode('utf-8')
+
+
+cdef inline void* _get_ptr(obj):
+    """Extract pointer from wrapper object or raw int.
+
+    Supports:
+    - Wrapper objects with _pointer property (Context, Font, etc.)
+    - Raw int/size_t pointer values (for backward compatibility)
+    """
+    if hasattr(obj, '_pointer'):
+        return <void*><size_t>obj._pointer
+    return <void*><size_t>obj
+
+
+# ==============================================================================
+# Callback System - Python callable <-> C callback bridge
+# ==============================================================================
+
+# Global callback storage (prevents GC of Python callables)
+cdef dict _input_text_callbacks = {}
+cdef dict _size_callbacks = {}
+cdef int _callback_id_counter = 0
+
+
+cdef int _input_text_callback_wrapper(cimgui.ImGuiInputTextCallbackData* data) noexcept with gil:
+    """C callback wrapper for InputTextCallback -> Python callable.
+
+    The callback ID is stored in UserData field.
+    """
+    cdef size_t callback_id = <size_t>data.UserData
+    if callback_id in _input_text_callbacks:
+        py_callback = _input_text_callbacks[callback_id]
+        # Create wrapper for callback data
+        wrapper = InputTextCallbackData._wrap(<size_t>data)
+        try:
+            result = py_callback(wrapper)
+            return result if result is not None else 0
+        except Exception as e:
+            import sys
+            print(f"Error in input_text callback: {e}", file=sys.stderr)
+            return 0
+    return 0
+
+
+cdef void _size_callback_wrapper(cimgui.ImGuiSizeCallbackData* data) noexcept with gil:
+    """C callback wrapper for SizeCallback -> Python callable.
+
+    The callback ID is stored in UserData field.
+    """
+    cdef size_t callback_id = <size_t>data.UserData
+    if callback_id in _size_callbacks:
+        py_callback = _size_callbacks[callback_id]
+        # Create wrapper for callback data
+        wrapper = SizeCallbackData._wrap(<size_t>data)
+        try:
+            py_callback(wrapper)
+        except Exception as e:
+            import sys
+            print(f"Error in size callback: {e}", file=sys.stderr)
+
+
+cdef size_t _register_input_text_callback(object callback):
+    """Register a Python callback and return its ID."""
+    global _callback_id_counter
+    _callback_id_counter += 1
+    _input_text_callbacks[_callback_id_counter] = callback
+    return _callback_id_counter
+
+
+cdef size_t _register_size_callback(object callback):
+    """Register a Python callback and return its ID."""
+    global _callback_id_counter
+    _callback_id_counter += 1
+    _size_callbacks[_callback_id_counter] = callback
+    return _callback_id_counter
+
+
+cdef void _unregister_input_text_callback(size_t callback_id):
+    """Unregister a callback after use."""
+    _input_text_callbacks.pop(callback_id, None)
+
+
+cdef void _unregister_size_callback(size_t callback_id):
+    """Unregister a callback after use."""
+    _size_callbacks.pop(callback_id, None)
+
+
+# ==============================================================================
+# Array wrapper classes for struct fields
+# ==============================================================================
+
+cdef class _MouseDownArray:
+    """Helper for MouseDown[5] array access"""
+    cdef void* _ptr
+
+    def __cinit__(self):
+        self._ptr = NULL
+
+    @staticmethod
+    cdef _MouseDownArray create(void* ptr):
+        cdef _MouseDownArray obj = _MouseDownArray.__new__(_MouseDownArray)
+        obj._ptr = ptr
+        return obj
+
+    def __len__(self):
+        return 5
+
+    def __getitem__(self, int idx):
+        if idx < 0 or idx >= 5:
+            raise IndexError(f"Index {idx} out of range [0, 5)")
+        return (<cimgui.ImGuiIO*>self._ptr).MouseDown[idx]
+
+    def __setitem__(self, int idx, bint value):
+        if idx < 0 or idx >= 5:
+            raise IndexError(f"Index {idx} out of range [0, 5)")
+        (<cimgui.ImGuiIO*>self._ptr).MouseDown[idx] = value
 
 
 # ==============================================================================
@@ -80,7 +197,15 @@ cdef inline tuple _{{ conv_name }}_to_tuple(cimgui.{{ struct.name }} v):
 _to_bytes({{ arg.name }})
 {%- elif arg.conversion == 'ptr' -%}
 {# For ptr conversion: void* and const T* can use simple cast #}
+{# If arg.wrapper is set, extract ._pointer from wrapper object #}
+{% if arg.wrapper -%}
+{# Wrapper type: extract ._pointer, support both wrapper and raw int #}
 {% if arg.default is not none -%}
+(_get_ptr({{ arg.name }}) if {{ arg.name }} is not None else NULL)
+{%- else -%}
+_get_ptr({{ arg.name }})
+{%- endif %}
+{%- elif arg.default is not none -%}
 {# Optional pointer: need NULL check #}
 {% if arg.cython_type == 'void*' or arg.cython_type == 'const void*' -%}
 (<void*><size_t>{{ arg.name }} if {{ arg.name }} is not None else NULL)
@@ -104,8 +229,12 @@ _arr_{{ arg.name }}
 {%- elif arg.conversion and arg.conversion.startswith('int_array') -%}
 _arr_{{ arg.name }}
 {%- elif arg.conversion and arg.conversion.endswith('_ptr') -%}
-{# Native pointer types: pass address of temp variable #}
+{# Native pointer types: pass address of temp variable or NULL for optional #}
+{% if arg.default is not none -%}
+(&_tmp_{{ arg.name }} if {{ arg.name }} is not None else NULL)
+{%- else -%}
 &_tmp_{{ arg.name }}
+{%- endif %}
 {%- elif arg.conversion -%}
 {# Value-type struct conversion: call _<conv_name>(arg) #}
 _{{ arg.conversion }}({{ arg.name }})
@@ -170,7 +299,8 @@ cdef class {{ wrapper_name }}:
 
 {# ------ Struct Field Properties ------ #}
 {% set struct_info = structs.get(stname) %}
-{% if struct_info and stname in type_map.FULL_STRUCT_DEFS %}
+{% set full_struct_names = type_map.get_full_struct_defs() %}
+{% if struct_info and stname in full_struct_names %}
 {# === Non-array fields === #}
 {% for fld in struct_info.fields %}
 {% if not fld.skip and fld.size is none and fld.cython_type != '__UNKNOWN__' %}
@@ -231,7 +361,18 @@ cdef class {{ wrapper_name }}:
             return None
         return s.decode('utf-8')
 
+{% elif fld.cython_type.endswith('*') and fld.wrapper %}
+{# Pointer to wrapper type: return wrapper object #}
+    @property
+    def {{ prop_name }}(self) -> {{ fld.wrapper }}:
+        """{{ fld.c_type }} {{ fld.name }}"""
+        cdef void* ptr = <void*>(<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        if ptr == NULL:
+            return None
+        return {{ fld.wrapper }}._wrap(<size_t>ptr)
+
 {% elif fld.cython_type.endswith('*') %}
+{# Other pointer types: return raw int #}
     @property
     def {{ prop_name }}(self) -> int:
         """{{ fld.c_type }} {{ fld.name }} (raw pointer)"""
@@ -240,38 +381,95 @@ cdef class {{ wrapper_name }}:
 {% endif %}
 {% endif %}
 {% endfor %}
-{# === Array fields (with indexed access) === #}
+{# === Array fields (with memoryview/wrapper access) === #}
 {% for fld in struct_info.fields %}
 {% if not fld.skip and fld.size is not none and fld.cython_type != '__UNKNOWN__' %}
 {% set prop_name = fld.name | strip_array_suffix | to_snake_case %}
 {% set c_field_name = fld.name | strip_array_suffix %}
 {% if fld.cython_type == 'bint' %}
-    def get_{{ prop_name }}(self, idx: int) -> bool:
-        """{{ fld.c_type }} {{ fld.name }} - array access"""
+{# Bool arrays: use wrapper class since memoryview doesn't support C++ bool well #}
+{% if c_field_name == 'MouseDown' %}
+    @property
+    def {{ prop_name }}(self):
+        """{{ fld.c_type }} {{ fld.name }} - indexed array access
+
+        Usage: io.{{ prop_name }}[0], io.{{ prop_name }}[1] = True, ...
+        """
+        return _MouseDownArray.create(self._ptr)
+
+{% else %}
+{# Other bool arrays: use indexed accessor methods #}
+    def get_{{ prop_name }}(self, int idx) -> bool:
+        """{{ fld.c_type }} {{ fld.name }} - indexed array access"""
         if idx < 0 or idx >= {{ fld.size }}:
             raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
         return (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx]
 
-    def set_{{ prop_name }}(self, idx: int, value: bool):
+    def set_{{ prop_name }}(self, int idx, bint value):
         if idx < 0 or idx >= {{ fld.size }}:
             raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
         (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx] = value
 
-{% elif fld.cython_type in ['float', 'double', 'int', 'unsigned int', 'short', 'unsigned short'] %}
-    def get_{{ prop_name }}(self, idx: int) -> {{ fld.python_type }}:
-        """{{ fld.c_type }} {{ fld.name }} - array access"""
-        if idx < 0 or idx >= {{ fld.size }}:
-            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
-        return (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx]
+{% endif %}
+{% elif fld.cython_type == 'float' %}
+    @property
+    def {{ prop_name }}(self):
+        """{{ fld.c_type }} {{ fld.name }} - memoryview array access
 
-    def set_{{ prop_name }}(self, idx: int, value: {{ fld.python_type }}):
-        if idx < 0 or idx >= {{ fld.size }}:
-            raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
-        (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx] = value
+        Usage: style.{{ prop_name }}[0], style.{{ prop_name }}[1] = 1.0, ...
+        """
+        cdef cvarray arr = cvarray(
+            shape=({{ fld.size }},),
+            itemsize=sizeof(float),
+            format='f',
+            allocate_buffer=False
+        )
+        arr.data = <char*>(<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        return arr
+
+{% elif fld.cython_type == 'double' %}
+    @property
+    def {{ prop_name }}(self):
+        """{{ fld.c_type }} {{ fld.name }} - memoryview array access"""
+        cdef cvarray arr = cvarray(
+            shape=({{ fld.size }},),
+            itemsize=sizeof(double),
+            format='d',
+            allocate_buffer=False
+        )
+        arr.data = <char*>(<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        return arr
+
+{% elif fld.cython_type == 'int' %}
+    @property
+    def {{ prop_name }}(self):
+        """{{ fld.c_type }} {{ fld.name }} - memoryview array access"""
+        cdef cvarray arr = cvarray(
+            shape=({{ fld.size }},),
+            itemsize=sizeof(int),
+            format='i',
+            allocate_buffer=False
+        )
+        arr.data = <char*>(<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        return arr
+
+{% elif fld.cython_type == 'unsigned int' %}
+    @property
+    def {{ prop_name }}(self):
+        """{{ fld.c_type }} {{ fld.name }} - memoryview array access"""
+        cdef cvarray arr = cvarray(
+            shape=({{ fld.size }},),
+            itemsize=sizeof(unsigned int),
+            format='I',
+            allocate_buffer=False
+        )
+        arr.data = <char*>(<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}
+        return arr
 
 {% elif fld.conversion == 'vec2' or fld.c_type == 'ImVec2' %}
+{# ImVec2 arrays need special handling - use helper methods #}
     def get_{{ prop_name }}(self, idx: int) -> tuple:
-        """{{ fld.c_type }} {{ fld.name }} - array access"""
+        """{{ fld.c_type }} {{ fld.name }} - indexed array access"""
         if idx < 0 or idx >= {{ fld.size }}:
             raise IndexError(f"{{ prop_name }} index {idx} out of range [0, {{ fld.size }})")
         cdef cimgui.ImVec2 v = (<cimgui.{{ stname }}*>self._ptr).{{ c_field_name }}[idx]
@@ -302,25 +500,34 @@ cdef class {{ wrapper_name }}:
         """{{ func.cimgui_name }}"""
         {{ override.body | indent(8) }}
 {% elif ptr_args %}
+{# Check if any ptr_arg is optional #}
+{% set has_optional_ptr = namespace(value=false) %}
+{% for ptr_arg in ptr_args %}{% if ptr_arg.default is not none %}{% set has_optional_ptr.value = true %}{% endif %}{% endfor %}
+
     def {{ func.python_name }}(self{% for arg in func.args %}, {{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% endfor %}):
         """{{ func.cimgui_name }} - method with output parameters"""
 {% for ptr_arg in ptr_args %}
-{% if ptr_arg.conversion == 'bool_ptr' %}
-        cdef bint _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0
-{% elif ptr_arg.conversion == 'int_ptr' or ptr_arg.conversion == 'uint_ptr' %}
-        cdef int _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0
-{% elif ptr_arg.conversion == 'float_ptr' %}
-        cdef float _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0.0
-{% elif ptr_arg.conversion == 'double_ptr' %}
-        cdef double _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}[0] if {{ ptr_arg.name }} else 0.0
+{% set ctype = {'bool_ptr': 'bint', 'int_ptr': 'int', 'uint_ptr': 'int', 'float_ptr': 'float', 'double_ptr': 'double'}[ptr_arg.conversion] %}
+{% if ptr_arg.default is not none %}
+        cdef {{ ctype }} _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }} if {{ ptr_arg.name }} is not None else 0
+{% else %}
+        cdef {{ ctype }} _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
 {% endif %}
 {% endfor %}
 {% if func.ret_python == 'None' %}
         cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+{% if has_optional_ptr.value %}
+        return ({% for ptr_arg in ptr_args %}{% if ptr_arg.default is not none %}({% endif %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if ptr_arg.default is not none %} if {{ ptr_arg.name }} is not None else None){% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% else %}
         return ({% for ptr_arg in ptr_args %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
 {% else %}
         cdef {{ func.ret_cython }} _result = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+{% if has_optional_ptr.value %}
+        return (_result, {% for ptr_arg in ptr_args %}{% if ptr_arg.default is not none %}({% endif %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if ptr_arg.default is not none %} if {{ ptr_arg.name }} is not None else None){% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% else %}
         return (_result, {% for ptr_arg in ptr_args %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
 {% endif %}
 {% else %}
     def {{ func.python_name }}(self{% for arg in func.args %}, {{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% endfor %}):
@@ -333,6 +540,9 @@ cdef class {{ wrapper_name }}:
 {% elif func.ret_conversion == 'vec4_to_tuple' %}
         cdef cimgui.ImVec4 result = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
         return _vec4_to_tuple(result)
+{% elif func.ret_conversion == 'char_ptr_to_str' %}
+        cdef const char* _cstr = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
+        return _cstr.decode('utf-8') if _cstr != NULL else ''
 {% elif func.ret_wrapper %}
         cdef void* _wptr = cimgui.{{ func.ov_cimguiname }}(<cimgui.{{ stname }}*>self._ptr{% for arg in func.args %}, {{ convert_arg(arg) }}{% endfor %})
         return {{ func.ret_wrapper }}._wrap(<size_t>_wptr) if _wptr != NULL else None
@@ -391,82 +601,171 @@ def begin(name: str, closable = None, flags: int = 0):
         return (result, bool(p_open))
 
 
+def end():
+    """End current window."""
+    cimgui.igEnd()
+
+
 def text(txt: str):
     """Display text (uses TextUnformatted internally)."""
     cdef bytes txt_bytes = _to_bytes(txt)
     cimgui.igTextUnformatted(txt_bytes, NULL)
 
 
-def input_text(label: str, value: str, buffer_size: int = 256, flags: int = 0):
-    """Text input widget. Returns (changed, new_value)."""
+def text_colored(color, txt: str):
+    """Display colored text."""
+    cdef bytes txt_bytes = _to_bytes(txt)
+    cimgui.igTextColored(_vec4(color), txt_bytes)
+
+
+def checkbox(label: str, state: bool):
+    """Checkbox widget. Returns (clicked, new_state)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bint c_state = state
+    cdef bint clicked = cimgui.igCheckbox(label_bytes, &c_state)
+    return (clicked, bool(c_state))
+
+
+def slider_float(label: str, value: float, v_min: float, v_max: float, format: str = "%.3f", flags: int = 0):
+    """Float slider. Returns (changed, new_value)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bytes format_bytes = _to_bytes(format)
+    cdef float c_value = value
+    cdef bint changed = cimgui.igSliderFloat(label_bytes, &c_value, v_min, v_max, format_bytes, flags)
+    return (changed, c_value)
+
+
+def slider_int(label: str, value: int, v_min: int, v_max: int, format: str = "%d", flags: int = 0):
+    """Int slider. Returns (changed, new_value)."""
+    cdef bytes label_bytes = _to_bytes(label)
+    cdef bytes format_bytes = _to_bytes(format)
+    cdef int c_value = value
+    cdef bint changed = cimgui.igSliderInt(label_bytes, &c_value, v_min, v_max, format_bytes, flags)
+    return (changed, c_value)
+
+
+def input_text(label: str, value: str, buffer_size: int = 256, flags: int = 0, callback = None):
+    """Text input widget with optional callback.
+
+    Args:
+        label: Widget label (##id for hidden label)
+        value: Current text value
+        buffer_size: Maximum buffer size
+        flags: InputTextFlags
+        callback: Optional callback function(data: InputTextCallbackData) -> int
+                  Called for filtering, history, completion, etc.
+                  The callback receives an InputTextCallbackData wrapper with:
+                  - event_flag: Which event triggered the callback
+                  - event_char: Character for CharFilter events (writable)
+                  - event_key: Key for special key events
+                  - buf: Current buffer content
+                  - cursor_pos: Cursor position (writable)
+                  - selection_start/end: Selection range (writable)
+
+    Returns:
+        (changed: bool, new_value: str) tuple
+    """
     cdef bytes label_bytes = _to_bytes(label)
     cdef bytes value_bytes = _to_bytes(value)
     cdef char* buf = <char*>malloc(buffer_size)
     cdef size_t copy_len
+    cdef size_t callback_id = 0
+    cdef cimgui.ImGuiInputTextCallback c_callback = NULL
+    cdef void* user_data = NULL
 
     if buf == NULL:
         raise MemoryError()
+
+    # Setup callback if provided
+    if callback is not None:
+        callback_id = _register_input_text_callback(callback)
+        c_callback = _input_text_callback_wrapper
+        user_data = <void*>callback_id
 
     try:
         copy_len = min(len(value_bytes), buffer_size - 1)
         memcpy(buf, <char*>value_bytes, copy_len)
         buf[copy_len] = 0
 
-        changed = cimgui.igInputText(label_bytes, buf, buffer_size, flags, NULL, NULL)
+        changed = cimgui.igInputText(label_bytes, buf, buffer_size, flags, c_callback, user_data)
         if changed:
             return (True, buf.decode('utf-8'))
         else:
             return (False, value)
     finally:
+        if callback_id != 0:
+            _unregister_input_text_callback(callback_id)
         free(buf)
 
 
-def input_text_multiline(label: str, value: str, buffer_size: int = 1024, size = (0, 0), flags: int = 0):
-    """Multiline text input. Returns (changed, new_value)."""
+def input_text_multiline(label: str, value: str, buffer_size: int = 1024, size = (0, 0), flags: int = 0, callback = None):
+    """Multiline text input with optional callback. Returns (changed, new_value)."""
     cdef bytes label_bytes = _to_bytes(label)
     cdef bytes value_bytes = _to_bytes(value)
     cdef char* buf = <char*>malloc(buffer_size)
     cdef size_t copy_len
+    cdef size_t callback_id = 0
+    cdef cimgui.ImGuiInputTextCallback c_callback = NULL
+    cdef void* user_data = NULL
 
     if buf == NULL:
         raise MemoryError()
+
+    # Setup callback if provided
+    if callback is not None:
+        callback_id = _register_input_text_callback(callback)
+        c_callback = _input_text_callback_wrapper
+        user_data = <void*>callback_id
 
     try:
         copy_len = min(len(value_bytes), buffer_size - 1)
         memcpy(buf, <char*>value_bytes, copy_len)
         buf[copy_len] = 0
 
-        changed = cimgui.igInputTextMultiline(label_bytes, buf, buffer_size, _vec2(size), flags, NULL, NULL)
+        changed = cimgui.igInputTextMultiline(label_bytes, buf, buffer_size, _vec2(size), flags, c_callback, user_data)
         if changed:
             return (True, buf.decode('utf-8'))
         else:
             return (False, value)
     finally:
+        if callback_id != 0:
+            _unregister_input_text_callback(callback_id)
         free(buf)
 
 
-def input_text_with_hint(label: str, hint: str, value: str, buffer_size: int = 256, flags: int = 0):
-    """Text input with placeholder hint. Returns (changed, new_value)."""
+def input_text_with_hint(label: str, hint: str, value: str, buffer_size: int = 256, flags: int = 0, callback = None):
+    """Text input with placeholder hint and optional callback. Returns (changed, new_value)."""
     cdef bytes label_bytes = _to_bytes(label)
     cdef bytes hint_bytes = _to_bytes(hint)
     cdef bytes value_bytes = _to_bytes(value)
     cdef char* buf = <char*>malloc(buffer_size)
     cdef size_t copy_len
+    cdef size_t callback_id = 0
+    cdef cimgui.ImGuiInputTextCallback c_callback = NULL
+    cdef void* user_data = NULL
 
     if buf == NULL:
         raise MemoryError()
+
+    # Setup callback if provided
+    if callback is not None:
+        callback_id = _register_input_text_callback(callback)
+        c_callback = _input_text_callback_wrapper
+        user_data = <void*>callback_id
 
     try:
         copy_len = min(len(value_bytes), buffer_size - 1)
         memcpy(buf, <char*>value_bytes, copy_len)
         buf[copy_len] = 0
 
-        changed = cimgui.igInputTextWithHint(label_bytes, hint_bytes, buf, buffer_size, flags, NULL, NULL)
+        changed = cimgui.igInputTextWithHint(label_bytes, hint_bytes, buf, buffer_size, flags, c_callback, user_data)
         if changed:
             return (True, buf.decode('utf-8'))
         else:
             return (False, value)
     finally:
+        if callback_id != 0:
+            _unregister_input_text_callback(callback_id)
         free(buf)
 
 
@@ -544,32 +843,37 @@ def combo(label: str, current_item: int, items: list, popup_max_height_in_items:
 
 {% if ptr_args %}
 {# ------ Functions with pointer output arguments ------ #}
+{# Check if any ptr_arg is optional (has default) #}
+{% set has_optional_ptr = namespace(value=false) %}
+{% for ptr_arg in ptr_args %}{% if ptr_arg.default is not none %}{% set has_optional_ptr.value = true %}{% endif %}{% endfor %}
+
 def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
     # Declare temp variables for output pointers
 {% for ptr_arg in ptr_args %}
-{% if ptr_arg.conversion == 'bool_ptr' %}
-    cdef bint _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
-{% elif ptr_arg.conversion == 'int_ptr' %}
-    cdef int _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
-{% elif ptr_arg.conversion == 'uint_ptr' %}
-    cdef unsigned int _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
-{% elif ptr_arg.conversion == 'float_ptr' %}
-    cdef float _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
-{% elif ptr_arg.conversion == 'double_ptr' %}
-    cdef double _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
-{% elif ptr_arg.conversion == 'size_t_ptr' %}
-    cdef size_t _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
+{% set ctype = {'bool_ptr': 'bint', 'int_ptr': 'int', 'uint_ptr': 'unsigned int', 'float_ptr': 'float', 'double_ptr': 'double', 'size_t_ptr': 'size_t'}[ptr_arg.conversion] %}
+{% if ptr_arg.default is not none %}
+    cdef {{ ctype }} _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }} if {{ ptr_arg.name }} is not None else 0
+{% else %}
+    cdef {{ ctype }} _tmp_{{ ptr_arg.name }} = {{ ptr_arg.name }}
 {% endif %}
 {% endfor %}
     # Call C function
 {% if func.ret_python == 'None' %}
     cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
-    # Return updated values
+    # Return updated values (None for optional params that were None)
+{% if has_optional_ptr.value %}
+    return ({% for ptr_arg in ptr_args %}{% if ptr_arg.default is not none %}({% endif %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if ptr_arg.default is not none %} if {{ ptr_arg.name }} is not None else None){% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% else %}
     return ({% for ptr_arg in ptr_args %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
 {% else %}
     cdef {{ func.ret_cython }} _result = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
     # Return (result, updated_values)
+{% if has_optional_ptr.value %}
+    return (_result, {% for ptr_arg in ptr_args %}{% if ptr_arg.default is not none %}({% endif %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if ptr_arg.default is not none %} if {{ ptr_arg.name }} is not None else None){% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% else %}
     return (_result, {% for ptr_arg in ptr_args %}{% if ptr_arg.conversion == 'bool_ptr' %}bool(_tmp_{{ ptr_arg.name }}){% else %}_tmp_{{ ptr_arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
 {% endif %}
 
 {% elif array_args %}
@@ -613,6 +917,9 @@ def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.def
 {% elif func.ret_conversion == 'vec4_to_tuple' %}
     cdef cimgui.ImVec4 result = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
     return _vec4_to_tuple(result)
+{% elif func.ret_conversion == 'char_ptr_to_str' %}
+    cdef const char* _cstr = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
+    return _cstr.decode('utf-8') if _cstr != NULL else ''
 {% elif func.ret_wrapper %}
     cdef void* _ptr = cimgui.{{ func.ov_cimguiname }}({% for arg in func.args %}{{ convert_arg(arg) }}{% if not loop.last %}, {% endif %}{% endfor %})
     return {{ func.ret_wrapper }}._wrap(<size_t>_ptr) if _ptr != NULL else None
@@ -659,3 +966,50 @@ def {{ dispatcher.python_name }}({% for arg in merged_args %}{{ arg.name }}{% if
 {% endif %}
 
 {% endfor %}
+
+# ==============================================================================
+# Enum Types (自动生成)
+# ==============================================================================
+from enum import IntEnum, IntFlag
+
+{% for enum in enums %}
+class {{ enum.python_class_name }}({{ enum.python_base_class }}):
+    """{{ enum.name }}"""
+{% for name, value in enum.values %}
+{% set member_name = name.replace(enum.name, '').lstrip('_') %}
+{% if member_name and member_name[0].isalpha() and member_name not in ('None', 'True', 'False') %}
+    {{ member_name }} = {{ value }}
+{% elif member_name == 'None' %}
+    NONE = {{ value }}
+{% endif %}
+{% endfor %}
+
+{% endfor %}
+
+# ==============================================================================
+# Enum Constants (模块级别名 - 向后兼容)
+# ==============================================================================
+{% for enum in enums %}
+# {{ enum.name }}
+{% for name, value in enum.values %}
+{{ name }} = {{ value }}
+{% endfor %}
+
+{% endfor %}
+# ==============================================================================
+# Compatibility Aliases (原始 ImGui 命名 - 便于 AI agent 生成代码)
+# ==============================================================================
+
+# Enum class aliases (ImGuiWindowFlags_ -> ImGuiWindowFlags -> WindowFlags)
+{% for enum in enums %}
+{% set alias_name = enum.name.rstrip('_') %}
+{{ alias_name }} = {{ enum.python_class_name }}
+{% endfor %}
+
+# Wrapper class aliases (ImFont -> Font, ImGuiContext -> Context)
+{% for ctype, (pyname, has_methods, full_fields) in type_map.WRAPPER_TYPES.items() %}
+{{ ctype }} = {{ pyname }}
+{% endfor %}
+
+# Function aliases (igXXX -> xxx)
+# Note: Most common functions are already accessible via simplified names

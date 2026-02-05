@@ -53,6 +53,8 @@ class Argument:
     python_type: str = ""
     default: str | None = None
     conversion: str | None = None  # 如何从 Python 转 C
+    wrapper: str | None = None     # 如果是 wrapper 类型，存储类名 (Context, Font, etc.)
+    is_enum: bool = False          # 是否为 enum 类型 (pyi 生成时使用 int | EnumType)
 
     @classmethod
     def from_json(cls, arg: dict, defaults: dict, type_map: "TypeMapping") -> "Argument":
@@ -64,7 +66,10 @@ class Argument:
         if name in ("in", "from", "import", "class", "def", "return", "is", "not", "and", "or", "for", "while", "if", "else", "elif", "try", "except", "finally", "with", "as", "lambda", "yield", "global", "nonlocal", "pass", "break", "continue", "raise", "del", "assert", "type"):
             name = name + "_"
 
-        cython_type, python_type, conversion, _ = type_map.resolve(c_type)
+        cython_type, python_type, conversion, wrapper = type_map.resolve(c_type)
+
+        # 检查是否为 enum 类型
+        is_enum = type_map.is_enum_type(c_type)
 
         # 转换默认值
         if default is not None:
@@ -77,6 +82,8 @@ class Argument:
             python_type=python_type,
             default=default,
             conversion=conversion,
+            wrapper=wrapper,
+            is_enum=is_enum,
         )
 
 
@@ -115,6 +122,54 @@ class Function:
     def is_method(self) -> bool:
         """是否为结构体方法"""
         return bool(self.stname)
+
+    @property
+    def ptr_args(self) -> list["Argument"]:
+        """获取所有指针输出参数 (用于生成 tuple 返回类型)"""
+        return [arg for arg in self.args if arg.conversion and arg.conversion.endswith("_ptr")]
+
+    @property
+    def array_args(self) -> list["Argument"]:
+        """获取所有数组参数 (用于生成 tuple 返回类型)"""
+        return [arg for arg in self.args if arg.conversion and "_array_" in arg.conversion]
+
+    @property
+    def has_out_params(self) -> bool:
+        """是否有输出参数 (ptr 或 array)"""
+        return bool(self.ptr_args or self.array_args)
+
+    @property
+    def pyi_return_type(self) -> str:
+        """生成 pyi 的返回类型，考虑 out 参数"""
+        if not self.has_out_params:
+            return self.ret_python
+
+        # 收集输出参数的 Python 类型
+        out_types: list[str] = []
+
+        # 单值指针参数 -> 返回值类型（可选参数返回 T | None）
+        for arg in self.ptr_args:
+            if arg.default is not None:
+                # 可选参数：返回 T | None
+                out_types.append(f"{arg.python_type} | None")
+            else:
+                out_types.append(arg.python_type)
+
+        # 数组参数 -> 返回 tuple 类型
+        for arg in self.array_args:
+            # arg.python_type 已经是 tuple[float, float] 等形式
+            out_types.append(arg.python_type)
+
+        # 构建返回类型
+        if self.ret_python == "None":
+            # 原函数无返回值，只返回 out 参数
+            if len(out_types) == 1:
+                return out_types[0]
+            return f"tuple[{', '.join(out_types)}]"
+        else:
+            # 原函数有返回值，组合成 tuple
+            all_types = [self.ret_python] + out_types
+            return f"tuple[{', '.join(all_types)}]"
 
     @property
     def wrapper_class(self) -> str:
@@ -216,6 +271,7 @@ class StructField:
     python_type: str = ""
     size: int | None = None  # 数组大小，如 int[4]
     conversion: str | None = None
+    wrapper: str | None = None  # 如果是 wrapper 类型指针，存储类名
     skip: bool = False  # 是否跳过此字段（如函数指针）
 
     @classmethod
@@ -235,7 +291,7 @@ class StructField:
             or c_type.startswith("ImChunkStream_")
         )
 
-        cython_type, python_type, conversion, _ = type_map.resolve(c_type)
+        cython_type, python_type, conversion, wrapper = type_map.resolve(c_type)
 
         return cls(
             name=name,
@@ -244,6 +300,7 @@ class StructField:
             python_type=python_type,
             size=size,
             conversion=conversion,
+            wrapper=wrapper,
             skip=skip,
         )
 
@@ -287,6 +344,39 @@ class Enum:
 
     name: str
     values: list[tuple[str, int]] = field(default_factory=list)
+    is_flags: bool = False  # True if this is a bitfield (IntFlag)
+
+    @property
+    def python_class_name(self) -> str:
+        """生成 Python 风格的类名 (e.g. ImGuiWindowFlags_ -> WindowFlags)"""
+        name = self.name
+        # 移除尾部下划线
+        name = name.rstrip("_")
+
+        # 处理前缀
+        if name.startswith("ImGui"):
+            name = name[5:]  # 移除 "ImGui"
+        elif name.startswith("ImDraw"):
+            # ImDrawFlags -> DrawFlags, ImDrawListFlags -> DrawListFlags
+            name = name[2:]  # 只移除 "Im"，保留 "Draw"
+        elif name.startswith("ImFont"):
+            name = name[2:]  # 只移除 "Im"，保留 "Font"
+        elif name.startswith("Im"):
+            name = name[2:]  # 移除 "Im"
+
+        # 如果名字太短（只有 Flags），保留更多上下文
+        if name == "Flags":
+            # 使用原始名称但只移除 Im 前缀
+            name = self.name.rstrip("_")
+            if name.startswith("Im"):
+                name = name[2:]
+
+        return name
+
+    @property
+    def python_base_class(self) -> str:
+        """返回基类名"""
+        return "IntFlag" if self.is_flags else "IntEnum"
 
     @classmethod
     def from_json(cls, name: str, values: list[dict]) -> "Enum":
@@ -299,7 +389,133 @@ class Enum:
                 # 可能是表达式，跳过复杂的
                 continue
             parsed.append((enum_name, int(value)))
-        return cls(name=name, values=parsed)
+
+        # 判断是否是 Flags 类型 (名称含 Flags 或值含 2 的幂次)
+        is_flags = "Flags" in name
+        if not is_flags and len(parsed) >= 3:
+            # 检查是否有 2 的幂次值 (排除 0 和 1)
+            power_of_two_count = sum(1 for _, v in parsed if v > 1 and (v & (v - 1)) == 0)
+            is_flags = power_of_two_count >= 2
+
+        return cls(name=name, values=parsed, is_flags=is_flags)
+
+
+# ============================================================================
+# Callback Types - 从 typedefs_dict.json 自动解析
+# ============================================================================
+
+
+@dataclass
+class CallbackParam:
+    """回调函数参数"""
+    name: str
+    c_type: str
+    is_data_struct: bool = False  # 是否为 *CallbackData 类型
+
+
+@dataclass
+class CallbackType:
+    """回调类型定义 - 从 typedefs_dict.json 自动派生
+
+    例如:
+        ImGuiInputTextCallback = "int (*)(ImGuiInputTextCallbackData* data);"
+    解析为:
+        name = "ImGuiInputTextCallback"
+        return_type = "int"
+        params = [CallbackParam("data", "ImGuiInputTextCallbackData*", True)]
+        data_struct = "ImGuiInputTextCallbackData"
+    """
+    name: str                     # e.g. "ImGuiInputTextCallback"
+    signature: str                # 原始签名
+    return_type: str              # e.g. "int", "void", "void*"
+    params: list[CallbackParam]   # 参数列表
+    data_struct: str | None       # 如果有 *CallbackData 参数，存储结构名
+
+    @property
+    def python_name(self) -> str:
+        """Python 回调类型名"""
+        name = self.name
+        if name.startswith("ImGui"):
+            name = name[5:]
+        elif name.startswith("Im"):
+            name = name[2:]
+        return name
+
+    @property
+    def wrapper_func_name(self) -> str:
+        """C 包装函数名"""
+        return f"_cb_{self.python_name.lower()}_wrapper"
+
+    @property
+    def default_return(self) -> str:
+        """默认返回值"""
+        if self.return_type == "void":
+            return ""
+        elif self.return_type == "int":
+            return "0"
+        elif self.return_type.endswith("*"):
+            return "NULL"
+        return "0"
+
+    @property
+    def has_data_param(self) -> bool:
+        """是否有数据结构参数（这类回调可以被 Python 包装）"""
+        return self.data_struct is not None
+
+    @classmethod
+    def parse_signature(cls, name: str, sig: str) -> "CallbackType":
+        """解析回调签名
+
+        例如: "int (*)(ImGuiInputTextCallbackData* data);"
+        """
+        sig = sig.strip().rstrip(';')
+
+        # 匹配: return_type (*)( params )
+        match = re.match(r'^(.+?)\s*\(\s*\*\s*\)\s*\(\s*(.*?)\s*\)$', sig)
+        if not match:
+            raise ValueError(f'Invalid callback signature: {sig}')
+
+        ret_type = match.group(1).strip()
+        params_str = match.group(2).strip()
+
+        params = []
+        data_struct = None
+
+        if params_str and params_str != 'void':
+            for p in params_str.split(','):
+                p = p.strip()
+                # 找最后一个标识符作为参数名
+                m = re.match(r'^(.+?)\s+(\w+)$', p)
+                if m:
+                    ptype = m.group(1).replace(' *', '*').replace('* ', '*')
+                    pname = m.group(2)
+                    is_data = ptype.endswith("CallbackData*")
+                    params.append(CallbackParam(pname, ptype, is_data))
+                    if is_data:
+                        # 提取数据结构名: "ImGuiInputTextCallbackData*" -> "ImGuiInputTextCallbackData"
+                        data_struct = ptype.rstrip('*')
+
+        return cls(
+            name=name,
+            signature=sig,
+            return_type=ret_type,
+            params=params,
+            data_struct=data_struct,
+        )
+
+    @classmethod
+    def load_all(cls, typedefs: dict) -> dict[str, "CallbackType"]:
+        """从 typedefs_dict.json 加载所有回调类型"""
+        callbacks = {}
+        for name, sig in typedefs.items():
+            # 只处理函数指针类型的回调 (包含 "(*)")
+            if '(*)' in sig and ('Callback' in name or 'Func' in name):
+                try:
+                    cb = cls.parse_signature(name, sig)
+                    callbacks[name] = cb
+                except ValueError as e:
+                    print(f"Warning: {e}")
+        return callbacks
 
 
 # ============================================================================
@@ -338,9 +554,17 @@ class TypeMapping:
     }
 
     # 字符串类型（需要特殊转换）
+    # 参数: to_bytes (Python str -> C char*)
+    # 返回值: char_ptr_to_str (C char* -> Python str)
     STRING_TYPES = {
         "const char*": ("const char*", "str", "to_bytes", None),
         "char*": ("char*", "str", None, None),  # 可写 buffer，不转换
+    }
+
+    # 返回值时的字符串类型
+    STRING_RETURN_TYPES = {
+        "const char*": ("const char*", "str", "char_ptr_to_str", None),
+        "char*": ("char*", "str", "char_ptr_to_str", None),
     }
 
     # 通用指针类型
@@ -348,12 +572,13 @@ class TypeMapping:
         "void*": ("void*", "int", "ptr", None),
         "const void*": ("const void*", "int", "ptr", None),
         # 原生类型指针（用于输出参数）
-        "bool*": ("bint*", "list", "bool_ptr", None),
-        "int*": ("int*", "list", "int_ptr", None),
-        "float*": ("float*", "list", "float_ptr", None),
-        "double*": ("double*", "list", "double_ptr", None),
-        "unsigned int*": ("unsigned int*", "list", "uint_ptr", None),
-        "size_t*": ("size_t*", "list", "size_t_ptr", None),
+        # Python 类型是单值类型，pyx 会生成临时变量并返回 tuple
+        "bool*": ("bint*", "bool", "bool_ptr", None),
+        "int*": ("int*", "int", "int_ptr", None),
+        "float*": ("float*", "float", "float_ptr", None),
+        "double*": ("double*", "float", "double_ptr", None),
+        "unsigned int*": ("unsigned int*", "int", "uint_ptr", None),
+        "size_t*": ("size_t*", "int", "size_t_ptr", None),
         # const 指针是可选输入参数，允许 NULL
         "const float*": ("const float*", "int", "ptr", None),
         "const int*": ("const int*", "int", "ptr", None),
@@ -370,41 +595,91 @@ class TypeMapping:
     # 明确跳过的类型
     SKIP_TYPES = {"va_list", "..."}
 
-    # 需要生成 Wrapper 类的结构体（有方法的）
-    # 格式: struct_name -> (wrapper_class_name, has_methods)
+    # 需要生成 Wrapper 类的结构体
+    # 格式: struct_name -> (wrapper_class_name, has_methods, full_fields)
+    #   - wrapper_class_name: Python 类名
+    #   - has_methods: 是否有方法需要包装
+    #   - full_fields: 是否在 pxd 中生成完整字段定义（用于 @property 访问）
     WRAPPER_TYPES = {
-        "ImDrawList": ("DrawList", True),
-        "ImFontAtlas": ("FontAtlas", True),
-        "ImGuiIO": ("IO", True),
-        "ImGuiStorage": ("Storage", True),
-        "ImFont": ("Font", True),
-        "ImGuiTextBuffer": ("TextBuffer", True),
-        "ImGuiListClipper": ("ListClipper", True),
-        "ImDrawData": ("DrawData", True),
-        "ImGuiViewport": ("Viewport", True),
-        "ImGuiStyle": ("Style", True),
-        "ImGuiContext": ("Context", False),  # 有方法但很少用
-        "ImGuiPayload": ("Payload", True),
-        "ImFontGlyphRangesBuilder": ("FontGlyphRangesBuilder", True),
-        "ImGuiTextFilter": ("TextFilter", True),
-        "ImColor": ("Color", True),
+        # === 核心类型 ===
+        "ImGuiContext": ("Context", False, False),
+        "ImGuiIO": ("IO", True, True),              # 常用，需要字段访问
+        "ImGuiStyle": ("Style", True, True),        # 样式配置，常读写
+        "ImGuiViewport": ("Viewport", True, True),  # 多视口需要字段访问
+
+        # === 绘制相关 ===
+        "ImDrawList": ("DrawList", True, False),
+        "ImDrawData": ("DrawData", True, True),     # 后端需要字段访问
+        "ImDrawCmd": ("DrawCmd", True, False),      # 绘制命令
+        "ImDrawListSplitter": ("DrawListSplitter", True, False),  # 分层绘制
+
+        # === 字体相关 ===
+        "ImFont": ("Font", True, False),
+        "ImFontAtlas": ("FontAtlas", True, False),
+        "ImFontConfig": ("FontConfig", False, True),   # 无方法，需要字段访问
+        "ImFontGlyph": ("FontGlyph", False, True),     # 无方法，需要字段访问
+        "ImFontBaked": ("FontBaked", True, False),     # 烘焙字体
+        "ImFontGlyphRangesBuilder": ("FontGlyphRangesBuilder", True, False),
+
+        # === 纹理相关 ===
+        "ImTextureData": ("TextureData", True, False),   # 纹理数据
+        "ImTextureRef": ("TextureRef", True, False),     # 纹理引用
+
+        # === 输入/回调 ===
+        "ImGuiInputTextCallbackData": ("InputTextCallbackData", True, True),  # 回调需要字段访问
+        "ImGuiSizeCallbackData": ("SizeCallbackData", False, True),  # 窗口大小回调数据
+
+        # === 表格相关 ===
+        "ImGuiTableSortSpecs": ("TableSortSpecs", False, True),        # 无方法，需要字段访问
+        "ImGuiTableColumnSortSpecs": ("TableColumnSortSpecs", False, True),  # 无方法，需要字段访问
+
+        # === 多选相关 ===
+        "ImGuiSelectionBasicStorage": ("SelectionBasicStorage", True, False),
+        "ImGuiSelectionExternalStorage": ("SelectionExternalStorage", True, False),
+
+        # === 平台/窗口 ===
+        "ImGuiPlatformIO": ("PlatformIO", True, False),      # 多视口后端
+        "ImGuiWindowClass": ("WindowClass", False, True),    # 无方法，需要字段访问
+
+        # === 工具类 ===
+        "ImGuiStorage": ("Storage", True, False),
+        "ImGuiTextBuffer": ("TextBuffer", True, False),
+        "ImGuiTextFilter": ("TextFilter", True, False),
+        "ImGuiTextRange": ("TextRange", True, False),        # 文本范围
+        "ImGuiListClipper": ("ListClipper", True, True),     # 需要字段访问
+        "ImGuiPayload": ("Payload", True, True),             # 需要字段访问
+        "ImColor": ("Color", True, False),
     }
 
-    # 需要在 .pxd 中生成完整字段定义的结构体（高优先级）
-    # 这些结构体的字段会通过 @property 暴露给 Python
-    FULL_STRUCT_DEFS = {
-        "ImGuiIO",       # IO 设置和输入状态，最常用
-        "ImGuiStyle",    # 样式配置，常需要读写
-        "ImGuiViewport", # 视口信息，多视口时需要
-        "ImDrawData",    # 渲染数据，后端需要
-        "ImGuiListClipper",  # 列表裁剪，常用
-    }
+    @classmethod
+    def get_full_struct_defs(cls) -> set[str]:
+        """返回需要完整字段定义的结构体名称集合"""
+        return {name for name, info in cls.WRAPPER_TYPES.items() if info[2]}
 
-    def __init__(self):
+    @classmethod
+    def get_handlable_ptr_types(cls) -> set[str]:
+        """返回可处理的结构体指针类型（自动从 WRAPPER_TYPES 派生）"""
+        return {f"{name}*" for name in cls.WRAPPER_TYPES}
+
+    def __init__(self, typedefs: dict[str, str] | None = None):
         # 动态注册的类型（值类型结构体）
         self._value_types: dict[str, dict] = {}
+        # typedef 映射（从 typedefs_dict.json）
+        self._typedefs = typedefs or {}
+        # enum 类型：C 名 -> Python 类名映射
+        self._enum_types: dict[str, str] = {}
         # 缓存
         self._cache: dict[str, tuple] = {}
+
+    # 值类型的具体 Python 类型标注
+    VALUE_TYPE_ANNOTATIONS: dict[str, str] = {
+        "ImVec2": "tuple[float, float]",
+        "ImVec2i": "tuple[int, int]",
+        "ImVec4": "tuple[float, float, float, float]",
+        "ImRect": "tuple[float, float, float, float]",  # min_x, min_y, max_x, max_y
+        "ImColor": "tuple[float, float, float, float]",  # r, g, b, a
+        "ImTextureRef": "tuple[int, ...]",  # 纹理引用 (id, ...)
+    }
 
     def register_value_type(self, name: str, fields: list[dict]):
         """注册值类型结构体（从 nonPOD_used 派生）"""
@@ -414,9 +689,12 @@ class TypeMapping:
         else:
             conv_name = _to_snake_case(name)
 
+        # 使用具体的类型标注，如果没有定义则用 tuple
+        python_type = self.VALUE_TYPE_ANNOTATIONS.get(name, "tuple")
+
         self._value_types[name] = {
             "cython": name,
-            "python": "tuple",
+            "python": python_type,
             "conversion": conv_name,
             "return_conversion": f"{conv_name}_to_tuple",
             "fields": fields,
@@ -424,9 +702,17 @@ class TypeMapping:
         # const 版本
         self._value_types[f"const {name}"] = {
             "cython": name,
-            "python": "tuple",
+            "python": python_type,
             "conversion": conv_name,
         }
+
+    def register_enum_type(self, c_name: str, python_name: str):
+        """注册 enum 类型及其 Python 类名"""
+        self._enum_types[c_name] = python_name
+
+    def is_enum_type(self, c_type: str) -> bool:
+        """检查 C 类型是否为 enum 类型"""
+        return c_type.strip() in self._enum_types
 
     def resolve(self, c_type: str, for_return: bool = False) -> tuple[str, str, str | None, str | None]:
         """
@@ -456,7 +742,9 @@ class TypeMapping:
         if c_type in self.PRIMITIVES:
             return self.PRIMITIVES[c_type]
 
-        # 3. 字符串类型
+        # 3. 字符串类型（返回值和参数需要不同的转换）
+        if for_return and c_type in self.STRING_RETURN_TYPES:
+            return self.STRING_RETURN_TYPES[c_type]
         if c_type in self.STRING_TYPES:
             return self.STRING_TYPES[c_type]
 
@@ -473,17 +761,37 @@ class TypeMapping:
                 conv = entry.get("conversion")
             return (entry["cython"], entry["python"], conv, None)
 
-        # 5. Flags 类型 (Im*Flags)
-        if re.match(r"^Im(Gui)?[A-Z][a-zA-Z]*Flags$", c_type):
-            return ("int", "int", None, None)
+        # 6. 已注册的 enum 类型（映射为对应的 Python enum 类名）
+        if c_type in self._enum_types:
+            python_enum = self._enum_types[c_type]
+            return ("int", python_enum, None, None)
 
-        # 6. 固定大小数组 float[N], int[N]
+        # 7. typedef 解析（来自 typedefs_dict.json）
+        if c_type in self._typedefs:
+            underlying = self._typedefs[c_type]
+            # typedef 到 int 的类型（enum 等）
+            if underlying == "int":
+                return ("int", "int", None, None)
+            # typedef 到 struct X -> 如果 X == c_type，这是自引用结构体定义，跳过递归
+            if underlying.startswith("struct "):
+                struct_name = underlying[7:]  # 去掉 "struct "
+                if struct_name != c_type:
+                    return self._resolve_impl(struct_name, for_return)
+                # 否则跳过，让后面的规则处理
+            elif underlying != c_type:
+                # 其他 typedef -> 递归解析底层类型（避免自引用）
+                return self._resolve_impl(underlying, for_return)
+
+        # 7. 固定大小数组 float[N], int[N]
         array_match = re.match(r"(int|float|double|bool)\[(\d+)\]", c_type)
         if array_match:
             base, size = array_match.groups()
-            return (f"{base}*", "tuple", f"{base}_array_{size}", None)
+            # 生成具体的 tuple 类型标注
+            py_base = {"int": "int", "float": "float", "double": "float", "bool": "bool"}[base]
+            py_type = f"tuple[{', '.join([py_base] * int(size))}]"
+            return (f"{base}*", py_type, f"{base}_array_{size}", None)
 
-        # 7. const 版本 -> 尝试非 const
+        # 8. const 版本 -> 尝试非 const
         if c_type.startswith("const "):
             non_const = c_type[6:].strip()
             # 递归解析非 const 版本
@@ -602,18 +910,28 @@ class Compiler:
         self.structs_and_enums = self._load_json("structs_and_enums.json")
         self.typedefs = self._load_json("typedefs_dict.json")
 
-        # TypeMapping - 完全自动派生，无需配置文件
-        self.type_map = TypeMapping()
+        # TypeMapping - 使用 typedefs 进行类型解析
+        self.type_map = TypeMapping(typedefs=self.typedefs)
         self.overrides = self._load_config("overrides.json")
+
+        # 从 definitions 构建 comments 映射
+        self.comments = self._build_comments()
 
         # 自动注册值类型结构体到 TypeMapping
         self._register_value_type_structs()
+
+        # 自动注册 enum 类型到 TypeMapping
+        self._register_enum_types()
+
+        # 加载回调类型（从 typedefs 自动解析）
+        self._callback_types = CallbackType.load_all(self.typedefs)
 
         # Jinja2 环境
         self.jinja = Environment(
             loader=FileSystemLoader(str(template_dir)),
             trim_blocks=True,
             lstrip_blocks=True,
+            auto_reload=True,  # 确保不缓存模板
         )
         self._register_filters()
 
@@ -635,6 +953,26 @@ class Compiler:
             fields = struct_data.get(name, [])
             self.type_map.register_value_type(name, fields)
 
+    def _register_enum_types(self):
+        """自动将 enum 类型注册到 TypeMapping，使用 Python enum 类名"""
+        enum_data = self.structs_and_enums.get("enums", {})
+        for name in enum_data.keys():
+            # 跳过 private 枚举
+            if "Private" in name:
+                continue
+            # 使用 Enum.python_class_name 生成 Python 类名
+            temp_enum = Enum(name=name, values=[], is_flags=False)
+            python_name = temp_enum.python_class_name
+
+            # 注册带下划线的版本 (枚举原名，如 ImGuiWindowFlags_)
+            self.type_map.register_enum_type(name, python_name)
+
+            # 同时注册不带下划线的版本 (typedef 名，如 ImGuiWindowFlags)
+            # 因为函数参数通常使用不带下划线的 typedef 名
+            if name.endswith("_"):
+                typedef_name = name[:-1]
+                self.type_map.register_enum_type(typedef_name, python_name)
+
     def _load_json(self, filename: str) -> dict:
         """加载 cimgui JSON 文件"""
         path = self.cimgui_dir / filename
@@ -649,6 +987,23 @@ class Compiler:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
 
+    def _build_comments(self) -> dict[str, str]:
+        """从 definitions.json 构建 {cimgui_name: comment} 映射
+
+        注意: generator 需要用 'comments' 选项运行才有 comment 字段
+        """
+        comments: dict[str, str] = {}
+        for func_name, overloads in self.definitions.items():
+            for overload in overloads:
+                raw = overload.get("comment")
+                if raw:
+                    # 去掉 // 前缀，转义引号
+                    comment = raw.lstrip('/').strip().replace('"', "'")
+                    if len(comment) > 3:
+                        comments[func_name] = comment
+                    break  # 只取第一个有注释的 overload
+        return comments
+
     def _register_filters(self):
         """注册 Jinja2 过滤器"""
         self.jinja.filters["snake_case"] = _to_snake_case
@@ -657,14 +1012,27 @@ class Compiler:
         self.jinja.filters["strip_array_suffix"] = lambda s: s.split('[')[0] if '[' in s else s
 
     # ========================================================================
-    # Helper - 参数/返回值检查
+    # Properties - 回调类型
     # ========================================================================
 
-    # 可处理的结构体指针类型（有 wrapper）
-    HANDLABLE_PTR_TYPES = {
-        "ImFont*", "ImFontBaked*", "ImFontAtlas*", "ImDrawList*", "ImDrawData*",
-        "ImGuiIO*", "ImGuiStyle*", "ImGuiViewport*", "ImTextureData*",
-    }
+    @property
+    def callbacks(self) -> dict[str, CallbackType]:
+        """所有回调类型（从 typedefs 自动解析）"""
+        return self._callback_types
+
+    @property
+    def wrappable_callbacks(self) -> list[CallbackType]:
+        """可包装的回调类型（有 *CallbackData 参数的）
+
+        这些回调可以用 Python callable 替代，因为：
+        1. 只有一个 data 参数（或 data + user_data）
+        2. data 参数是已知的结构体类型
+        """
+        return [cb for cb in self._callback_types.values() if cb.has_data_param]
+
+    # ========================================================================
+    # Helper - 参数/返回值检查
+    # ========================================================================
 
     # 可以直接传递（无需 wrapper）的指针类型
     PASSTHROUGH_PTR_TYPES = {
@@ -675,6 +1043,11 @@ class Compiler:
     NATIVE_PTR_ARGS = {
         "bool*", "int*", "float*", "double*", "unsigned int*", "size_t*",
     }
+
+    @property
+    def handlable_ptr_types(self) -> set[str]:
+        """可处理的结构体指针类型（自动从 WRAPPER_TYPES 派生）"""
+        return TypeMapping.get_handlable_ptr_types()
 
     def _is_arg_handlable(self, arg: Argument) -> bool:
         """检查参数是否可以被处理"""
@@ -688,7 +1061,7 @@ class Compiler:
         if arg.c_type in ("void*", "const void*"):
             return True
         # 是已知可处理的结构体指针（有 wrapper）
-        if arg.c_type in self.HANDLABLE_PTR_TYPES:
+        if arg.c_type in self.handlable_ptr_types:
             return True
         # 是可直接传递的指针类型
         if arg.c_type in self.PASSTHROUGH_PTR_TYPES:
@@ -950,6 +1323,7 @@ class Compiler:
                     "variants": internal_funcs,
                     "default": config.get("default"),
                     "merged_args": merged_args,
+                    "ret_python": self._compute_dispatcher_return_type(dispatch_type, internal_funcs),
                 })
 
         return dispatchers
@@ -995,64 +1369,121 @@ class Compiler:
         """
         合并多个 overload 变体的参数签名
 
-        返回一个参数列表，包含所有变体的参数（合并相同位置的参数）
+        by_type: 按位置合并，使用最长的 variant 作为基准
+        by_optional_arg: 使用 "with" variant 作为基准
         """
         if not variants:
             return []
 
-        # 按参数数量从多到少排序，取最长的作为基准
-        sorted_variants = sorted(variants, key=lambda v: len(v["func"].args), reverse=True)
-        max_func = sorted_variants[0]["func"]
-        min_func = sorted_variants[-1]["func"]
-
-        # 对于 by_optional_arg，需要特殊处理参数合并
         check_arg = config.get("check_arg", "") if config else ""
 
-        # 收集所有变体中出现的参数名及其默认值
-        all_param_defaults: dict[str, str | None] = {}
-        for v in variants:
-            for arg in v["func"].args:
-                if arg.name not in all_param_defaults:
-                    all_param_defaults[arg.name] = arg.default
-                elif arg.default is not None:
-                    # 优先使用非 None 的默认值
-                    all_param_defaults[arg.name] = arg.default
+        # 选择基准函数
+        if dispatch_type == "by_optional_arg":
+            # 找到 "with" variant 作为基准
+            base_func = None
+            for v in variants:
+                if v.get("key") == "with":
+                    base_func = v["func"]
+                    break
+            if base_func is None:
+                base_func = max(variants, key=lambda v: len(v["func"].args))["func"]
+        else:
+            # 使用参数最多的作为基准
+            base_func = max(variants, key=lambda v: len(v["func"].args))["func"]
 
         merged = []
-        for i, arg in enumerate(max_func.args):
-            # 检查所有变体在此位置是否有相同参数
-            all_have = all(i < len(v["func"].args) for v in variants)
+        for i, arg in enumerate(base_func.args):
+            # 对于 by_optional_arg，只使用 base_func (with variant) 的类型
+            # 因为 without variant 在同一位置可能是完全不同的参数
+            if dispatch_type == "by_optional_arg":
+                python_type = arg.python_type
+                default_value = arg.default
+                # check_arg 总是 None 默认值
+                if arg.name == check_arg:
+                    default_value = "None"
+                merged.append({
+                    "name": arg.name,
+                    "python_type": python_type,
+                    "default": default_value,
+                    "is_enum": arg.is_enum,
+                    "required": default_value is None,
+                })
+                continue
 
-            # 获取此位置所有变体的参数名
-            names_at_pos = set()
+            # by_type: 收集此位置的类型（按位置）
+            types_at_pos: set[str] = set()
+            defaults_at_pos: list[str | None] = []
+            is_enum_at_pos: list[bool] = []
+            all_have = True
+
             for v in variants:
-                if i < len(v["func"].args):
-                    names_at_pos.add(v["func"].args[i].name)
+                func = v["func"]
+                if i < len(func.args):
+                    types_at_pos.add(func.args[i].python_type)
+                    defaults_at_pos.append(func.args[i].default)
+                    is_enum_at_pos.append(func.args[i].is_enum)
+                else:
+                    all_have = False
 
-            # 使用第一个变体的参数信息作为基础
-            # 对于默认值，从 all_param_defaults 查找
-            default_value = all_param_defaults.get(arg.name, arg.default)
+            # 合并类型
+            types_at_pos.discard("None")
+            if len(types_at_pos) == 1:
+                python_type = next(iter(types_at_pos))
+            elif types_at_pos:
+                python_type = " | ".join(sorted(types_at_pos))
+            else:
+                python_type = "Any"
 
-            merged_arg = {
+            # 确定默认值：优先非 None
+            default_value = arg.default
+            for d in defaults_at_pos:
+                if d is not None:
+                    default_value = d
+                    break
+
+            # 如果不是所有 variant 都有此参数，需要默认值
+            if not all_have and default_value is None:
+                default_value = "None"
+
+            # 如果任一 variant 认为是 enum，则是 enum
+            is_enum = any(is_enum_at_pos)
+
+            merged.append({
                 "name": arg.name,
-                "names": list(names_at_pos),  # 所有变体在此位置的参数名
+                "python_type": python_type,
                 "default": default_value,
-                "required": all_have and arg.default is None,
-            }
-
-            # 如果不是所有变体都有此参数，需要有默认值
-            if not all_have:
-                # 如果有已知的默认值就用，否则用 None
-                if merged_arg["default"] is None:
-                    merged_arg["default"] = "None"
-
-            # 对于 by_optional_arg，check_arg 应该有 None 默认值
-            if dispatch_type == "by_optional_arg" and arg.name == check_arg:
-                merged_arg["default"] = "None"
-
-            merged.append(merged_arg)
+                "is_enum": is_enum,
+                "required": all_have and default_value is None,
+            })
 
         return merged
+
+    def _compute_dispatcher_return_type(self, dispatch_type: str, variants: list[dict]) -> str:
+        """
+        计算 dispatcher 的返回类型
+
+        对于 by_optional_arg，两个分支可能返回不同类型：
+        - with: 通常返回 tuple（有 out param）
+        - without: 返回原始类型
+
+        使用 pyi_return_type 来获取正确的返回类型（包含 out params）
+        """
+        if not variants:
+            return "None"
+
+        # 收集所有变体的返回类型
+        return_types: set[str] = set()
+        for variant in variants:
+            func = variant["func"]
+            return_types.add(func.pyi_return_type)
+
+        # 如果只有一种返回类型
+        if len(return_types) == 1:
+            return next(iter(return_types))
+
+        # 多种返回类型，使用 Union
+        # 对于 by_optional_arg，通常是 bool | tuple[bool, T]
+        return " | ".join(sorted(return_types))
 
     def parse_overloads(self) -> dict[str, list[Function]]:
         """
@@ -1249,9 +1680,10 @@ class Compiler:
                     )
 
                     # 重新计算 python_name（从 backend 函数名）
-                    # ImGui_ImplGlfw_InitForOpenGL -> init_for_opengl
+                    # ImGui_ImplGlfw_InitForOpenGL -> glfw_init_for_opengl
+                    # ImGui_ImplOpenGL3_Init -> opengl3_init
                     func_part = cimgui_name[len(prefix):]
-                    func.python_name = _to_snake_case(func_part)
+                    func.python_name = f"{backend}_{_to_snake_case(func_part)}"
 
                     # 跳过条件
                     if func.skip:
@@ -1291,8 +1723,8 @@ class Compiler:
         )
 
     def generate_pyx(self) -> str:
-        """生成 imgui_core.pyx (Cython 实现)"""
-        template = self.jinja.get_template("imgui_core.pyx.jinja2")
+        """生成 core.pyx (Cython 实现)"""
+        template = self.jinja.get_template("core.pyx.jinja2")
         return template.render(
             functions=self.parse_functions(),
             methods=self.parse_methods(),
@@ -1305,20 +1737,29 @@ class Compiler:
         )
 
     def generate_pyi(self) -> str:
-        """生成 imgui.pyi (类型存根)"""
-        template = self.jinja.get_template("imgui.pyi.jinja2")
+        """生成 core.pyi (类型存根)"""
+        template = self.jinja.get_template("core.pyi.jinja2")
         return template.render(
             functions=self.parse_functions(),
             methods=self.parse_methods(),
             structs=self.parse_structs(),
             enums=self.parse_enums(),
+            dispatchers=self.parse_overload_dispatchers(),
             overrides=self.overrides,
+            comments=self.comments,
             type_map=self.type_map,
         )
 
     def generate_backend(self) -> str:
-        """生成 imgui_backend.pyx (GLFW + OpenGL3 后端绑定)"""
-        template = self.jinja.get_template("imgui_backend.pyx.jinja2")
+        """生成 backend.pyx (GLFW + OpenGL3 后端绑定)"""
+        template = self.jinja.get_template("backend.pyx.jinja2")
+        return template.render(
+            backends=self.parse_backend_functions(),
+        )
+
+    def generate_backend_pyi(self) -> str:
+        """生成 backend.pyi (后端类型存根)"""
+        template = self.jinja.get_template("backend.pyi.jinja2")
         return template.render(
             backends=self.parse_backend_functions(),
         )
@@ -1327,23 +1768,30 @@ class Compiler:
         """编译所有文件"""
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 生成文件
-        (output_dir / "cimgui.pxd").write_text(
+        # 生成到 src/cimgui_py/ 目录 (与包结构一致)
+        pkg_dir = output_dir / "cimgui_py"
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+
+        # pxd 放在包目录下，这样 cimport 路径是 cimgui_py.cimgui
+        (pkg_dir / "cimgui.pxd").write_text(
             self.generate_pxd(), encoding="utf-8"
         )
-        (output_dir / "imgui_core.pyx").write_text(
+        (pkg_dir / "core.pyx").write_text(
             self.generate_pyx(), encoding="utf-8"
         )
-        (output_dir / "imgui.pyi").write_text(
+        (pkg_dir / "core.pyi").write_text(
             self.generate_pyi(), encoding="utf-8"
         )
 
         if include_backend:
-            (output_dir / "imgui_backend.pyx").write_text(
+            (pkg_dir / "backend.pyx").write_text(
                 self.generate_backend(), encoding="utf-8"
             )
+            (pkg_dir / "backend.pyi").write_text(
+                self.generate_backend_pyi(), encoding="utf-8"
+            )
 
-        print(f"Generated binding files in {output_dir}")
+        print(f"Generated binding files in {pkg_dir}")
 
     # ========================================================================
     # Debug / Analysis
@@ -1404,9 +1852,9 @@ def main():
         help="Print statistics only, don't generate files",
     )
     parser.add_argument(
-        "--backend",
+        "--no-backend",
         action="store_true",
-        help="Include backend (GLFW + OpenGL3) bindings",
+        help="Exclude backend (GLFW + OpenGL3) bindings",
     )
     args = parser.parse_args()
 
@@ -1415,7 +1863,7 @@ def main():
     if args.stats:
         compiler.print_stats()
     else:
-        compiler.compile_all(args.output, include_backend=args.backend)
+        compiler.compile_all(args.output, include_backend=not args.no_backend)
 
 
 if __name__ == "__main__":

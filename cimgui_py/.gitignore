@@ -8,23 +8,49 @@ dist/
 build/
 *.egg
 
-# Cython generated
+# Cython intermediate files
 *.c
-*.cpp
+!src/cimgui_py/*.c
 *.html
 
+# =============================================================================
 # Codegen output (regenerate with: python codegen/compiler.py)
-src/
+# =============================================================================
+# Generated Cython sources
+src/cimgui_py/*.pyx
+src/cimgui_py/*.pxd
+# Generated type stubs
+src/cimgui_py/*.pyi
+# Compiled extensions
+src/cimgui_py/*.pyd
+src/cimgui_py/*.so
+# Runtime DLLs (copied from lib/ or vendor/)
+src/cimgui_py/*.dll
 
+# Keep these files:
+# - src/cimgui_py/__init__.py  (手写)
+# - src/cimgui_py/py.typed     (手写)
+
+# =============================================================================
 # Temp files
-cimgui_api_list.txt
+# =============================================================================
 *.log
+imgui.ini
 
 # IDE
 .vscode/
 .idea/
 *.swp
 
-# External dependencies
-vendor/glfw/
+# Build artifacts
+build_cimgui/
+
+# =============================================================================
+# Build output (regenerate with: .\scripts\build_cimgui.ps1)
+# =============================================================================
 lib/
+
+# =============================================================================
+# Downloaded dependencies (auto-downloaded by scripts/build_cimgui.ps1)
+# =============================================================================
+vendor/glfw/

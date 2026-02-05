@@ -1,21 +1,21 @@
 # cython: language_level=3
 # cython: embedsignature=True
-"""imgui_backend.pyx - GLFW + OpenGL3 Backend Bindings
+"""backend.pyx - GLFW + OpenGL3 Backend Bindings
 
-DO NOT EDIT - regenerate with: python codegen/compiler.py --backend
+DO NOT EDIT - regenerate with: python codegen/compiler.py
 
 使用方式:
     import glfw
     import ctypes
-    import imgui
-    from imgui import backend
+    from cimgui_py import *
+    from cimgui_py import backend
 
     # 初始化
     glfw.init()
     window = glfw.create_window(800, 600, "Demo", None, None)
     glfw.make_context_current(window)
 
-    imgui.create_context()
+    create_context()
 
     # pyglfw returns LP__GLFWwindow, convert to int
     window_ptr = ctypes.cast(window, ctypes.c_void_p).value
@@ -27,7 +27,7 @@ DO NOT EDIT - regenerate with: python codegen/compiler.py --backend
         glfw.poll_events()
         backend.opengl3_new_frame()
         backend.glfw_new_frame()
-        imgui.new_frame()
+        new_frame()
 
         # ... imgui UI code ...
 
@@ -99,7 +99,7 @@ cdef extern from "cimgui_impl.h":
 # ==============================================================================
 {% for func in backends.glfw %}
 
-def glfw_{{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
 {% if func.ret_python == 'None' %}
     {{ func.cimgui_name }}({% for arg in func.args %}{% if arg.conversion == 'ptr' %}<{{ arg.c_type }}><uintptr_t>{{ arg.name }}{% elif arg.conversion == 'to_bytes' %}_to_bytes({{ arg.name }}){% else %}{{ arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
 {% else %}
@@ -113,7 +113,7 @@ def glfw_{{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if ar
 # ==============================================================================
 {% for func in backends.opengl3 %}
 
-def opengl3_{{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
+def {{ func.python_name }}({% for arg in func.args %}{{ arg.name }}{% if arg.default is not none %} = {{ arg.default }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}):
 {% if func.ret_python == 'None' %}
     {{ func.cimgui_name }}({% for arg in func.args %}{% if arg.conversion == 'ptr' %}<{{ arg.c_type }}><uintptr_t>{{ arg.name }}{% elif arg.conversion == 'to_bytes' %}_to_bytes({{ arg.name }}){% else %}{{ arg.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %})
 {% else %}

@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, r"c:\Users\davie\Stoneshard Modding\mod_generator\cimgui_py")
 import src.cimgui_py.core as imgui
 
 # 创建 context
@@ -23,17 +25,23 @@ print(f'io.config_docking_no_split = {io.config_docking_no_split}')
 io.config_docking_no_split = True
 print(f'io.config_docking_no_split after set = {io.config_docking_no_split}')
 
-# 测试数组字段
-print(f'io.get_mouse_down(0) = {io.get_mouse_down(0)}')
-io.set_mouse_down(0, True)
-print(f'io.get_mouse_down(0) after set = {io.get_mouse_down(0)}')
+# 测试 memoryview 数组字段
+print('\n=== Memoryview Array Access ===')
+mouse_down = io.mouse_down
+print(f'io.mouse_down type: {type(mouse_down)}')
+print(f'io.mouse_down[0] = {mouse_down[0]}')
+print(f'io.mouse_down[1] = {mouse_down[1]}')
+
+# 测试通过 memoryview 修改
+mouse_down[0] = True
+print(f'io.mouse_down[0] after set = {io.mouse_down[0]}')
 
 # 测试 Style
 style = imgui.get_style()
-print(f'Style: {style}')
+print(f'\nStyle: {style}')
 print(f'style.alpha = {style.alpha}')
 print(f'style.window_padding = {style.window_padding}')
 
 # 清理
 imgui.destroy_context(ctx)
-print('Success!')
+print('\nSuccess!')
